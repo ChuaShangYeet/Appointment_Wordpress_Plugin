@@ -15,7 +15,7 @@ from app.models.base import Base, TenantMixin, TimestampMixin, UUIDMixin
 WEBHOOK_EVENTS = (
     "booking.created", "booking.confirmed", "booking.rejected", "booking.cancelled", "booking.rescheduled",
     "booking.in_progress", "booking.waiting_for_parts", "booking.completed", "booking.no_show", "booking.reminder",
-    "shift.updated", "review.created", "booking.schedule_conflict",
+    "shift.updated", "review.created", "booking.schedule_conflict", "booking.meeting_link_ready",
 )
 DELIVERY_STATUSES = ("pending", "delivered", "failed")
 

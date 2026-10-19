@@ -31,7 +31,7 @@ from app.services.booking import (
     reserve_with_retry,
     try_extend,
 )
-from app.services.meetings import ensure_meeting_link
+from app.services.meetings import MEETING_READY_EVENT, ensure_meeting_link
 
 
 def _require_professional(tenant: Tenant) -> None:
@@ -165,9 +165,12 @@ async def resolve_schedule_conflict(db: AsyncSession, booking_id: uuid.UUID) -> 
 
 
 async def set_meeting_link(db: AsyncSession, tenant: Tenant, booking_id: uuid.UUID, url: str) -> Booking:
-    """Attach a join link by hand (until a video-conferencing provider is integrated)."""
+    """Attach a join link by hand (it replaces the consultant's saved room for this booking). A new link on a confirmed booking is sent to the client."""
     _require_professional(tenant)
     booking = await get_booking(db, booking_id)
+    changed = booking.meeting_link != url
     booking.meeting_link = url
+    if changed and booking.status in ("confirmed", "in-progress"):
+        events.enqueue(db, tenant.id, MEETING_READY_EVENT, "booking", booking.id, {"meeting_link": url})  # (which also rewrites the calendar event)
     await db.flush()
     return booking

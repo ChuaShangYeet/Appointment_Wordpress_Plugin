@@ -73,11 +73,13 @@ class ResourceCreate(ResourceBase):
     #: Staff only: where the person is told when their schedule collides (an add-on or an overrun runs into their next appointment).
     contact_email: EmailStr | None = None
     contact_phone: str | None = Field(default=None, max_length=32)  # (too short a number is refused when it is written the standard way)
+    #: Staff only: their own video room, used for their online appointments.
+    meeting_link: str | None = Field(default=None, min_length=8, max_length=2000, pattern=r"^https?://")
 
     @model_validator(mode="after")
     def _contacts_are_for_people(self) -> ResourceCreate:
-        if self.type != "staff" and (self.contact_email or self.contact_phone):
-            raise ValueError("contact details can only be saved for staff")
+        if self.type != "staff" and (self.contact_email or self.contact_phone or self.meeting_link):
+            raise ValueError("contact details and a meeting link can only be saved for staff")
         return self
 
 
@@ -93,11 +95,13 @@ class ResourceUpdate(BaseModel):
     #: Staff only; ``null`` removes it.
     contact_email: EmailStr | None = None
     contact_phone: str | None = Field(default=None, max_length=32)  # (too short a number is refused when it is written the standard way)
+    #: Staff only; ``null`` removes it. Bookings that already have the old link keep it.
+    meeting_link: str | None = Field(default=None, min_length=8, max_length=2000, pattern=r"^https?://")
 
     @model_validator(mode="after")
     def _no_nulls(self) -> ResourceUpdate:
         sent = self.model_dump(exclude_unset=True)
-        if any(v is None for k, v in sent.items() if k not in ("contact_email", "contact_phone")):
+        if any(v is None for k, v in sent.items() if k not in ("contact_email", "contact_phone", "meeting_link")):
             raise ValueError("send only the fields to change; none of them can be null")
         return self
 
@@ -114,6 +118,7 @@ class ResourceAdminOut(ResourceOut):
 
     contact_email: str | None = None
     contact_phone: str | None = None
+    meeting_link: str | None = None
 
 
 def seconds_after(start: dt.time, t: dt.time) -> int:

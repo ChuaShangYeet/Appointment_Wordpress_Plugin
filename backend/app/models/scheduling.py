@@ -133,6 +133,8 @@ class Resource(UUIDMixin, TimestampMixin, TenantMixin, Base):
     #: Staff only, set by a manager, never shown publicly: where the backend reaches this person when their schedule collides.
     contact_email: Mapped[str | None] = mapped_column(String(254))
     contact_phone: Mapped[str | None] = mapped_column(String(32))
+    #: Staff only: the person's own video room (Google Meet, Zoom, Teams...), given to their online appointments when they are confirmed (migration 0032).
+    meeting_link: Mapped[str | None] = mapped_column(Text)
 
     shifts: Mapped[list[ResourceShift]] = relationship(cascade="all, delete-orphan", lazy="raise")
 

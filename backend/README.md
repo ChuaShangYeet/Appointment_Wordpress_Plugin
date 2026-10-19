@@ -12,7 +12,7 @@ many businesses (tenants), each isolated by Row-Level Security, and five kinds o
 | Built, tested against a **fake** only | WhatsApp Cloud API and Twilio SMS, SMTP email, Google Geocoding, Cloudflare Turnstile (bot check), Google Calendar sync (OAuth and events), Sentry |
 | Never run | `docker-compose.yml` and the Docker images (including Redis with its password), a real Redis, the PostGIS 3.4 image, password and TLS login to the database, a reverse proxy |
 | Not built | the WordPress plugin, the booking widget and the admin dashboard (they come last); payments, billing and trials; see each section's *Not built* note and *Known limits* |
-| Checks | 2,575 tests (ten consecutive clean full runs on 2026-10-19), every feature mutation-tested, `mypy app` clean, migrations 0001-0031 round-tripped with `alembic check` |
+| Checks | 2,590 tests (ten consecutive clean full runs on 2026-10-19), every feature mutation-tested, `mypy app` clean, migrations 0001-0032 round-tripped with `alembic check` |
 
 Weekdays use the blueprint convention **0 = Sunday … 6 = Saturday**.
 
@@ -217,11 +217,15 @@ professionals (`staff` with shifts), services with `service_category` (`inspecti
   customer-visible `start_at`/`end_at` exclude the travel time. Travel is modelled per visit (no route
   chaining between consecutive visits).
 * **Auto-assignment** — the least-loaded qualified professional, or a named one (`resource_id`).
-* **Virtual appointments** — on confirmation (immediately, or when a pending booking is approved) a
-  `MeetingProvider` is asked for a join link. **No real provider ships**: the Google Meet integration
-  needs per-tenant Google OAuth credentials and is not built. Until one is registered
-  (`app.services.meetings.set_meeting_provider`) the link is empty and can be set with
-  `PATCH /admin/bookings/{id}/meeting-link`. A failing provider never fails a booking.
+* **Virtual appointments** — a service with `location_type: "virtual"` is an online meeting. **The business brings its own meeting service** (decided 2026-10-19: the system
+  makes no video rooms). Each consultant can save their own room once (`meeting_link` on the staff member: `POST|PATCH /admin/resources`, a Google Meet, Zoom or Teams
+  `http(s)` link; `null` removes it; managers see it in the admin list, never on the public page). When a virtual appointment is confirmed (at once, or when a pending one is
+  approved) and has no link yet, it takes the room of the consultant it is allocated to, so the confirmation email carries it. `PATCH /admin/bookings/{id}/meeting-link`
+  sets a link for one booking by hand and always wins; on a confirmed booking a new link is emailed to the client ("Your online meeting link", event
+  `booking.meeting_link_ready`, which webhooks can subscribe to; setting the same link again sends nothing, and a cancelled booking's queued email is not sent).
+  The confirmation, reminder and "moved" emails carry `$meeting_line`; the link is in the Google Calendar event's description too. Only professional businesses get links.
+  Not done: changing a consultant's saved room does not update bookings that already took the old one, and a confirmed appointment that moves to another consultant
+  keeps its link (set the new one by hand). `app.services.meetings.set_meeting_provider` remains a seam for a video service integrated later (none ships).
 * **Two-step workflow** — `POST /admin/bookings/{id}/follow-up {service_id, start_at}`: once an
   *inspection* is in progress (or completed) a *standard* service is booked for the same customer and
   address, linked by `parent_booking_id`, confirmed at once, with the radius re-checked.
@@ -252,7 +256,7 @@ professionals (`staff` with shifts), services with `service_category` (`inspecti
 ## Notifications (Phase 5)
 
 What exists: the **provider seam**, an **SMTP** email provider, a **WhatsApp Cloud API** provider and a **Twilio SMS** provider, **booking messages driven by
-the outbox**, **sign-in messages**, editable **templates** and a **log**. Google Calendar sync has a section of its own (*Google Calendar sync*); Google Meet was cancelled. No live message
+the outbox**, **sign-in messages**, editable **templates** and a **log**. Google Calendar sync has a section of its own (*Google Calendar sync*). Online meetings use the business's own meeting service (*Virtual appointments*). No live message
 has ever been sent: the gateways were exercised against a fake HTTP transport only.
 
 * **WhatsApp Cloud API** (`WhatsAppCloudProvider`; `WHATSAPP_ACCESS_TOKEN` + `WHATSAPP_PHONE_NUMBER_ID`, both needed). A business can only *start* a conversation with a
@@ -294,7 +298,7 @@ has ever been sent: the gateways were exercised against a fake HTTP transport on
   message has been sent.
 * **Templates**: `GET /admin/notification-templates`, `PUT|DELETE /admin/notification-templates/{event}/{channel}`,
   `GET /admin/notification-placeholders` (manager+). Placeholders are `$name` / `${name}` from a fixed list (`business_name`, `customer_name`,
-  `services`, `date`, `time`, `end_time`, `party_size`, `hours_before`, `previous_date`, `previous_time`, `review_link`, `review_prompt`); unknown ones and stray `$` are refused when saving,
+  `services`, `date`, `time`, `end_time`, `party_size`, `hours_before`, `previous_date`, `previous_time`, `review_link`, `review_prompt`, `meeting_link`, `meeting_line`); unknown ones and stray `$` are refused when saving,
   nothing is evaluated, and what a customer typed (their name) has control characters stripped, so it cannot add email headers or lines.
   Emails need a subject, SMS has none, WhatsApp may name a Meta-approved `external_template` (its variables are passed in the order
   customer name, services, date, time).
@@ -1092,7 +1096,7 @@ password (scram) authentication and TLS to the database, a real Redis, the rever
   the token exchange still trusts the secret-key caller. Each admin request costs one extra tiny query (the disabled check).
 * Reviews: one review per booking, no edits or replies; the invitation is one message sent when the visit is marked completed (no delay, no reminder, no way for a customer to opt out of it other than the business editing the template).
 
-* Field service: no Google Meet (online meetings were cancelled; the manual meeting-link field remains); typed addresses are looked up only through Google (see *Typed addresses*; untested against the real API); no route optimisation between consecutive on-site visits; spare parts on a job are a flat list (see *Parts on the job order*), and
+* Field service: no video rooms are made (the business brings its own meeting service: a saved room per consultant or a link per booking, see *Virtual appointments*); typed addresses are looked up only through Google (see *Typed addresses*; untested against the real API); no route optimisation between consecutive on-site visits; spare parts on a job are a flat list (see *Parts on the job order*), and
   the "actual duration shorter than planned" case (which does not release time early) is not modelled.
 * Salon: add-ons are not tied to particular base services (any add-on goes with any base); products are
   added to the ticket at the salon, not while booking online; two tickets that both claimed the last unit are

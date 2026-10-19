@@ -14,7 +14,7 @@ CHANNELS = ("email", "sms", "whatsapp")
 #: Booking events a customer is told about. (``booking.created`` only when it starts out pending: see ``app.services.notifications``.)
 NOTIFIABLE_EVENTS = (
     "booking.created", "booking.confirmed", "booking.rejected", "booking.cancelled", "booking.rescheduled",
-    "booking.waiting_for_parts", "booking.completed", "booking.reminder",
+    "booking.waiting_for_parts", "booking.completed", "booking.reminder", "booking.meeting_link_ready",
 )
 #: Sign-in messages, sent directly (their secret never passes through the outbox).
 AUTH_EVENTS = ("auth.otp", "auth.magic_link", "auth.email_confirm")

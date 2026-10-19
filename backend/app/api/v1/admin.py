@@ -357,8 +357,8 @@ async def update_resource(
     data = _contact(tenant, body.model_dump(exclude_unset=True))
     if data.get("status") == "active" and res.status != "active":  # switching one back on takes a place again
         await plans_service.ensure_can_add_resource(db, tenant)
-    if res.type != "staff" and any(data.get(k) for k in ("contact_email", "contact_phone")):
-        raise ValidationFailed("Contact details can only be saved for staff")
+    if res.type != "staff" and any(data.get(k) for k in ("contact_email", "contact_phone", "meeting_link")):
+        raise ValidationFailed("Contact details and a meeting link can only be saved for staff")
     for key, value in data.items():
         setattr(res, key, value)
     if res.type == "table":

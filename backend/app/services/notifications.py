@@ -61,6 +61,8 @@ PLACEHOLDERS: dict[str, str] = {
     "previous_time": "Rescheduled: the time it used to be",
     "review_link": "Completed: the link to the review page for this visit (empty when the business has no review page set)",
     "review_prompt": "Completed: a ready-made sentence inviting the customer to rate the visit, with the link when there is one",
+    "meeting_link": "Online appointments: the link to join the video meeting (empty until there is one)",
+    "meeting_line": "Online appointments: a ready-made sentence with the join link (empty when there is none)",
 }
 
 #: Built-in wording, used on the email channel unless the business wrote its own (or switched the event off).
@@ -72,7 +74,7 @@ DEFAULTS: dict[str, tuple[str, str]] = {
     ),
     "booking.confirmed": (
         "Your booking is confirmed",
-        "Hi $customer_name,\n\nYour booking for $services on $date at $time is confirmed.\n\nSee you then,\n$business_name",
+        "Hi $customer_name,\n\nYour booking for $services on $date at $time is confirmed.$meeting_line\n\nSee you then,\n$business_name",
     ),
     "booking.rejected": (
         "We could not confirm your booking",
@@ -86,7 +88,7 @@ DEFAULTS: dict[str, tuple[str, str]] = {
     "booking.rescheduled": (
         "Your booking was moved",
         "Hi $customer_name,\n\nYour booking for $services has moved from $previous_date at $previous_time "
-        "to $date at $time.\n\n$business_name",
+        "to $date at $time.$meeting_line\n\n$business_name",
     ),
     "booking.waiting_for_parts": (
         "We are waiting for parts for your vehicle",
@@ -94,7 +96,11 @@ DEFAULTS: dict[str, tuple[str, str]] = {
     ),
     "booking.reminder": (
         "Reminder: your booking on $date",
-        "Hi $customer_name,\n\nA reminder that your booking for $services is on $date at $time.\n\n$business_name",
+        "Hi $customer_name,\n\nA reminder that your booking for $services is on $date at $time.$meeting_line\n\n$business_name",
+    ),
+    "booking.meeting_link_ready": (
+        "Your online meeting link",
+        "Hi $customer_name,\n\nYour $services on $date at $time is an online meeting. Join it here: $meeting_link\n\n$business_name",
     ),
     "booking.completed": (
         "Thank you for visiting us",
@@ -218,6 +224,8 @@ async def booking_context(
         "end_time": end.strftime("%H:%M"), "party_size": str(booking.party_size or ""),
         "previous_date": before.strftime("%a %d %b %Y") if before else "", "previous_time": before.strftime("%H:%M") if before else "",
         "hours_before": str(payload.get("hours_before", "")), "review_link": review_link, "review_prompt": review_prompt,
+        "meeting_link": clean(booking.meeting_link or ""),
+        "meeting_line": f" Join the online meeting here: {clean(booking.meeting_link)}" if booking.meeting_link else "",
     }
 
 
@@ -234,6 +242,14 @@ def _fail_text(exc: BaseException) -> str:
 
 def _stale_reason(event: OutboxEvent, booking: Booking, now: dt.datetime) -> str | None:
     """Why a *reminder* should no longer go out: the world moved on between queueing it and sending it."""
+    if event.event_type == "booking.meeting_link_ready":
+        if booking.status not in ("confirmed", "in-progress"):
+            return f"booking is {booking.status}"
+        if not booking.meeting_link:
+            return "the meeting link was removed"
+        if booking.end_at <= now:
+            return "appointment already over"
+        return None
     if event.event_type != "booking.reminder":
         return None
     if booking.status != "confirmed":

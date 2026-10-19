@@ -61,6 +61,7 @@ WANTED_STATUSES = frozenset({"confirmed", "in-progress", "waiting-for-parts", "c
 TRIGGER_EVENTS = frozenset({
     "booking.created", "booking.confirmed", "booking.rejected", "booking.cancelled", "booking.rescheduled",
     "booking.in_progress", "booking.waiting_for_parts", "booking.completed", "booking.no_show",
+    "booking.meeting_link_ready",  # (the event then shows the new link)
 })
 CONNECTION_LOST_EVENT = "calendar.connection_lost"
 STATE_PREFIX = "gcal:state:"
@@ -237,13 +238,15 @@ def clean(value: object, limit: int = 200) -> str:
 def build_event(
     *, booking_id: uuid.UUID, status: str, start_at: dt.datetime, end_at: dt.datetime, timezone: str, services: list[str], staff: list[str],
     share: bool, customer_name: str | None = None, customer_phone: str | None = None, party_size: int | None = None,
-    request_text: str | None = None, address: str | None = None,
+    request_text: str | None = None, address: str | None = None, meeting_link: str | None = None,
 ) -> dict[str, Any]:
-    """The Google event for a booking. Without ``share`` it holds the services, staff, status and a booking reference only."""
+    """The Google event for a booking. Without ``share`` it holds the services, staff, status, a booking reference and the join link of an online appointment only."""
     summary = ", ".join(clean(s) for s in services) or "Booking"
     lines = [f"Booking {str(booking_id)[:8]}", f"Status: {status}"]
     if staff:
         lines.append("With: " + ", ".join(clean(s) for s in staff))
+    if meeting_link:
+        lines.append(f"Join online: {clean(meeting_link, 500)}")
     if share:
         if customer_name:
             summary = f"{summary} - {clean(customer_name, 100)}"
@@ -302,7 +305,7 @@ async def _describe(db: AsyncSession, booking: Booking, connection: CalendarConn
     return build_event(
         booking_id=booking.id, status=booking.status, start_at=booking.start_at, end_at=booking.end_at, timezone=timezone, services=services, staff=staff,
         share=connection.share_customer_details, customer_name=name, customer_phone=phone, party_size=booking.party_size, request_text=booking.special_request,
-        address=address,
+        address=address, meeting_link=booking.meeting_link,
     )
 
 
