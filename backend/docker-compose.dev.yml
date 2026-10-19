@@ -1,0 +1,28 @@
+# DEVELOPMENT ONLY: a database and a cache on localhost, with one all-powerful database role.
+#
+#   docker compose -f docker-compose.dev.yml up -d
+#   (then run the API / worker / tests on the host; DATABASE_URL in .env.example matches)
+#
+# This is deliberately NOT how production runs: the single role `booking` is a superuser here, so Row-Level Security (the tenant
+# isolation) does not apply to it. The application accepts that only with ENVIRONMENT=development. Production uses docker-compose.yml.
+services:
+  postgres:
+    image: postgis/postgis:16-3.4   # PostgreSQL 16 + PostGIS; btree_gist ships in contrib
+    environment:
+      POSTGRES_USER: booking
+      POSTGRES_PASSWORD: booking
+      POSTGRES_DB: booking
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U booking -d booking"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+volumes:
+  pgdata:

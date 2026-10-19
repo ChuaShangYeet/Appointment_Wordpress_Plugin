@@ -1,0 +1,23 @@
+[project]
+name = "justsimple-booking-backend"
+version = "0.1.0"
+description = "JustSimple multi-tenant headless booking engine (Phase 1)"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+
+[tool.bandit]
+# bandit -c pyproject.toml -r app alembic   (deploy/security_scan.sh runs it with pip-audit)
+exclude_dirs = ["tests", ".venv"]
+# B101 (assert) is skipped on purpose. Reviewed 2026-10-13: every assert in app/ narrows a type for mypy or states what cannot happen; none stands in for a check
+# (the one that could have let a request through, the business location, is now an explicit check). The image does not run python -O, and a test pins that.
+skips = ["B101"]

@@ -1,0 +1,15 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.mypy_cache/
+.pytest_cache/
+.env
+
+# Local test site: bundled PostgreSQL binaries and its database files (rebuilt locally)
+localsite/pgsql/
+localsite/data/
+
+# Editor / tool state
+.claude/
+~$*
