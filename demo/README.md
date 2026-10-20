@@ -10,12 +10,19 @@ The real booking engine (`backend/`, unchanged) running on the internet with fiv
 **Visitors register, then log in** (`demo/access.py`). **Register** asks for a work email, the organisation and, optionally, a mobile number; **Log in** asks only for the email. Each time a link is emailed (one use, 30 minutes) and the website opens only after it is followed; a cookie then keeps the visitor in for 30 days. Log in with an address nobody registered sends nothing (the page answers the same either way); register with an address already registered sends a log-in link. Only the website is behind it; the API (`/v1`, `/docs`, `/api`) stays open.
 At **`/demo/visitors`** (enter the `PLATFORM_ADMIN_TOKEN` from Render's Environment tab) you see the visitors and the latest steps, and download two CSV files: **the register and log-in log** (every registration, confirmation, log-in request, log-in, log-out, unknown address and used link, with time, email, organisation, mobile and client address) and **the visitors** (one row each, with the number of log-ins).
 
+**The sample data resets every night** (`demo/reset.py`), at 3 am Malaysia time (`DEMO_RESET_HOUR`, an hour from 0 to 23, or `off`): the five
+sample businesses and their bookings go back to fresh, and businesses visitors signed up, bookings they made and everything changed in set-up are
+removed. The visitors and the register and log-in log are kept. The `/demo/visitors` page also has a **Reset the demo data now** button and shows
+when the last reset ran. Render's free plan sleeps when nobody visits, so a reset missed while asleep runs as soon as the demo wakes. While a reset
+runs (about half a minute here, maybe a minute or two on Render) the website shows "The demo is being reset". If a reset is cut off half-way (a
+restart), the next start finds the sample businesses missing and resets again by itself.
+
 **The sign-in needs an email account to send from.** Set these on Render (service > Environment), then redeploy:
 
 | Setting | Example |
 |---|---|
 | `DEMO_SMTP_HOST` | `smtp.gmail.com` (Gmail / Google Workspace), `smtp-relay.brevo.com` (Brevo, free 300 a day) |
-| `DEMO_SMTP_PORT` | `587` |
+| `DEMO_SMTP_PORT` | `2525` (Render's free plan blocks 587; Brevo also takes 2525) |
 | `DEMO_SMTP_USER` | the account's address or login |
 | `DEMO_SMTP_PASSWORD` | for Gmail an **app password** (Google account > Security > 2-Step Verification > App passwords), not the normal password |
 | `DEMO_SMTP_FROM` | the address the email comes from, for example `JustSimple Demo <demo@yourdomain.com>` |

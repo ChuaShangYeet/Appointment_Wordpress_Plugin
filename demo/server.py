@@ -158,11 +158,17 @@ async def save_state(url: str, data: dict[str, Any]) -> None:
 DEMO_LIMITS = {"bookings_per_month": 100000, "whatsapp_per_month": 100000, "sms_per_month": 100000}
 
 
-async def raise_monthly_limits(client: Any, platform_token: str, businesses: list[dict[str, Any]]) -> None:
+async def raise_monthly_limits(client: Any, platform_token: str, businesses: list[dict[str, Any]]) -> bool:
+    """``False`` when a sample business no longer exists (a reset was cut off half-way: the caller resets again)."""
     for b in businesses:
+        if b.get("is_new"):
+            continue  # (businesses visitors signed up keep the free plan's limits)
         r = await client.put(f"/v1/platform/tenants/{b['tenant_id']}/overrides", headers={"X-Platform-Token": platform_token}, json=DEMO_LIMITS)
+        if r.status_code == 404:
+            return False
         if r.status_code != 200:
             raise SystemExit(f"could not set the demo limits for {b['name']}: {r.status_code} {r.text[:200]}")
+    return True
 
 
 async def serve(env: dict[str, str]) -> None:
@@ -181,8 +187,10 @@ async def serve(env: dict[str, str]) -> None:
     from app.services.notifications import NotificationPublisher
     from app.services.webhooks import WebhookPublisher
 
+    import app.core.redis as redis_module
     import pages
     from access import Access
+    from reset import DemoReset
     from access import router as access_router
 
     devtools.install_memory_redis()
@@ -193,33 +201,53 @@ async def serve(env: dict[str, str]) -> None:
     delivery.configure_providers(settings)
 
     url = env["DATABASE_URL"]
-    state = await load_state(url)
-    if state is None:
-        say("adding the five sample businesses and their bookings (first start only, a minute or two)...")
+
+    async def reseed() -> dict[str, Any]:
+        """The five sample businesses and their bookings, through the real API (first start, and every reset: see reset.py)."""
         from seed import Seeder
 
         settings.rate_limit_enabled = False  # (the loader makes a few hundred requests from one address)
         try:
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://localhost") as client:
-                state = await Seeder(client, settings.platform_admin_token, plain_url(url), lambda: list(devtools.INBOX)).run()
+                fresh = await Seeder(client, settings.platform_admin_token, plain_url(url), lambda: list(devtools.INBOX)).run()
+                await raise_monthly_limits(client, settings.platform_admin_token, fresh["businesses"])
         finally:
             settings.rate_limit_enabled = True
         devtools.INBOX.clear()
-        await save_state(url, state)
-        say("sample data ready.")
+        await save_state(url, fresh)
+        return fresh
 
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://localhost") as client:
-        await raise_monthly_limits(client, settings.platform_admin_token, state["businesses"])
+    async def clear_memory() -> None:
+        devtools.INBOX.clear()
+        await redis_module.get_redis().flushall()  # (the in-memory stand-in: cached free times and sign-in codes of the old data)
+
+    state = await load_state(url)
+    first_start = state is None
+    if state is None:
+        say("adding the five sample businesses and their bookings (first start only, a minute or two)...")
+        state = await reseed()
+        say("sample data ready.")
+    broken = False
+    if not first_start:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://localhost") as client:
+            broken = not await raise_monthly_limits(client, settings.platform_admin_token, state["businesses"])
     store = DbStore(url, state)
+    resetter = DemoReset(plain_url(url), reseed, clear_memory, lambda fresh: setattr(store, "data", fresh))
+    if first_start:
+        await resetter.mark_fresh()
+    if broken:
+        say("the sample businesses are missing (a reset was cut off): resetting again...")
+        repair = asyncio.get_running_loop().create_task(resetter.run("repair: a reset was cut off"))  # (kept in a name: a task nobody holds can be collected)
+        await asyncio.sleep(0)  # (started first: the nightly check below then finds a reset running and leaves it be)
     # the website is for signed-in visitors only (access.py); the API stays open
-    access = Access(plain_url(url), settings.jwt_secret, public_url(), settings.platform_admin_token, pages._page)
+    access = Access(plain_url(url), settings.jwt_secret, public_url(), settings.platform_admin_token, pages._page, busy=lambda: resetter.running)
     await access.prepare()
     web = devtools.web_pages(LOCALSITE / "web")
 
     async def site(request: Any) -> Any:
         return await web.get_response("", request.scope)
 
-    app.include_router(access_router(access, site))
+    app.include_router(access_router(access, site, resetter))
     app.include_router(pages.router(store, lambda: list(devtools.INBOX)))
     app.include_router(devtools.dev_router(app, store, guard=access.require))
     app.mount("/", web, name="web")  # (last: every route above wins over a file of the same name)
@@ -229,11 +257,13 @@ async def serve(env: dict[str, str]) -> None:
     server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=port, log_level="info", lifespan="on", proxy_headers=True, forwarded_allow_ips="*"))
     say(f"ready on port {port}")
     sweeper = asyncio.create_task(worker.run(settings.sweep_interval_seconds, stop))
+    nightly = asyncio.create_task(resetter.nightly(stop))  # (also runs a reset that fell due while the free service slept)
     try:
         await server.serve()
     finally:
         stop.set()
         await sweeper
+        await nightly
 
 
 def main() -> None:

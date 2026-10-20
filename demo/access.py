@@ -83,8 +83,10 @@ def _client(request: Request) -> str:
 
 
 class Access:
-    def __init__(self, url: str, secret: str, public_url: str, admin_token: str, page: Callable[[str, str], HTMLResponse]) -> None:
+    def __init__(self, url: str, secret: str, public_url: str, admin_token: str, page: Callable[[str, str], HTMLResponse],
+                 busy: Callable[[], bool] = lambda: False) -> None:
         self.url, self.secret, self.public_url, self.admin_token, self.page = url, secret.encode(), public_url.rstrip("/"), admin_token, page
+        self.busy = busy  # (true while the sample data is being reset: reset.py)
         self.recent: dict[str, deque[float]] = defaultdict(deque)
         self.secure = self.public_url.startswith("https://")
 
@@ -128,6 +130,14 @@ class Access:
         """For ``/dev/*``: the pages work only for a signed-in visitor."""
         if self.visitor_of(request) is None:
             raise HTTPException(401, "Sign in to the demo first")
+        if self.busy():
+            raise HTTPException(503, "The demo's sample data is being reset; try again in a couple of minutes")
+
+    def resetting_page(self) -> HTMLResponse:
+        return self.page("Back in a moment", """<div class="brand"><span class="logo">J</span>JustSimple<span class="pill">Demo</span></div>
+<div class="card" style="max-width:560px;display:flex;flex-direction:column;gap:10px"><h1 style="font-size:1.6rem">The demo is being reset</h1>
+<p>The sample businesses and their bookings are being put back to fresh. This takes a minute or two.</p>
+<p style="color:var(--muted)">Reload this page in a moment. You stay logged in.</p></div>""")
 
     # ------------------------------------------------------------------ limits
     def _allowed(self, key: str, most: int, window: float = 600) -> bool:
@@ -180,7 +190,7 @@ class Access:
                 f'<a href="/demo/access/register" {"aria-current=page" if tab == "register" else ""}>Register</a></nav>')
         body = f"""<div class="brand"><span class="logo">J</span>JustSimple<span class="pill">Demo</span></div>
 <div style="display:flex;flex-direction:column;gap:10px;max-width:560px"><h1>Try the booking system</h1>
-<p class="lead">Online booking for salons, spas, restaurants, car workshops and home services: the booking page your customers use, their own account, and your admin. Register once; after that, log in with your email. We email you a link each time.</p></div>
+<p class="lead">Online booking for salons, spas, restaurants, car workshops and home services: the booking page your customers use, their own account, and your admin. Register once; after that, log in with your email. We email you a link each time. The demo is shared, and its sample data goes back to fresh every night.</p></div>
 {f'<div class="warn" style="max-width:560px">{note}</div>' if note else ''}
 <div class="card" style="max-width:560px;display:flex;flex-direction:column;gap:14px">{tabs}{inner}</div>
 <style>.f{{display:flex;flex-direction:column;gap:4px}}.f span{{font-weight:600}}.f i{{font-weight:400;color:var(--muted)}}.f input{{font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--fg)}}.f small{{color:var(--muted)}}.err{{color:#c0362c;font-size:.9rem}}
@@ -391,14 +401,16 @@ def _iso(d: Any) -> str:
     return d.isoformat() if d else ""
 
 
-def router(access: Access, site: Callable[[Request], Awaitable[Response]]) -> APIRouter:
-    """``site`` answers ``/`` for a signed-in visitor (the website itself)."""
+def router(access: Access, site: Callable[[Request], Awaitable[Response]], resetter: Any = None) -> APIRouter:
+    """``site`` answers ``/`` for a signed-in visitor (the website itself); ``resetter`` (reset.py) is pressed from the visitors page."""
     r = APIRouter(tags=["demo sign-in"], include_in_schema=False)
 
     @r.get("/")
     async def home(request: Request) -> Response:
         if access.visitor_of(request) is None:
             return access.login_form()
+        if access.busy():
+            return access.resetting_page()
         return await site(request)
 
     @r.get("/demo/access/register")
@@ -448,6 +460,14 @@ def router(access: Access, site: Callable[[Request], Awaitable[Response]]) -> AP
             await asyncio.sleep(1)  # (slows guessing)
             return token_form("That token is not right.")
         what = raw.get("format", [""])[0]
+        if what == "reset" and resetter is not None:
+            started = not resetter.running
+            if started:
+                asyncio.get_running_loop().create_task(resetter.run("reset by the owner"))
+            note = ("The reset has started: the sample data is fresh again in a minute or two. The visitors and the log are kept." if started
+                    else "A reset is already running.")
+            return access.page("Demo reset", f"""<h1>Demo reset</h1><div class="warn">{note}</div>
+<form method="post" action="/demo/visitors"><input type="hidden" name="token" value="{html.escape(token)}"><button class="btn" type="submit" style="border:0;cursor:pointer">Back to the visitors</button></form>""")
         if what == "log.csv":
             return csv_response("demo-access-log.csv", ["time_utc", "event", "what_happened", "email", "organisation", "mobile", "client_address"],
                                 [[_iso(x["at"]), x["event"], EVENT_LABELS.get(x["event"], x["event"]), x["email"] or "", x["organisation"] or "", x["phone"] or "",
@@ -465,8 +485,20 @@ def router(access: Access, site: Callable[[Request], Awaitable[Response]]) -> AP
         button = lambda fmt_, label: (f'<form method="post" action="/demo/visitors" style="display:inline"><input type="hidden" name="token" value="{html.escape(token)}">'  # noqa: E731
                                       f'<input type="hidden" name="format" value="{fmt_}"><button class="btn" type="submit" style="border:0;cursor:pointer">{label}</button></form>')
         table = 'style="border-collapse:collapse;width:100%;font-size:.92rem" cellpadding="8"'
+        reset_box = ""
+        if resetter is not None:
+            from reset import KL, reset_hour
+
+            last, hour = await resetter.last_reset(), reset_hour()
+            when = last.astimezone(KL).strftime("%d %b %Y, %H:%M") + " Malaysia time" if last else "never"
+            plan = f"Every night at {hour:02d}:00 Malaysia time" if hour is not None else "The nightly reset is switched off (DEMO_RESET_HOUR)"
+            reset_box = f"""<section><h2>Sample data</h2><div class="card" style="display:flex;flex-direction:column;gap:10px">
+<p>{plan}, the five sample businesses and their bookings go back to fresh; businesses visitors signed up and everything they changed are removed. The visitors and the log below are kept.</p>
+<p style="color:var(--muted)">Last reset: {html.escape(when)}{" (running now)" if resetter.running else ""}.</p>
+<div>{button("reset", "Reset the demo data now")}</div></div></section>"""
         return access.page("Demo visitors", f"""<h1>Demo visitors ({len(visitors)})</h1>
 <div class="links">{button("log.csv", "Download the register and log-in log (CSV)")}{button("visitors.csv", "Download the visitors (CSV)")}</div>
+{reset_box}
 <section><h2>Visitors</h2><div class="card" style="overflow-x:auto"><table {table}><thead><tr style="text-align:left"><th>Email</th><th>Mobile</th><th>Organisation</th><th>Registered</th><th>Confirmed</th><th>Last log-in</th><th>Log-ins</th></tr></thead>
 <tbody>{vrows or '<tr><td colspan="7">Nobody yet.</td></tr>'}</tbody></table></div></section>
 <section><h2>Register and log-in log (latest 100; the CSV has all)</h2><div class="card" style="overflow-x:auto"><table {table}><thead><tr style="text-align:left"><th>Time</th><th>What happened</th><th>Email</th><th>Organisation</th></tr></thead>
