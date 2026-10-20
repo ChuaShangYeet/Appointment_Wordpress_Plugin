@@ -77,6 +77,7 @@ window.JS = window.JS || {};
     const text = await r.text();
     let data = null;
     try { data = text ? JSON.parse(text) : null; } catch (e) { data = text; }
+    if (r.status === 401 && path.startsWith('/dev/') && CFG.hosted) { window.location.href = '/'; } // (the demo sign-in ran out)
     if (r.ok) { if (data && typeof data === 'object') Object.defineProperty(data, '_headers', { value: r.headers, enumerable: false }); return data; }
     if (data && Array.isArray(data.detail)) { // FastAPI's own validation answer: one message per field
       const fields = {};
@@ -123,7 +124,7 @@ window.JS = window.JS || {};
     const adm = (p) => http('GET', '/v1/admin' + p, { token: tok });
     const [profile, rating, services, resources, products, vehicles, policies, plan, daysOff] = await Promise.all([
       pub('/business'), pub('/reviews/summary'), adm('/services'), adm('/resources'),
-      c.type === 'salon' ? pub('/products') : [], c.type === 'automotive' ? pub('/supported-vehicles') : [],
+      c.type === 'salon' ? adm('/products') : [], c.type === 'automotive' ? pub('/supported-vehicles') : [],
       adm('/policies'), adm('/plan'), adm('/days-off'),
     ]);
     const slots = c.type === 'restaurant' ? await adm('/time-slot-settings') : null;
@@ -240,6 +241,7 @@ window.JS = window.JS || {};
     },
     reload: loadBusiness,
     hosted() { return !!CFG.hosted; },
+    async signOut() { await fetch('/demo/access/sign-out', { method: 'POST' }); window.location.href = '/'; },
     reset() { JS.toast(CFG.hosted ? 'This online demo is shared by everyone, so it cannot be reset from here.' : 'To start again from the sample data, close the local site and run reset.bat (or python run_local.py --reset).'); },
     armScenario() { scenarioArmed = true; },
     businesses() { return CFG.businesses.filter((c) => SNAP[c.id]).map((c) => ({ id: c.id, name: SNAP[c.id].name, type: c.type, kind: SNAP[c.id].kind, plan: SNAP[c.id].plan })); },
@@ -462,8 +464,24 @@ window.JS = window.JS || {};
       const b = snap(id);
       const staff = b.resources.filter((r) => r.type === 'staff').map((r) => r.id);
       const bays = b.type === 'automotive' ? b.resources.filter((r) => r.type === 'bay').map((r) => r.id) : [];
-      await http('POST', '/v1/admin/services', { token: await owner(id), body: { name: body.name, duration_minutes: body.duration_minutes, price: body.price || 0, location_type: body.location_type || 'in_office', travel_buffer_minutes: body.location_type === 'on_site' ? 30 : 0, resource_ids: [...staff, ...bays] } });
+      await http('POST', '/v1/admin/services', { token: await owner(id), body: {
+        name: body.name, duration_minutes: body.duration_minutes, price: body.price || 0, location_type: body.location_type || 'in_office',
+        travel_buffer_minutes: body.location_type === 'on_site' ? body.travel_buffer_minutes ?? 30 : 0, description: body.description || undefined,
+        is_addon: !!body.is_addon, resource_ids: [...staff, ...bays],
+      } });
       return (await loadBusiness(id)).services;
+    },
+    async addProduct(id, body) {
+      await http('POST', '/v1/admin/products', { token: await owner(id), body: { name: body.name, price: body.price, stock_qty: body.stock_qty, stock_status: body.stock_qty > 0 ? 'in_stock' : 'out_of_stock' } });
+      return (await loadBusiness(id)).products;
+    },
+    async addVehicle(id, body) {
+      await http('POST', '/v1/admin/supported-vehicles', { token: await owner(id), body });
+      return (await loadBusiness(id)).supportedVehicles;
+    },
+    async removeVehicle(id, vehicleId) {
+      await http('DELETE', `/v1/admin/supported-vehicles/${vehicleId}`, { token: await owner(id) });
+      return (await loadBusiness(id)).supportedVehicles;
     },
     async addResource(id, body) {
       const b = snap(id), tok = await owner(id);

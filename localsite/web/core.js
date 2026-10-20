@@ -113,7 +113,7 @@ window.JS = window.JS || {};
         ${J.state.view === 'admin' ? `<label for="h-role">Signed in as <select id="h-role" data-change="setRole">${roles.map(([v, t]) => `<option value="${v}" ${J.state.role === v ? 'selected' : ''}>${J.esc(t)}</option>`).join('')}</select></label>` : ''}
         <label for="h-scn">Scenario <select id="h-scn" data-change="setScenario">${SCENARIOS.map(([v, t]) => `<option value="${v}" ${J.state.scenario === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
         <button type="button" class="hbtn" data-act="inbox" aria-expanded="${!!J.state.inbox}">Messages<span class="count">${J.inbox.length}</span></button>
-        <button type="button" class="hbtn" data-act="resetDemo">Reset data</button>
+        ${J.api.hosted() ? '<button type="button" class="hbtn" data-act="signOutDemo">Sign out</button>' : '<button type="button" class="hbtn" data-act="resetDemo">Reset data</button>'}
       </div></div></div>`;
   }
 
@@ -128,6 +128,7 @@ window.JS = window.JS || {};
     setRole(ds, el) { J.state.role = el.value; save(); J.state.admin.open = null; J.render(); },
     setScenario(ds, el) { J.state.scenario = el.value; J.api.armScenario(); save(); J.toast('Scenario: ' + SCENARIOS.find(([v]) => v === el.value)[1]); },
     inbox() { J.state.inbox = !J.state.inbox; J.render(); },
+    signOutDemo() { J.api.signOut(); },
     resetDemo() { J.api.reset(); if (!J.api.businesses().some((b) => b.id === J.state.biz)) J.state.biz = 'spa'; freshViews(); J.render(); J.toast('Sample data reset'); },
   });
 

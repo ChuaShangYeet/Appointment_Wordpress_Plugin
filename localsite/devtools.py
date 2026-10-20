@@ -135,10 +135,12 @@ class Store(Protocol):
     async def save(self, data: dict[str, Any]) -> None: ...
 
 
-def dev_router(app: FastAPI, store: Store) -> APIRouter:
+def dev_router(app: FastAPI, store: Store, guard: Any = None) -> APIRouter:
+    """``guard``: a FastAPI dependency every route needs (the hosted demo's sign-in), or none (the local test site)."""
     import httpx
+    from fastapi import Depends
 
-    router = APIRouter(prefix="/dev", tags=["test pages"])
+    router = APIRouter(prefix="/dev", tags=["test pages"], dependencies=[Depends(guard)] if guard else [])
     writing = asyncio.Lock()  # (several visitors may change the list at once on a hosted demo)
 
     @router.get("/config")

@@ -23,6 +23,17 @@ services:
         generateValue: true
       - key: PLATFORM_ADMIN_TOKEN
         generateValue: true
+      # The demo website's sign-in emails a link (demo/access.py). Fill these in on Render (Environment tab); without them nobody can sign in.
+      - key: DEMO_SMTP_HOST
+        sync: false
+      - key: DEMO_SMTP_PORT
+        value: "587"
+      - key: DEMO_SMTP_USER
+        sync: false
+      - key: DEMO_SMTP_PASSWORD
+        sync: false
+      - key: DEMO_SMTP_FROM
+        sync: false
 
 databases:
   - name: justsimple-demo-db

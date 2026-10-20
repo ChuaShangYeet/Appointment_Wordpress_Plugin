@@ -10,7 +10,8 @@
       tab: 'bookings', date: T.today(), filter: 'all', list: null, listKey: null, loading: false, attn: null, version: 0,
       open: null, detail: null, err: null, busy: null, move: null, extra: { addonId: '', result: null, busy: false },
       plan: null, site: null, keys: null, newKeys: null, siteForm: { domain: '', err: null, busy: false, open: false },
-      svcForm: { name: '', duration: '60', price: '', where: 'in_office', err: null }, resForm: { name: '', type: 'staff', capacity: '4', err: null },
+      svcForm: { name: '', duration: '60', price: '', where: 'in_office', description: '', travel: '30', extra: false, err: null },
+      prodForm: { name: '', price: '', stock: '10', err: null }, carForm: { make: '', model: '', from: '', to: '', err: null }, resForm: { name: '', type: 'staff', capacity: '4', err: null },
       hours: null, hoursErr: null,
     };
   }
@@ -162,13 +163,20 @@
         ${(b.services.length || b.type === 'restaurant') && b.resources.length && b.hours && !b.policy.missing ? '<div class="notice ok"><span>Your booking page is ready. Open <b>Book</b> in the strip above to try it.</span></div>' : ''}</section>` : '';
     return `<div class="stack-lg">${checklist}
       ${b.type !== 'restaurant' ? `<section class="card stack"><h2>Services</h2>
-        ${b.services.length ? `<div class="scrollx"><table class="table"><thead><tr><th>Service</th><th>Time</th><th>Price</th></tr></thead><tbody>${b.services.map((x) => `<tr><td>${J.esc(x.name)}${x.is_addon ? ' <span class="chip">Extra</span>' : ''}</td><td class="mono">${J.mins(x.duration_minutes)}</td><td class="mono">${J.money(x.price)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No services yet.</p>'}
+        ${b.services.length ? `<div class="scrollx"><table class="table"><thead><tr><th>Service</th><th>Time</th>${b.type === 'professional' ? '<th>Where</th>' : ''}<th>Price</th></tr></thead><tbody>${b.services.map((x) => `<tr><td><b>${J.esc(x.name)}</b>${x.is_addon ? ' <span class="chip">Extra</span>' : ''}${x.service_category === 'inspection' ? ' <span class="chip">Inspection</span>' : ''}${x.description ? `<br><span class="small muted">${J.esc(x.description)}</span>` : ''}</td>
+          <td class="mono">${J.mins(x.duration_minutes)}${x.buffer_minutes ? `<br><span class="small muted">+ ${x.buffer_minutes} min to tidy up</span>` : ''}</td>
+          ${b.type === 'professional' ? `<td>${x.location_type === 'on_site' ? `At the customer's<br><span class="small muted">${x.travel_buffer_minutes} min travel each way</span>` : 'At our office'}</td>` : ''}
+          <td class="mono">${J.money(x.price)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No services yet.</p>'}
         <form class="stack" data-submit="adm.addService"><span class="label">Add a service</span><div class="grid2">
           ${J.field({ id: 'sv-name', label: 'Name', model: 'admin.svcForm.name', placeholder: 'Deep tissue massage' })}
           ${J.field({ id: 'sv-dur', label: 'Minutes', model: 'admin.svcForm.duration', type: 'number', attrs: 'min="5" max="1440" inputmode="numeric"' })}
           ${J.field({ id: 'sv-price', label: 'Price (RM)', model: 'admin.svcForm.price', type: 'number', attrs: 'min="0" inputmode="decimal"', placeholder: '0 = free' })}
-          ${b.type === 'professional' ? J.field({ id: 'sv-where', label: 'Where', model: 'admin.svcForm.where', options: [['in_office', 'At our office'], ['on_site', "At the customer's address"]] }) : ''}</div>
+          ${b.type === 'professional' ? J.field({ id: 'sv-where', label: 'Where', model: 'admin.svcForm.where', options: [['in_office', 'At our office'], ['on_site', "At the customer's address"]] }) : ''}
+          ${b.type === 'professional' && s.svcForm.where === 'on_site' ? J.field({ id: 'sv-travel', label: 'Travel time each way (minutes)', model: 'admin.svcForm.travel', type: 'number', attrs: 'min="0" max="240" inputmode="numeric"', hint: 'Kept free before and after each visit, so the technician can get there and back.' }) : ''}</div>
+          ${J.field({ id: 'sv-desc', label: 'Description', model: 'admin.svcForm.description', area: true, optional: true, placeholder: 'What the customer gets, in a sentence or two', hint: 'Shown under the service on your booking page.' })}
+          ${b.type === 'salon' ? `<label class="check" for="sv-extra"><input id="sv-extra" type="checkbox" data-model="admin.svcForm.extra" ${s.svcForm.extra ? 'checked' : ''}><span>This is an extra (added to a main service, like a scalp massage)</span></label>` : ''}
           ${s.svcForm.err ? `<div class="notice bad"><span>${J.esc(s.svcForm.err)}</span></div>` : ''}<div><button class="btn small" type="submit">Add service</button></div></form></section>` : `<section class="card stack"><h2>Seating times</h2><p>Reservations start every ${b.slotSettings.interval} minutes from ${T.clock(b.slotSettings.first)} to ${T.clock(b.slotSettings.last)}. A table is kept for ${b.slotSettings.duration} minutes plus ${b.slotSettings.buffer} to reset it.</p></section>`}
+      ${b.type === 'salon' ? productsSection(b) : ''}${b.type === 'automotive' ? carsSection(b) : ''}
       <section class="card stack"><h2>${who}</h2>
         ${b.resources.length ? `<div class="scrollx"><table class="table"><thead><tr><th>Name</th><th>${b.type === 'restaurant' ? 'Seats' : 'Role'}</th><th>Status</th><th></th></tr></thead><tbody>${b.resources.map((r) => `<tr><td>${J.esc(r.name)}</td><td>${r.type === 'table' ? r.capacity + ((r.attributes || {}).is_vip ? ' · private, min. ' + J.money(r.attributes.minimum_spend) : '') : r.type === 'bay' ? 'Bay' : J.esc(r.note || 'Staff')}</td><td>${r.status === 'inactive' ? '<span class="chip">Off</span>' : '<span class="chip confirmed">Taking bookings</span>'}</td>
           <td><button type="button" class="btn ghost small" data-act="adm.toggleRes" data-id="${r.id}" data-to="${r.status === 'inactive' ? 'active' : 'inactive'}">${r.status === 'inactive' ? 'Switch on' : 'Switch off'}</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Nobody yet.</p>'}
@@ -187,6 +195,33 @@
         <p class="hint">A close time earlier than the open time means you close after midnight.</p></section>
       ${locationSection(b)}
       ${rulesSection(b)}</div>`;
+  }
+
+  /** A salon's products for sale (shown on the booking page under the extras, and added to a running appointment's ticket). */
+  function productsSection(b) {
+    const s = st(), f = s.prodForm;
+    const label = { in_stock: 'In stock', out_of_stock: 'Out of stock', available_on_order: 'On order' };
+    return `<section class="card stack"><h2>Products for sale</h2>
+      ${b.products.length ? `<div class="scrollx"><table class="table"><thead><tr><th>Product</th><th>Price</th><th>On the shelf</th></tr></thead><tbody>${b.products.map((p) => `<tr><td>${J.esc(p.name)}</td><td class="mono">${J.money(p.price)}</td><td>${p.stock_qty != null ? `<span class="mono">${p.stock_qty}</span> · ` : ''}${label[p.stock_status] || p.stock_status}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No products yet.</p>'}
+      <form class="stack" data-submit="adm.addProduct"><span class="label">Add a product</span><div class="grid2">
+        ${J.field({ id: 'pr-name', label: 'Name', model: 'admin.prodForm.name', placeholder: 'Argan oil serum' })}
+        ${J.field({ id: 'pr-price', label: 'Price (RM)', model: 'admin.prodForm.price', type: 'number', attrs: 'min="0" inputmode="decimal"' })}
+        ${J.field({ id: 'pr-stock', label: 'How many on the shelf', model: 'admin.prodForm.stock', type: 'number', attrs: 'min="0" inputmode="numeric"' })}</div>
+        ${f.err ? `<div class="notice bad"><span>${J.esc(f.err)}</span></div>` : ''}<div><button class="btn small" type="submit">Add product</button></div></form></section>`;
+  }
+
+  /** The car makes and models a workshop services, with their model years: customers can only book for these. */
+  function carsSection(b) {
+    const s = st(), f = s.carForm;
+    return `<section class="card stack"><h2>Car models we service</h2>
+      ${b.supportedVehicles.length ? `<div class="scrollx"><table class="table"><thead><tr><th>Make</th><th>Model</th><th>Model years</th><th></th></tr></thead><tbody>${b.supportedVehicles.map((v) => `<tr><td>${J.esc(v.make)}</td><td>${J.esc(v.model)}</td><td class="mono">${v.year_from || '…'}–${v.year_to || 'now'}</td>
+        <td><button type="button" class="btn ghost small" data-act="adm.removeCar" data-id="${v.id}">Remove</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No car models yet: customers cannot book until you add the ones you service.</p>'}
+      <form class="stack" data-submit="adm.addCar"><span class="label">Add a car model</span><div class="grid2">
+        ${J.field({ id: 'car-make', label: 'Make', model: 'admin.carForm.make', placeholder: 'Perodua' })}
+        ${J.field({ id: 'car-model', label: 'Model', model: 'admin.carForm.model', placeholder: 'Bezza' })}
+        ${J.field({ id: 'car-from', label: 'From model year', model: 'admin.carForm.from', type: 'number', optional: true, attrs: 'min="1950" max="2100" inputmode="numeric"' })}
+        ${J.field({ id: 'car-to', label: 'Up to model year', model: 'admin.carForm.to', type: 'number', optional: true, attrs: 'min="1950" max="2100" inputmode="numeric"', hint: 'Leave empty if you service every newer one.' })}</div>
+        ${f.err ? `<div class="notice bad"><span>${J.esc(f.err)}</span></div>` : ''}<div><button class="btn small" type="submit">Add car model</button></div></form></section>`;
   }
 
   /** Where the business is: pasted as a Google Maps link (a share link from the app works). The point is read from it; the link becomes the directions link. */
@@ -363,9 +398,28 @@
     },
     async 'adm.addService'() {
       const s = st(), f = s.svcForm;
-      const [, err] = await J.call(() => api.addService(J.state.biz, { name: f.name, duration_minutes: Number(f.duration), price: Number(f.price || 0), location_type: f.where }));
+      const [, err] = await J.call(() => api.addService(J.state.biz, {
+        name: f.name, duration_minutes: Number(f.duration), price: Number(f.price || 0), location_type: f.where, description: f.description.trim() || null,
+        travel_buffer_minutes: f.where === 'on_site' ? Number(f.travel || 0) : 0, is_addon: !!f.extra,
+      }));
       if (err) { f.err = err.detail; J.render(); return; }
-      s.svcForm = { name: '', duration: '60', price: '', where: 'in_office', err: null }; J.toast('Service added'); J.render();
+      s.svcForm = { name: '', duration: '60', price: '', where: 'in_office', description: '', travel: '30', extra: false, err: null }; J.toast('Service added'); J.render();
+    },
+    async 'adm.addProduct'() {
+      const s = st(), f = s.prodForm;
+      const [, err] = await J.call(() => api.addProduct(J.state.biz, { name: f.name, price: Number(f.price || 0), stock_qty: Number(f.stock || 0) }));
+      if (err) { f.err = err.detail; J.render(); return; }
+      s.prodForm = { name: '', price: '', stock: '10', err: null }; J.toast('Product added'); J.render();
+    },
+    async 'adm.addCar'() {
+      const s = st(), f = s.carForm;
+      const [, err] = await J.call(() => api.addVehicle(J.state.biz, { make: f.make, model: f.model, year_from: f.from ? Number(f.from) : null, year_to: f.to ? Number(f.to) : null }));
+      if (err) { f.err = err.detail; J.render(); return; }
+      s.carForm = { make: '', model: '', from: '', to: '', err: null }; J.toast('Car model added'); J.render();
+    },
+    async 'adm.removeCar'(ds) {
+      const [, err] = await J.call(() => api.removeVehicle(J.state.biz, ds.id));
+      J.toast(err ? err.detail : 'Car model removed'); J.render();
     },
     async 'adm.addRes'() {
       const s = st(), f = s.resForm, b = J.biz();

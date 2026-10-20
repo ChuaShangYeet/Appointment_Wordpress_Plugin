@@ -51,6 +51,11 @@ def plain_url(url: str) -> str:
     return "postgresql://" + asyncpg_url(url)[len("postgresql+asyncpg://"):]
 
 
+def public_url() -> str:
+    """The demo's own address (links in emails lead here)."""
+    return os.environ.get("PUBLIC_URL", "").rstrip("/") or os.environ.get("RENDER_EXTERNAL_URL", "").rstrip("/") or "http://localhost:" + os.environ.get("PORT", "8000")
+
+
 def environment() -> dict[str, str]:
     """The backend's settings for the demo. Secrets must be set on the host (Render generates them: see render.yaml)."""
     raw = os.environ.get("DATABASE_URL")
@@ -59,7 +64,7 @@ def environment() -> dict[str, str]:
     for name in ("JWT_SECRET", "PDPA_ENCRYPTION_KEY", "PLATFORM_ADMIN_TOKEN"):
         if not os.environ.get(name):
             raise SystemExit(f"{name} is not set")
-    site = os.environ.get("PUBLIC_URL", "").rstrip("/") or os.environ.get("RENDER_EXTERNAL_URL", "").rstrip("/") or "http://localhost:" + os.environ.get("PORT", "8000")
+    site = public_url()
     env = {
         "ENVIRONMENT": os.environ.get("ENVIRONMENT", "staging"),  # (the start-up safety checks run; "development" would skip them)
         "DOCS_ENABLED": "true",
@@ -177,6 +182,8 @@ async def serve(env: dict[str, str]) -> None:
     from app.services.webhooks import WebhookPublisher
 
     import pages
+    from access import Access
+    from access import router as access_router
 
     devtools.install_memory_redis()
     devtools.install_inbox()
@@ -204,9 +211,18 @@ async def serve(env: dict[str, str]) -> None:
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://localhost") as client:
         await raise_monthly_limits(client, settings.platform_admin_token, state["businesses"])
     store = DbStore(url, state)
+    # the website is for signed-in visitors only (access.py); the API stays open
+    access = Access(plain_url(url), settings.jwt_secret, public_url(), settings.platform_admin_token, pages._page)
+    await access.prepare()
+    web = devtools.web_pages(LOCALSITE / "web")
+
+    async def site(request: Any) -> Any:
+        return await web.get_response("", request.scope)
+
+    app.include_router(access_router(access, site))
     app.include_router(pages.router(store, lambda: list(devtools.INBOX)))
-    app.include_router(devtools.dev_router(app, store))
-    app.mount("/", devtools.web_pages(LOCALSITE / "web"), name="web")  # (last: every route above wins over a file of the same name)
+    app.include_router(devtools.dev_router(app, store, guard=access.require))
+    app.mount("/", web, name="web")  # (last: every route above wins over a file of the same name)
     outbox.set_event_publisher(outbox.CompositePublisher(NotificationPublisher(), WebhookPublisher(), CalendarPublisher()))
     port = int(os.environ.get("PORT", "8000"))
     stop = asyncio.Event()

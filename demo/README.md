@@ -7,6 +7,24 @@ The real booking engine (`backend/`, unchanged) running on the internet with fiv
   self-service sign-up. Testers just open the link: nothing to install.
 * **The API, for building against** (a chatbot, an app, a website): the start page with the keys at `/api`, the documentation at `/docs`.
 
+**Visitors sign in first** (`demo/access.py`): the website asks for a work email, the organisation and, optionally, a mobile number, and emails a
+sign-in link (one use, 30 minutes; then a cookie keeps them in for 30 days). Only the website is behind it; the API (`/v1`, `/docs`, `/api`) stays open.
+You see who signed in at **`/demo/visitors`** (enter the `PLATFORM_ADMIN_TOKEN` from Render's Environment tab), with a CSV download.
+
+**The sign-in needs an email account to send from.** Set these on Render (service > Environment), then redeploy:
+
+| Setting | Example |
+|---|---|
+| `DEMO_SMTP_HOST` | `smtp.gmail.com` (Gmail / Google Workspace), `smtp-relay.brevo.com` (Brevo, free 300 a day) |
+| `DEMO_SMTP_PORT` | `587` |
+| `DEMO_SMTP_USER` | the account's address or login |
+| `DEMO_SMTP_PASSWORD` | for Gmail an **app password** (Google account > Security > 2-Step Verification > App passwords), not the normal password |
+| `DEMO_SMTP_FROM` | the address the email comes from, for example `JustSimple Demo <demo@yourdomain.com>` |
+
+Without them the sign-in page says email is not set up and nobody gets in. On your own computer, `DEMO_ACCESS_SHOW_LINK=true` shows the link on
+the page instead of emailing it (never set that on Render). Only these sign-in emails are really sent; the booking system's own messages still
+go to the demo inbox.
+
 **It is a public demo.** Every key, including the secret keys, is shown on the `/api` page, and everyone shares the same data. Nothing is
 really sent: WhatsApp, SMS and email messages (sign-in codes too) are kept in memory and shown at `/demo/messages`. Never put real
 customers or a real business into it.
