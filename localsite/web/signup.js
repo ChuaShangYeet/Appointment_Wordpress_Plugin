@@ -11,12 +11,14 @@
     ['automotive', 'Au', 'Car workshop', 'Job orders that need a mechanic and a service bay.'],
     ['professional', 'Ho', 'Home services', 'Visits to the customer, within an area you choose.'],
   ];
+  /** A quick check while typing; the backend decides (app/services/maps_links.py). */
+  const MAPS_LINK = /^https:\/\/(maps\.app\.goo\.gl\/|goo\.gl\/maps|(www\.|maps\.)?google\.[a-z.]+\/maps|maps\.google\.)/i;
   const FIELDS = { type: ['business_type'], business: ['name', 'address_line1', 'city', 'state', 'postcode'], website: ['domain', 'owner_email', 'accepted_terms'] };
 
   function init() {
     return {
       step: 'type', type: null, name: '', country: 'MY', timezone: 'Asia/Kuala_Lumpur', line1: '', line2: '', city: '', state: '', postcode: '',
-      domain: '', email: '', terms: false, human: 'no', errors: {}, busy: false, err: null, created: null,
+      mapsUrl: '', place: null, domain: '', email: '', terms: false, human: 'no', errors: {}, busy: false, err: null, created: null,
     };
   }
   const st = () => J.state.signup;
@@ -48,6 +50,7 @@
           ${c.states.length ? J.field({ id: 'su-state', label: 'State', model: 'signup.state', err: e('state'), options: [['', 'Choose']].concat(c.states.map(([k, n]) => [k, n])) }) : ''}
           ${J.field({ id: 'su-pc', label: 'Postcode', model: 'signup.postcode', err: e('postcode'), placeholder: c.postcodeExample, attrs: `inputmode="numeric" maxlength="${c.postcode + 2}" autocomplete="postal-code"` })}
         </div></div>
+      ${J.field({ id: 'su-maps', label: 'Google Maps link', model: 'signup.mapsUrl', optional: true, err: e('maps_url'), placeholder: 'https://maps.app.goo.gl/…', hint: 'In Google Maps, open your business, tap <b>Share</b> and copy the link. Customers get directions from it. You can also add it later in Set-up.', attrs: 'inputmode="url" autocomplete="off"' })}
       <div class="row"><button type="button" class="btn ghost" data-act="su.back">Back</button><button type="button" class="btn" data-act="su.next">Continue</button></div></div>`;
   }
 
@@ -74,6 +77,14 @@
       <p class="small muted">Wrong address? <button type="button" class="btn link" data-act="su.edit">Go back and fix it</button>.</p></div>`;
   }
 
+  function placeNote() {
+    const p = st().place;
+    if (!p) return '';
+    if (p.busy) return `<div class="row muted">${J.busyLabel('Reading your Google Maps link…')}</div>`;
+    if (p.err) return `<div class="notice warn"><strong>We couldn't read your Google Maps link</strong><span>${J.esc(p.err)} You can add it later in Set-up, under Location.</span></div>`;
+    return `<div class="notice ok"><span>Location saved from your Google Maps link${p.saved.formatted_address ? ': ' + J.esc(p.saved.formatted_address) : ''}.</span></div>`;
+  }
+
   function doneStep() {
     const c = st().created;
     return `<div class="stack-lg"><div class="ticket"><div class="top"><span class="label" style="color:inherit;opacity:.8">Free plan</span><h2>${J.esc(st().name)} is set up</h2><span class="ref">${J.esc(c.domain)}</span></div>
@@ -81,6 +92,7 @@
         <span class="label">Website key (goes into your web page)</span><div class="secret" id="su-pk">${J.esc(c.publishable_key)}</div><div><button type="button" class="btn ghost small" data-act="copy" data-target="su-pk">Copy website key</button></div>
         <span class="label">Secret key (goes into the WordPress plugin; never share it)</span><div class="secret" id="su-sk">${J.esc(c.secret_key)}</div><div><button type="button" class="btn ghost small" data-act="copy" data-target="su-sk">Copy secret key</button></div>
         <span class="small">Lost them later? Sign in with your email and get a new pair from <b>Plan &amp; website</b>.</span></div>
+      ${placeNote()}
       <p>Next: add your services, your team and your opening hours. Then your booking page is ready.</p>
       <div><button type="button" class="btn" data-act="su.toAdmin">Set up my business</button></div></div></div></div>`;
   }
@@ -110,6 +122,7 @@
       if (!s.line1.trim()) err.address_line1 = 'The street is needed';
       if (c.states.length && !s.city.trim()) err.city = 'The city or suburb is needed';
       if (c.states.length && !s.state) err.state = 'Choose the state';
+      if (s.mapsUrl.trim() && !MAPS_LINK.test(s.mapsUrl.trim())) err.maps_url = 'Paste the link Google Maps gives you: it starts with https://maps.app.goo.gl/ or https://www.google.com/maps';
       if (!new RegExp(`^\\d{${c.postcode}}$`).test(s.postcode.replace(/\s/g, ''))) err.postcode = `A ${c.name} postcode has ${c.postcode} digits (for example ${c.postcodeExample})`;
     }
     s.errors = err;
@@ -146,6 +159,12 @@
       s.busy = false;
       if (err) { s.err = 'This link was already used or has expired. Sign up again to get a new one.'; J.render(); return; }
       s.created = created; s.step = 'done'; J.render(); J.top();
+      if (s.mapsUrl.trim()) { // the business exists now: its location comes from the link, as in Set-up > Location
+        s.place = { busy: true }; J.render();
+        const [res, perr] = await J.call(() => api.setLocationFromLink(created.tenant_id, s.mapsUrl.trim(), 25));
+        s.place = perr ? { err: perr.detail } : { saved: res };
+        J.render();
+      }
     },
     'su.toAdmin'() {
       const id = st().created.tenant_id;
