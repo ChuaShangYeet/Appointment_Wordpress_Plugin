@@ -197,7 +197,7 @@ class Access:
     def login_form(self, values: dict[str, str] | None = None, errors: dict[str, str] | None = None, note: str = "") -> HTMLResponse:
         v, e = values or {}, errors or {}
         inner = f"""<form method="post" action="/demo/access/login" style="display:flex;flex-direction:column;gap:14px">
-{self._field(v, e, "email", "Email", "email", "The address you registered with. We email you a log-in link.", True, "email")}
+{self._field(v, e, "email", "Email", "email", "The address you registered with. We email you a log-in link: if it is not in your inbox, check your Spam or Junk folder.", True, "email")}
 <button class="btn" type="submit" style="border:0;cursor:pointer;justify-content:center">Email me a log-in link</button></form>
 <small style="color:var(--muted)">New here? <a href="/demo/access/register">Register</a> first: it takes a minute.</small>"""
         return self._shell("Log in to the demo", inner, note, "login")
@@ -205,7 +205,7 @@ class Access:
     def register_form(self, values: dict[str, str] | None = None, errors: dict[str, str] | None = None, note: str = "") -> HTMLResponse:
         v, e = values or {}, errors or {}
         inner = f"""<form method="post" action="/demo/access/register" style="display:flex;flex-direction:column;gap:14px">
-{self._field(v, e, "email", "Work email", "email", "We send a link here to confirm it is yours.", True, "email")}
+{self._field(v, e, "email", "Work email", "email", "We send a link here to confirm it is yours: if it is not in your inbox, check your Spam or Junk folder.", True, "email")}
 {self._field(v, e, "organisation", "Organisation", "text", "Your business or company.", True, "organization")}
 {self._field(v, e, "phone", "Mobile number", "tel", "So we can follow up, if you like.", False, "tel")}
 <button class="btn" type="submit" style="border:0;cursor:pointer;justify-content:center">Register</button></form>
@@ -220,7 +220,16 @@ class Access:
         return self.page("Check your email", f"""<div class="brand"><span class="logo">J</span>JustSimple<span class="pill">Demo</span></div>
 <div class="card" style="max-width:560px;display:flex;flex-direction:column;gap:10px"><h1 style="font-size:1.6rem">Check your email</h1>
 <p>{said} Open it on this device to go into the demo. It works once, for {LINK_MINUTES} minutes.</p>
-<p style="color:var(--muted)">Nothing there? Look in the spam folder{", check you registered with this address (<a href='/demo/access/register'>register</a>)" if maybe else ""}, or <a href="/">try again</a>.</p>{shown}</div>""")
+{self._spam_reminder()}
+<p style="color:var(--muted)">Still nothing after a few minutes?{" Check you registered with this address (<a href='/demo/access/register'>register</a>), or" if maybe else ""} <a href="/">ask for a new link</a>.</p>{shown}</div>""")
+
+    @staticmethod
+    def _spam_reminder() -> str:
+        """The demo's emails often land in Spam (they come from a free email address through a sending service), so say so plainly."""
+        sender = os.environ.get("DEMO_SMTP_FROM", "") or os.environ.get("DEMO_SMTP_USER", "")
+        who = f" It comes from <b>{html.escape(sender)}</b>." if sender else ""
+        return (f'<div class="warn"><b>Not in your inbox? Check your Spam or Junk folder</b> (in Gmail, also the Promotions tab).{who} '
+                'If you find it there, mark it as <b>Not spam</b> so the next link arrives in your inbox.</div>')
 
     # ------------------------------------------------------------------ the two requests
     @staticmethod
