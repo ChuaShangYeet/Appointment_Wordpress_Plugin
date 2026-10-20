@@ -4,7 +4,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: a dark prototype strip on top; the customer screens are one phone-width column (the booking widget as a visitor sees it),
+/* Layout: a light strip on top (the site is light only); the customer screens are one phone-width column (the booking widget as a visitor sees it),
    the business admin is a wide board with a booking drawer on the right, the sign-up is a narrow form. */
 :root {
   --bg: #f4f7f5;
@@ -21,30 +21,15 @@
   --warn: #9a6200; --warn-soft: #fbedd0;
   --bad: #b3362d; --bad-soft: #fbe2df;
   --info: #2c5b9a; --info-soft: #e0eaf8;
-  --harness-bg: #0f2a20;
-  --harness-fg: #d2e9de;
-  --harness-line: #2b4a3e;
+  --harness-bg: #ffffff;
+  --harness-fg: #13201a;
+  --harness-line: #d3ddd7;
   --shadow: 0 1px 2px rgb(19 32 26 / 6%), 0 6px 18px rgb(19 32 26 / 6%);
   --font-display: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
   --font-body: 'Figtree', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
   --r: 10px;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0e1613; --surface: #151f1b; --surface-2: #1c2823; --line: #2a3832; --fg: #e3ece7; --muted: #98aaa1;
-    --accent: #5cc49b; --accent-strong: #7ad6b0; --accent-fg: #08140f; --accent-soft: #1b3a2f;
-    --ok: #63c98d; --ok-soft: #173525; --warn: #e6ad45; --warn-soft: #3a2c10; --bad: #f08176; --bad-soft: #3d1c19; --info: #86aee6; --info-soft: #1a2a40;
-    --harness-bg: #07110d; --harness-fg: #c6e2d5; --harness-line: #23392f; --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 6px 18px rgb(0 0 0 / 25%);
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #0e1613; --surface: #151f1b; --surface-2: #1c2823; --line: #2a3832; --fg: #e3ece7; --muted: #98aaa1;
-  --accent: #5cc49b; --accent-strong: #7ad6b0; --accent-fg: #08140f; --accent-soft: #1b3a2f;
-  --ok: #63c98d; --ok-soft: #173525; --warn: #e6ad45; --warn-soft: #3a2c10; --bad: #f08176; --bad-soft: #3d1c19; --info: #86aee6; --info-soft: #1a2a40;
-  --harness-bg: #07110d; --harness-fg: #c6e2d5; --harness-line: #23392f; --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 6px 18px rgb(0 0 0 / 25%);
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -69,7 +54,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .harness { background: var(--harness-bg); color: var(--harness-fg); padding: 10px 16px; border-bottom: 1px solid var(--harness-line); }
 .harness-inner { max-width: 1180px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
 .harness .brand { font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.04em; display: flex; gap: 8px; align-items: center; }
-.harness .brand b { font-family: var(--font-display); font-size: 1rem; letter-spacing: 0; color: #fff; }
+.harness .brand b { font-family: var(--font-display); font-size: 1rem; letter-spacing: 0; color: var(--accent-strong); }
 .harness .tag { border: 1px dashed var(--harness-line); border-radius: 4px; padding: 1px 6px; font-size: 0.7rem; text-transform: uppercase; }
 .harness nav { display: flex; flex-wrap: wrap; gap: 4px; }
 .harness nav button { background: transparent; border: 1px solid transparent; color: var(--harness-fg); border-radius: 6px; padding: 5px 10px; cursor: pointer; font-weight: 500; }
@@ -103,6 +88,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .wide { max-width: 1180px; margin: 0 auto; }
 
 /* ---------------------------------------------------------------- the business's storefront header (customer side) */
+.cover { display: block; width: 100%; height: auto; aspect-ratio: 3 / 1; object-fit: cover; border-radius: 14px; margin-bottom: 16px; background: var(--surface-2); box-shadow: var(--shadow); }
 .storefront { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; margin-bottom: 20px; }
 .monogram { width: 52px; height: 52px; border-radius: 14px; background: var(--accent); color: var(--accent-fg); display: grid; place-items: center; font-family: var(--font-display); font-size: 1.25rem; font-weight: 700; }
 .storefront .meta { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--muted); font-size: 0.85rem; }

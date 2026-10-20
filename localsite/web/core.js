@@ -64,9 +64,11 @@ window.JS = window.JS || {};
   };
 
   /** The business's header as its customers see it. */
+  const COVERS = { spa: 'spa', salon: 'salon', restaurant: 'restaurant', automotive: 'workshop', professional: 'home' };  // (img/: free Unsplash photos)
   J.storefront = function (b) {
     const [avg, n] = b.rating || [0, 0];
-    return `<div class="storefront"><div class="monogram" aria-hidden="true">${J.esc(J.initials(b.name))}</div><div class="stack" style="gap:4px"><h1>${J.esc(b.name)}</h1>
+    const cover = COVERS[b.type] ? `<img class="cover" src="img/${COVERS[b.type]}.webp" alt="" width="1200" height="600" decoding="async">` : '';
+    return `${cover}<div class="storefront"><div class="monogram" aria-hidden="true">${J.esc(J.initials(b.name))}</div><div class="stack" style="gap:4px"><h1>${J.esc(b.name)}</h1>
       <div class="meta"><span>${J.esc(b.kind)}</span>${n ? `<span><span class="stars" aria-hidden="true">★</span> ${avg} (${n} reviews)</span>` : ''}<span>${J.esc(b.address)}</span>${b.place && b.place.maps_url ? `<a href="${J.esc(b.place.maps_url)}" target="_blank" rel="noopener noreferrer">Directions</a>` : ''}</div></div></div>`;
   };
 

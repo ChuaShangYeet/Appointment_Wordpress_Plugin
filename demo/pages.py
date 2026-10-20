@@ -9,7 +9,7 @@ from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
 BRAND = "JustSimple"  # placeholder name until the real one is chosen
-CSP = "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; frame-ancestors 'none'; base-uri 'none'"
+CSP = "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'"
 TYPES = {"spa": "Spa & wellness", "salon": "Hair salon", "restaurant": "Restaurant", "automotive": "Car workshop", "professional": "Home & professional services"}
 
 
@@ -19,7 +19,6 @@ def _page(title: str, body: str) -> HTMLResponse:
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
 :root {{ --bg:#f7f7fb; --surface:#fff; --line:#e4e4ee; --fg:#14142b; --muted:#5f6178; --accent:#4f46e5; --accent-soft:#eef0ff; --warn:#8a5a00; --warn-soft:#fff5dc; color-scheme: light; }}
-@media (prefers-color-scheme: dark) {{ :root {{ --bg:#0d0e1a; --surface:#15172a; --line:#2a2c44; --fg:#ececf6; --muted:#a3a5bf; --accent:#8b85ff; --accent-soft:#1f2147; --warn:#f2c46b; --warn-soft:#33270d; color-scheme: dark; }} }}
 * {{ box-sizing: border-box; }}
 body {{ margin:0; background:var(--bg); color:var(--fg); font:15px/1.55 Inter, system-ui, sans-serif; }}
 main {{ max-width: 1040px; margin: 0 auto; padding: 40px 16px 72px; display:flex; flex-direction:column; gap:28px; }}

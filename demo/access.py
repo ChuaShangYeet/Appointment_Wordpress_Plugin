@@ -189,11 +189,15 @@ class Access:
         tabs = (f'<nav class="tabs"><a href="/" {"aria-current=page" if tab == "login" else ""}>Log in</a>'
                 f'<a href="/demo/access/register" {"aria-current=page" if tab == "register" else ""}>Register</a></nav>')
         body = f"""<div class="brand"><span class="logo">J</span>JustSimple<span class="pill">Demo</span></div>
-<div style="display:flex;flex-direction:column;gap:10px;max-width:560px"><h1>Try the booking system</h1>
+<div class="hero"><img class="photo" src="/img/welcome.webp" alt="" width="1200" height="600">
+<div style="display:flex;flex-direction:column;gap:20px;min-width:0">
+<div style="display:flex;flex-direction:column;gap:10px"><h1>Try the booking system</h1>
 <p class="lead">Online booking for salons, spas, restaurants, car workshops and home services: the booking page your customers use, their own account, and your admin. Register once; after that, log in with your email. We email you a link each time. The demo is shared, and its sample data goes back to fresh every night.</p></div>
-{f'<div class="warn" style="max-width:560px">{note}</div>' if note else ''}
-<div class="card" style="max-width:560px;display:flex;flex-direction:column;gap:14px">{tabs}{inner}</div>
-<style>.f{{display:flex;flex-direction:column;gap:4px}}.f span{{font-weight:600}}.f i{{font-weight:400;color:var(--muted)}}.f input{{font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--fg)}}.f small{{color:var(--muted)}}.err{{color:#c0362c;font-size:.9rem}}
+{f'<div class="warn">{note}</div>' if note else ''}
+<div class="card" style="display:flex;flex-direction:column;gap:14px">{tabs}{inner}</div></div></div>
+<style>.hero{{display:grid;gap:24px;align-items:start}}.hero>div{{max-width:560px}}
+.photo{{display:block;width:100%;height:auto;aspect-ratio:2/1;object-fit:cover;border-radius:14px;background:var(--line)}}
+@media (min-width:880px){{.hero{{grid-template-columns:minmax(0,560px) minmax(0,1fr);gap:40px}}.photo{{grid-column:2;grid-row:1;aspect-ratio:4/3;object-position:35% 50%;position:sticky;top:24px}}}}.f{{display:flex;flex-direction:column;gap:4px}}.f span{{font-weight:600}}.f i{{font-weight:400;color:var(--muted)}}.f input{{font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--fg)}}.f small{{color:var(--muted)}}.err{{color:#c0362c;font-size:.9rem}}
 .tabs{{display:flex;gap:6px;border-bottom:1px solid var(--line);padding-bottom:10px}}.tabs a{{text-decoration:none;color:var(--muted);font-weight:600;padding:6px 12px;border-radius:8px}}.tabs a[aria-current]{{background:var(--accent-soft);color:var(--accent)}}</style>"""
         return self.page(title, body)
 

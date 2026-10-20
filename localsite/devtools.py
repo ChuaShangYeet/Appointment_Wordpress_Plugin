@@ -229,7 +229,8 @@ def web_pages(directory: Path) -> Any:
             else:
                 response = await super().get_response(path, scope)
             response.headers["Content-Security-Policy"] = PAGE_CSP
-            response.headers["Cache-Control"] = "no-store"
+            # (the photos never change: browsers keep them a week; everything else is fetched fresh. On Windows the path reads img\spa.webp)
+            response.headers["Cache-Control"] = "public, max-age=604800" if path.replace("\\", "/").startswith("img/") else "no-store"
             return response
 
     return WebPages(directory=directory, html=True)
