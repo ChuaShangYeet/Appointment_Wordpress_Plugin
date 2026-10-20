@@ -26,6 +26,51 @@ Good to know:
 * If it fails with `Could not create the postgis extension`, the database plan does not offer PostGIS: tell me and we pick another host.
 * **Starting again from fresh sample data:** delete the row in the `demo_state` table and every business (or create a new database), then restart.
 
+## Run it on your own computer (no Render needed)
+
+You need **Python 3.12 or newer**, **Git** and **Docker Desktop** (for the database: PostgreSQL 16 with PostGIS). Redis is not needed: the demo keeps
+its cache in memory. From a terminal:
+
+```bash
+git clone https://github.com/ChuaShangYeet/Appointment_Wordpress_Plugin.git
+cd Appointment_Wordpress_Plugin
+
+# 1. the database (PostgreSQL 16 + PostGIS) on localhost:5432, user/password booking/booking
+docker compose -f backend/docker-compose.dev.yml up -d postgres
+
+# 2. the Python packages (once)
+python -m venv .venv
+source .venv/Scripts/activate     # Windows Git Bash (PowerShell: .venv\Scripts\Activate.ps1); on macOS/Linux: source .venv/bin/activate
+pip install -r backend/requirements.txt
+```
+
+3. Settings, then start (bash / Git Bash; PowerShell below):
+```bash
+export ENVIRONMENT=development PORT=8000
+export DATABASE_URL=postgresql://booking:booking@localhost:5432/booking
+export JWT_SECRET=$(python -c "import secrets;print(secrets.token_urlsafe(48))")
+export PDPA_ENCRYPTION_KEY=$(python -c "import os,base64;print(base64.b64encode(os.urandom(32)).decode())")
+export PLATFORM_ADMIN_TOKEN=$(python -c "import secrets;print(secrets.token_urlsafe(24))")
+python demo/server.py
+```
+```powershell
+$env:ENVIRONMENT="development"; $env:PORT="8000"
+$env:DATABASE_URL="postgresql://booking:booking@localhost:5432/booking"
+$env:JWT_SECRET = python -c "import secrets;print(secrets.token_urlsafe(48))"
+$env:PDPA_ENCRYPTION_KEY = python -c "import os,base64;print(base64.b64encode(os.urandom(32)).decode())"
+$env:PLATFORM_ADMIN_TOKEN = python -c "import secrets;print(secrets.token_urlsafe(24))"
+python demo/server.py
+```
+
+4. Open <http://localhost:8000>: the start page with the keys; the API docs at <http://localhost:8000/docs>. The first start adds the sample data
+   (a minute or two); later starts reuse it. Stop with Ctrl+C; the data stays in Docker. To start again from fresh sample data:
+   `docker compose -f backend/docker-compose.dev.yml down -v` and repeat from step 1.
+
+* `ENVIRONMENT=development` is needed here because the Docker database's only user is a superuser (the start-up safety checks would refuse it otherwise). Never use these settings on a server.
+* **Keep `PDPA_ENCRYPTION_KEY` the same between starts** (save it in a script): the sample data's encrypted fields (health notes, webhook secrets) cannot be read with another key. The line above makes a new one each time, which is fine only if you also reset the database.
+* Port 5432 already taken by another PostgreSQL? Change `"5432:5432"` to `"5433:5432"` in `backend/docker-compose.dev.yml` and use `localhost:5433` in `DATABASE_URL`.
+* The backend's own tests: see *Tests* in `backend/README.md` (they need a separate, throw-away database: the test setup wipes it).
+
 ## For the chatbot developer
 
 Base address: the Render address above (`$BASE` below). Every answer is JSON; errors are `{"error": "...", "detail": "..."}` with an HTTP status.
