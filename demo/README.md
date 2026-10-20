@@ -7,9 +7,8 @@ The real booking engine (`backend/`, unchanged) running on the internet with fiv
   self-service sign-up. Testers just open the link: nothing to install.
 * **The API, for building against** (a chatbot, an app, a website): the start page with the keys at `/api`, the documentation at `/docs`.
 
-**Visitors sign in first** (`demo/access.py`): the website asks for a work email, the organisation and, optionally, a mobile number, and emails a
-sign-in link (one use, 30 minutes; then a cookie keeps them in for 30 days). Only the website is behind it; the API (`/v1`, `/docs`, `/api`) stays open.
-You see who signed in at **`/demo/visitors`** (enter the `PLATFORM_ADMIN_TOKEN` from Render's Environment tab), with a CSV download.
+**Visitors register, then log in** (`demo/access.py`). **Register** asks for a work email, the organisation and, optionally, a mobile number; **Log in** asks only for the email. Each time a link is emailed (one use, 30 minutes) and the website opens only after it is followed; a cookie then keeps the visitor in for 30 days. Log in with an address nobody registered sends nothing (the page answers the same either way); register with an address already registered sends a log-in link. Only the website is behind it; the API (`/v1`, `/docs`, `/api`) stays open.
+At **`/demo/visitors`** (enter the `PLATFORM_ADMIN_TOKEN` from Render's Environment tab) you see the visitors and the latest steps, and download two CSV files: **the register and log-in log** (every registration, confirmation, log-in request, log-in, log-out, unknown address and used link, with time, email, organisation, mobile and client address) and **the visitors** (one row each, with the number of log-ins).
 
 **The sign-in needs an email account to send from.** Set these on Render (service > Environment), then redeploy:
 
