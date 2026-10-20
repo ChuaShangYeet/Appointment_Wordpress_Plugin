@@ -1,0 +1,32 @@
+# Render blueprint for the public demo API (demo/server.py). Render > New > Blueprint > pick this repository.
+# One web service (the API, its worker and the demo pages in one process) and one PostgreSQL database. Both on the free plan:
+# the web service sleeps after 15 minutes without visitors (the next visit takes 30-60 s), and a free database expires after 30 days.
+services:
+  - type: web
+    name: justsimple-demo-api
+    runtime: python
+    plan: free
+    region: singapore
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: python demo/server.py
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.14.0"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: justsimple-demo-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PDPA_ENCRYPTION_KEY  # (generateValue makes a base64 value of 32 bytes, which is what the key must be)
+        generateValue: true
+      - key: PLATFORM_ADMIN_TOKEN
+        generateValue: true
+
+databases:
+  - name: justsimple-demo-db
+    plan: free
+    region: singapore
+    databaseName: justsimple_demo
+    postgresMajorVersion: "16"

@@ -145,10 +145,12 @@ PLATES = ["WXA 1123", "BKT 8821", "VCD 4410", "PJS 2290", "WTR 7781", "BMM 3305"
 
 
 class Seeder:
-    def __init__(self, client: httpx.AsyncClient, platform_token: str, superuser_dsn: str, read_inbox: Any) -> None:
+    def __init__(self, client: httpx.AsyncClient, platform_token: str, dsn: str, read_inbox: Any) -> None:
+        """``dsn``: a direct database connection for the two history shortcuts. It need not be a superuser: each change is made as the business it belongs to
+        (``app.tenant_id``), so row-level security lets it through."""
         self.c = client
         self.platform = platform_token
-        self.dsn = superuser_dsn
+        self.dsn = dsn
         self.inbox = read_inbox
         self.rng = random.Random(20261016)
 
@@ -299,6 +301,7 @@ class Seeder:
         conn = await asyncpg.connect(self.dsn)
         try:
             async with conn.transaction():
+                await conn.execute("SELECT set_config('app.tenant_id', $1, true)", tenant_id)
                 await conn.execute(
                     "UPDATE bookings SET start_at = start_at - make_interval(days => $2), end_at = end_at - make_interval(days => $2), "
                     "created_at = created_at - make_interval(days => $2 + 3) WHERE tenant_id = $1", tenant_id, SHIFT_DAYS)
@@ -420,7 +423,10 @@ class Seeder:
         # the sample history is not news: nothing of it is sent when the worker starts
         conn = await asyncpg.connect(self.dsn)
         try:
-            await conn.execute("UPDATE outbox_events SET published_at = now() WHERE published_at IS NULL")
+            for b in out:
+                async with conn.transaction():
+                    await conn.execute("SELECT set_config('app.tenant_id', $1, true)", b["tenant_id"])
+                    await conn.execute("UPDATE outbox_events SET published_at = now() WHERE published_at IS NULL AND tenant_id = $1", b["tenant_id"])
         finally:
             await conn.close()
         return {"businesses": out, "sample_customer": SAMPLE_CUSTOMER}
