@@ -11,10 +11,16 @@ for developers, as before.
 * **The link** works once, for 30 minutes, and is kept only as a hash. Following it sets a signed cookie (``demo_access``, 30 days, HttpOnly).
 * **Log in** for an address nobody registered sends nothing and answers the same as for a registered one (so the page does not tell who uses the
   demo); the attempt is still logged. **Register** with an address already registered sends a log-in link instead.
-* **Abuse.** At most 3 links per email address and 10 per client address in 10 minutes (in memory: the demo runs as one instance).
+* **Log in by SMS** (when ``DEMO_BREVO_API_KEY`` is set): a registered visitor whose registration gave a mobile number can ask for a 6-digit code
+  by text message instead of a link (Brevo's transactional SMS API; sender ``DEMO_SMS_SENDER``, at most 11 letters). The code works for 10 minutes
+  and 5 tries, and is kept only as a keyed hash. A number nobody registered gets nothing, and the page answers the same. Registering still
+  confirms the email.
+* **Abuse.** At most 3 links (or codes) per email address or mobile number, and 10 per client address, in 10 minutes (in memory: the demo runs as
+  one instance).
 
 Log events: ``register_requested``, ``register_existing`` (already registered: a log-in link was sent), ``registration_confirmed``,
-``login_requested``, ``login_unknown_email`` (nothing sent), ``logged_in``, ``link_invalid`` (expired or used), ``logged_out``.
+``login_requested``, ``login_unknown_email`` (nothing sent), ``logged_in``, ``link_invalid`` (expired or used), ``logged_out``,
+``sms_code_sent``, ``sms_unknown_number`` (nothing sent), ``sms_logged_in``, ``sms_code_wrong``.
 """
 from __future__ import annotations
 
@@ -42,6 +48,9 @@ log = logging.getLogger("demo")
 COOKIE = "demo_access"
 COOKIE_DAYS = 30
 LINK_MINUTES = 30
+SMS_MINUTES = 10
+SMS_TRIES = 5
+BREVO_SMS_URL = "https://api.brevo.com/v3/transactionalSMS/send"
 SCHEMA = [
     """CREATE TABLE IF NOT EXISTS demo_visitors (
         id bigserial PRIMARY KEY,
@@ -57,6 +66,9 @@ SCHEMA = [
     )""",
     "ALTER TABLE demo_visitors ADD COLUMN IF NOT EXISTS link_purpose text",
     "ALTER TABLE demo_visitors ADD COLUMN IF NOT EXISTS login_count integer NOT NULL DEFAULT 0",
+    "ALTER TABLE demo_visitors ADD COLUMN IF NOT EXISTS sms_code_hash text",
+    "ALTER TABLE demo_visitors ADD COLUMN IF NOT EXISTS sms_code_expires_at timestamptz",
+    "ALTER TABLE demo_visitors ADD COLUMN IF NOT EXISTS sms_attempts integer NOT NULL DEFAULT 0",
     """CREATE TABLE IF NOT EXISTS demo_access_log (
         id bigserial PRIMARY KEY,
         at timestamptz NOT NULL DEFAULT now(),
@@ -71,6 +83,8 @@ EVENT_LABELS = {
     "register_requested": "Registered (link sent)", "register_existing": "Registered again (log-in link sent)",
     "registration_confirmed": "Registration confirmed", "login_requested": "Log in (link sent)", "login_unknown_email": "Log in, not registered (nothing sent)",
     "logged_in": "Logged in", "link_invalid": "Link expired or used", "logged_out": "Logged out",
+    "sms_code_sent": "Log in by SMS (code sent)", "sms_unknown_number": "Log in by SMS, number not registered (nothing sent)",
+    "sms_logged_in": "Logged in by SMS", "sms_code_wrong": "SMS code wrong or expired",
 }
 
 
@@ -166,6 +180,32 @@ class Access:
     def _show_link() -> bool:
         return os.environ.get("DEMO_ACCESS_SHOW_LINK", "").lower() == "true"
 
+    @staticmethod
+    def _sms_ready() -> bool:
+        """Log in by SMS is offered only with a Brevo API key (or, on one's own computer, DEMO_ACCESS_SHOW_LINK, which shows the code)."""
+        return bool(os.environ.get("DEMO_BREVO_API_KEY")) or os.environ.get("DEMO_ACCESS_SHOW_LINK", "").lower() == "true"
+
+    def _code_hash(self, phone: str, code: str) -> str:
+        return hmac.new(self.secret, f"demo-sms:{phone}:{code}".encode(), hashlib.sha256).hexdigest()
+
+    async def _send_sms(self, phone: str, code: str) -> str | None:
+        """Text the code (Brevo). Without an API key (DEMO_ACCESS_SHOW_LINK) the code is returned to show on the page instead. Raises on a failed send."""
+        key = os.environ.get("DEMO_BREVO_API_KEY", "")
+        if not key:
+            return code
+        import httpx
+
+        prefix = os.environ.get("DEMO_SMS_PREFIX", "")  # (some countries' rules want a fixed start, for example "RM0 " in Malaysia: see demo/README.md)
+        body = {
+            "sender": (os.environ.get("DEMO_SMS_SENDER", "") or "JustSimple")[:11], "recipient": phone.lstrip("+"), "type": "transactional", "tag": "demo-login",
+            "content": f"{prefix}Your JustSimple demo code is {code}. It works for {SMS_MINUTES} minutes. Do not share it.",
+        }
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.post(BREVO_SMS_URL, json=body, headers={"api-key": key, "accept": "application/json", "content-type": "application/json"})
+        if r.status_code not in (200, 201):
+            raise RuntimeError(f"Brevo SMS answered {r.status_code}: {r.text[:300]}")
+        return None
+
     def _can_send(self) -> bool:
         return self._smtp() is not None or self._show_link()
 
@@ -190,7 +230,7 @@ class Access:
                 f'<a href="/demo/access/register" {"aria-current=page" if tab == "register" else ""}>Register</a></nav>')
         body = f"""<div class="brand"><span class="logo">J</span>JustSimple<span class="pill">Demo</span></div>
 <div style="display:flex;flex-direction:column;gap:10px;max-width:560px"><h1>Try the booking system</h1>
-<p class="lead">Online booking for salons, spas, restaurants, car workshops and home services: the booking page your customers use, their own account, and your admin. Register once; after that, log in with your email. We email you a link each time. The demo is shared, and its sample data goes back to fresh every night.</p></div>
+<p class="lead">Online booking for salons, spas, restaurants, car workshops and home services: the booking page your customers use, their own account, and your admin. Register once; after that, log in with your email (we email you a link){' or your mobile number (we text you a code)' if self._sms_ready() else ''}. The demo is shared, and its sample data goes back to fresh every night.</p></div>
 {f'<div class="warn" style="max-width:560px">{note}</div>' if note else ''}
 <div class="card" style="max-width:560px;display:flex;flex-direction:column;gap:14px">{tabs}{inner}</div>
 <style>.f{{display:flex;flex-direction:column;gap:4px}}.f span{{font-weight:600}}.f i{{font-weight:400;color:var(--muted)}}.f input{{font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--fg)}}.f small{{color:var(--muted)}}.err{{color:#c0362c;font-size:.9rem}}
@@ -209,15 +249,36 @@ class Access:
         inner = f"""<form method="post" action="/demo/access/login" style="display:flex;flex-direction:column;gap:14px">
 {self._field(v, e, "email", "Email", "email", "The address you registered with. We email you a log-in link: if it is not in your inbox, check your Spam or Junk folder.", True, "email")}
 <button class="btn" type="submit" style="border:0;cursor:pointer;justify-content:center">Email me a log-in link</button></form>
+{self._sms_block(v, e)}
 <small style="color:var(--muted)">New here? <a href="/demo/access/register">Register</a> first: it takes a minute.</small>"""
         return self._shell("Log in to the demo", inner, note, "login")
+
+    def _sms_block(self, v: dict[str, str], e: dict[str, str]) -> str:
+        if not self._sms_ready():
+            return ""
+        return f"""<div style="display:flex;align-items:center;gap:10px;color:var(--muted)"><hr style="flex:1;border:0;border-top:1px solid var(--line)">or<hr style="flex:1;border:0;border-top:1px solid var(--line)"></div>
+<form method="post" action="/demo/access/sms" style="display:flex;flex-direction:column;gap:14px">
+{self._field(v, e, "phone", "Mobile number", "tel", "The mobile number you registered with. We text you a 6-digit code.", True, "tel")}
+<button class="btn ghost" type="submit" style="cursor:pointer;justify-content:center">Text me a code</button></form>"""
+
+    def code_form(self, phone: str, shown_code: str | None = None, error: str = "") -> HTMLResponse:
+        shown = (f'<p><b>SMS is not set up on this server</b> (DEMO_ACCESS_SHOW_LINK is on), so here is the code: <b>{html.escape(shown_code)}</b>.</p>'
+                 if shown_code else "")
+        err = f'<span class="err">{html.escape(error)}</span>' if error else ""
+        inner = f"""<p>If <b>{html.escape(phone)}</b> is registered, we texted it a 6-digit code. It works for {SMS_MINUTES} minutes.</p>{shown}
+<form method="post" action="/demo/access/sms/verify" style="display:flex;flex-direction:column;gap:14px">
+<input type="hidden" name="phone" value="{html.escape(phone)}">
+<label class="f"><span>Code</span><input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{{6}}" maxlength="6" required style="letter-spacing:.3em;font-size:1.2rem">{err}</label>
+<button class="btn" type="submit" style="border:0;cursor:pointer;justify-content:center">Log in</button></form>
+<small style="color:var(--muted)">No text after a minute? Check the number, or <a href="/">log in with your email</a> instead. A number only works if you gave it when you registered.</small>"""
+        return self._shell("Enter your code", inner, "", "login")
 
     def register_form(self, values: dict[str, str] | None = None, errors: dict[str, str] | None = None, note: str = "") -> HTMLResponse:
         v, e = values or {}, errors or {}
         inner = f"""<form method="post" action="/demo/access/register" style="display:flex;flex-direction:column;gap:14px">
 {self._field(v, e, "email", "Work email", "email", "We send a link here to confirm it is yours: if it is not in your inbox, check your Spam or Junk folder.", True, "email")}
 {self._field(v, e, "organisation", "Organisation", "text", "Your business or company.", True, "organization")}
-{self._field(v, e, "phone", "Mobile number", "tel", "So we can follow up, if you like.", False, "tel")}
+{self._field(v, e, "phone", "Mobile number", "tel", ("Give it to log in later with a code by text message, and so we can follow up." if self._sms_ready() else "So we can follow up, if you like."), False, "tel")}
 <button class="btn" type="submit" style="border:0;cursor:pointer;justify-content:center">Register</button></form>
 <small style="color:var(--muted)">The demo is shared with other visitors and uses sample data: please don't enter real customer details in it. Already registered? <a href="/">Log in</a>.</small>"""
         return self._shell("Register for the demo", inner, note, "register")
@@ -341,6 +402,71 @@ class Access:
                 return self.login_form(values, note="We couldn't send the email just now. Try again in a minute.")
         return self._check_your_email(email, shown, maybe=True)
 
+    async def sms_request(self, request: Request) -> HTMLResponse:
+        from app.core.exceptions import ValidationFailed
+        from app.core.phone import normalise_phone
+
+        raw = parse_qs((await request.body()).decode("utf8", "replace"))
+        typed = (raw.get("phone", [""])[0]).strip()[:40]
+        if not self._sms_ready():
+            return self.login_form(note="Log in by SMS is not set up on this demo; use your email.")
+        try:
+            phone = normalise_phone(typed, "60")
+        except ValidationFailed:
+            return self.login_form({"phone": typed}, {"phone": "That doesn't look like a mobile number, such as 012-345 6789."})
+        client = _client(request)
+        if not self._allowed("phone:" + phone, 3) or not self._allowed("ip:" + client, 10):
+            return self.login_form({"phone": typed}, note="Too many codes were asked for just now. Wait a few minutes, or log in with your email.")
+        code = f"{secrets.randbelow(10**6):06d}"
+        conn = await self._conn()
+        try:
+            row = await conn.fetchrow("SELECT id, email, organisation FROM demo_visitors WHERE phone = $1 AND verified_at IS NOT NULL "
+                                      "ORDER BY verified_at DESC LIMIT 1", phone)
+            if row is None:
+                await self._log(conn, "sms_unknown_number", None, client, None, phone)
+            else:
+                await conn.execute("UPDATE demo_visitors SET sms_code_hash = $2, sms_code_expires_at = now() + make_interval(mins => $3), sms_attempts = 0 WHERE id = $1",
+                                   row["id"], self._code_hash(phone, code), SMS_MINUTES)
+                await self._log(conn, "sms_code_sent", row["email"], client, row["organisation"], phone)
+        finally:
+            await conn.close()
+        shown = None
+        if row is not None:
+            try:
+                shown = await self._send_sms(phone, code)
+            except Exception:  # noqa: BLE001 - say so; the reason goes to the log
+                log.exception("demo SMS to a number in %s failed", phone[:4])
+                return self.login_form({"phone": typed}, note="We couldn't send the text message just now. Try again in a minute, or log in with your email.")
+        return self.code_form(phone, shown)
+
+    async def sms_verify(self, request: Request) -> Response:
+        raw = parse_qs((await request.body()).decode("utf8", "replace"))
+        phone, code = (raw.get("phone", [""])[0]).strip()[:20], (raw.get("code", [""])[0]).strip()[:6]
+        client = _client(request)
+        conn = await self._conn()
+        try:
+            row = await conn.fetchrow("SELECT id, email, organisation, sms_code_hash, sms_attempts FROM demo_visitors WHERE phone = $1 AND sms_code_hash IS NOT NULL "
+                                      "AND sms_code_expires_at > now() ORDER BY sms_code_expires_at DESC LIMIT 1", phone)
+            good = row is not None and row["sms_attempts"] < SMS_TRIES and hmac.compare_digest(row["sms_code_hash"], self._code_hash(phone, code))
+            if not good:
+                if row is not None:
+                    await conn.execute("UPDATE demo_visitors SET sms_attempts = sms_attempts + 1 WHERE id = $1", row["id"])
+                await self._log(conn, "sms_code_wrong", row["email"] if row else None, client, row["organisation"] if row else None, phone)
+            else:
+                await conn.execute("UPDATE demo_visitors SET sms_code_hash = NULL, sms_code_expires_at = NULL, sms_attempts = 0, verified_at = COALESCE(verified_at, now()), "
+                                   "last_seen_at = now(), login_count = login_count + 1 WHERE id = $1", row["id"])
+                await self._log(conn, "sms_logged_in", row["email"], client, row["organisation"], phone)
+        finally:
+            await conn.close()
+        if not good:
+            await asyncio.sleep(0.5)  # (slows guessing)
+            tries_left = SMS_TRIES - (row["sms_attempts"] + 1) if row is not None else 0
+            message = "That code is wrong or has expired." + (f" {tries_left} tries left." if 0 < tries_left < SMS_TRIES else " Ask for a new code.")
+            return self.code_form(phone, error=message)
+        response = RedirectResponse("/", status_code=303)
+        response.set_cookie(COOKIE, self.cookie_for(row["id"]), max_age=COOKIE_DAYS * 86400, httponly=True, samesite="lax", secure=self.secure)
+        return response
+
     async def verify(self, token: str, request: Request) -> Response:
         client = _client(request)
         conn = await self._conn()
@@ -424,6 +550,14 @@ def router(access: Access, site: Callable[[Request], Awaitable[Response]], reset
     @r.post("/demo/access/login")
     async def login(request: Request) -> Response:
         return await access.login(request)
+
+    @r.post("/demo/access/sms")
+    async def sms_request(request: Request) -> Response:
+        return await access.sms_request(request)
+
+    @r.post("/demo/access/sms/verify")
+    async def sms_verify(request: Request) -> Response:
+        return await access.sms_verify(request)
 
     @r.get("/demo/access/verify")
     async def verify(request: Request, token: str = "") -> Response:

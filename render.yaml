@@ -28,6 +28,11 @@ services:
         sync: false
       - key: DEMO_SMTP_PORT
         value: "2525"  # (Render's free plan blocks 25, 465 and 587; Brevo also listens on 2525)
+      # Log in by SMS code (optional): a Brevo API key (not the SMTP key) and the sender name, at most 11 letters (demo/access.py)
+      - key: DEMO_BREVO_API_KEY
+        sync: false
+      - key: DEMO_SMS_SENDER
+        value: JustSimple
       # The sample data goes back to fresh every night at this hour, Malaysia time (0-23), or "off" (demo/reset.py)
       - key: DEMO_RESET_HOUR
         value: "3"
