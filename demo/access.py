@@ -69,6 +69,7 @@ SCHEMA = [
     "ALTER TABLE demo_visitors ADD COLUMN IF NOT EXISTS sms_code_hash text",
     "ALTER TABLE demo_visitors ADD COLUMN IF NOT EXISTS sms_code_expires_at timestamptz",
     "ALTER TABLE demo_visitors ADD COLUMN IF NOT EXISTS sms_attempts integer NOT NULL DEFAULT 0",
+    "ALTER TABLE demo_visitors ADD COLUMN IF NOT EXISTS sms_last_wrong text",
     """CREATE TABLE IF NOT EXISTS demo_access_log (
         id bigserial PRIMARY KEY,
         at timestamptz NOT NULL DEFAULT now(),
@@ -425,7 +426,7 @@ class Access:
             if row is None:
                 await self._log(conn, "sms_unknown_number", None, client, None, phone)
             else:
-                await conn.execute("UPDATE demo_visitors SET sms_code_hash = $2, sms_code_expires_at = now() + make_interval(mins => $3), sms_attempts = 0 WHERE id = $1",
+                await conn.execute("UPDATE demo_visitors SET sms_code_hash = $2, sms_code_expires_at = now() + make_interval(mins => $3), sms_attempts = 0, sms_last_wrong = NULL WHERE id = $1",
                                    row["id"], self._code_hash(phone, code), SMS_MINUTES)
                 await self._log(conn, "sms_code_sent", row["email"], client, row["organisation"], phone)
         finally:
@@ -448,10 +449,19 @@ class Access:
             row = await conn.fetchrow("SELECT id, email, organisation, sms_code_hash, sms_attempts FROM demo_visitors WHERE phone = $1 AND sms_code_hash IS NOT NULL "
                                       "AND sms_code_expires_at > now() ORDER BY sms_code_expires_at DESC LIMIT 1", phone)
             good = row is not None and row["sms_attempts"] < SMS_TRIES and hmac.compare_digest(row["sms_code_hash"], self._code_hash(phone, code))
+            attempts = row["sms_attempts"] if row is not None else SMS_TRIES
             if not good:
+                counted = True
                 if row is not None:
-                    await conn.execute("UPDATE demo_visitors SET sms_attempts = sms_attempts + 1 WHERE id = $1", row["id"])
-                await self._log(conn, "sms_code_wrong", row["email"] if row else None, client, row["organisation"] if row else None, phone)
+                    # The same wrong code sent again (a double click, Enter and the button) is one try, not two. One UPDATE decides it: two requests
+                    # at the same moment queue on the row, and the second sees the first one's code.
+                    tried = self._code_hash(phone, code)
+                    after = await conn.fetchval("UPDATE demo_visitors SET sms_attempts = sms_attempts + 1, sms_last_wrong = $2 "
+                                                "WHERE id = $1 AND sms_last_wrong IS DISTINCT FROM $2 RETURNING sms_attempts", row["id"], tried)
+                    counted = after is not None
+                    attempts = after if counted else await conn.fetchval("SELECT sms_attempts FROM demo_visitors WHERE id = $1", row["id"])
+                if counted:
+                    await self._log(conn, "sms_code_wrong", row["email"] if row else None, client, row["organisation"] if row else None, phone)
             else:
                 await conn.execute("UPDATE demo_visitors SET sms_code_hash = NULL, sms_code_expires_at = NULL, sms_attempts = 0, verified_at = COALESCE(verified_at, now()), "
                                    "last_seen_at = now(), login_count = login_count + 1 WHERE id = $1", row["id"])
@@ -460,7 +470,7 @@ class Access:
             await conn.close()
         if not good:
             await asyncio.sleep(0.5)  # (slows guessing)
-            tries_left = SMS_TRIES - (row["sms_attempts"] + 1) if row is not None else 0
+            tries_left = SMS_TRIES - attempts
             message = "That code is wrong or has expired." + (f" {tries_left} tries left." if 0 < tries_left < SMS_TRIES else " Ask for a new code.")
             return self.code_form(phone, error=message)
         response = RedirectResponse("/", status_code=303)
