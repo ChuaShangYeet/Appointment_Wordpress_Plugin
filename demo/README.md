@@ -10,18 +10,6 @@ The real booking engine (`backend/`, unchanged) running on the internet with fiv
 **Visitors register, then log in** (`demo/access.py`). **Register** asks for a work email, the organisation and, optionally, a mobile number; **Log in** asks only for the email. Each time a link is emailed (one use, 30 minutes) and the website opens only after it is followed; a cookie then keeps the visitor in for 30 days. Log in with an address nobody registered sends nothing (the page answers the same either way); register with an address already registered sends a log-in link. Only the website is behind it; the API (`/v1`, `/docs`, `/api`) stays open.
 At **`/demo/visitors`** (enter the `PLATFORM_ADMIN_TOKEN` from Render's Environment tab) you see the visitors and the latest steps, and download two CSV files: **the register and log-in log** (every registration, confirmation, log-in request, log-in, log-out, unknown address and used link, with time, email, organisation, mobile and client address) and **the visitors** (one row each, with the number of log-ins).
 
-**Log in by SMS (optional, Brevo).** With a Brevo API key set, the log-in page also offers **Text me a code**: a visitor who gave a mobile
-number when registering gets a 6-digit code by text message (10 minutes, 5 tries). Registering still confirms the email. To switch it on:
-
-1. In Brevo, buy SMS credits (SMS is paid per message, unlike the free emails; the price depends on the country).
-2. In Brevo, **SMTP & API > API keys > Generate a new API key** (an API key, not the SMTP key). Copy it.
-3. On Render (service > Environment) set `DEMO_BREVO_API_KEY` to it, and optionally `DEMO_SMS_SENDER` (the name the text comes from, at most 11
-   letters and digits, default `JustSimple`). Redeploy.
-4. Some countries have rules for business text messages (in Malaysia, for example, carriers may require the message to start with `RM0`, and
-   a sender name may need registering). Ask Brevo what applies; `DEMO_SMS_PREFIX` puts a fixed start before the message (for example `RM0 `).
-
-Without `DEMO_BREVO_API_KEY` the SMS option is not shown. On your own computer, `DEMO_ACCESS_SHOW_LINK=true` shows the code on the page.
-
 **The sample data resets every night** (`demo/reset.py`), at 3 am Malaysia time (`DEMO_RESET_HOUR`, an hour from 0 to 23, or `off`): the five
 sample businesses and their bookings go back to fresh, and businesses visitors signed up, bookings they made and everything changed in set-up are
 removed. The visitors and the register and log-in log are kept. The `/demo/visitors` page also has a **Reset the demo data now** button and shows
