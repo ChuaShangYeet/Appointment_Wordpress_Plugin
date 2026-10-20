@@ -104,7 +104,7 @@ window.JS = window.JS || {};
     const staff = b.resources.filter((r) => r.type === 'staff');
     const roles = [['owner', 'Owner'], ['manager', 'Manager']].concat(staff.length ? [['staff', `Staff: ${staff[0].name}`]] : []);
     return `<div class="harness-inner">
-      <div class="brand"><b>JustSimple</b><span class="tag">Local test site · real backend</span></div>
+      <div class="brand"><b>JustSimple</b><span class="tag">${J.api.hosted() ? 'Online demo · shared by everyone' : 'Local test site · real backend'}</span></div>
       <button type="button" class="hbtn hmenu" data-act="menu" aria-expanded="${!!J.state.menu}" aria-controls="hpanel">${J.state.menu ? 'Close' : AREAS.find(([v]) => v === J.state.view)[1] + ' ▾'}</button>
       <div class="hpanel ${J.state.menu ? 'open' : ''}" id="hpanel">
       <nav aria-label="Prototype areas">${AREAS.map(([v, t]) => `<button type="button" data-act="nav" data-view="${v}" ${J.state.view === v ? 'aria-current="page"' : ''}>${t}</button>`).join('')}</nav>

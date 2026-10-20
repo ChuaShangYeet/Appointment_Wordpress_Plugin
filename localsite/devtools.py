@@ -8,12 +8,13 @@ Nothing here is part of the product. The backend runs unchanged; this module onl
 """
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import json
 import re
 from collections import deque
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 import fakeredis
 from fastapi import APIRouter, FastAPI, HTTPException
@@ -111,52 +112,75 @@ class NewBusiness(BaseModel):
     secret_key: str
 
 
-def dev_router(app: FastAPI, config_path: Path) -> APIRouter:
+class FileStore:
+    """The test pages' list of businesses and their keys, kept in a JSON file (the local test site: ``data/local.json``)."""
+
+    hosted = False
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+
+    async def load(self) -> dict[str, Any]:
+        return json.loads(self.path.read_text(encoding="utf8"))
+
+    async def save(self, data: dict[str, Any]) -> None:
+        self.path.write_text(json.dumps(data, indent=2), encoding="utf8")
+
+
+class Store(Protocol):
+    hosted: bool
+
+    async def load(self) -> dict[str, Any]: ...
+
+    async def save(self, data: dict[str, Any]) -> None: ...
+
+
+def dev_router(app: FastAPI, store: Store) -> APIRouter:
     import httpx
 
-    router = APIRouter(prefix="/dev", tags=["local test site"])
-
-    def load() -> dict[str, Any]:
-        return json.loads(config_path.read_text(encoding="utf8"))
+    router = APIRouter(prefix="/dev", tags=["test pages"])
+    writing = asyncio.Lock()  # (several visitors may change the list at once on a hosted demo)
 
     @router.get("/config")
     async def config() -> dict[str, Any]:
         """The sample businesses with their public keys (never the secret keys), and the sample customer."""
-        data = load()
+        data = await store.load()
         return {
             "businesses": [{k: v for k, v in b.items() if k != "secret_key"} for b in data["businesses"]],
-            "sample_customer": data["sample_customer"],
+            "sample_customer": data["sample_customer"], "hosted": store.hosted,
         }
 
     @router.post("/businesses")
     async def add_business(body: NewBusiness) -> dict[str, str]:
         """A business made on the sign-up page: remember it so the admin pages can open it (keys are kept here, as a WordPress site would)."""
-        data = load()
-        if not any(b["tenant_id"] == body.tenant_id for b in data["businesses"]):
-            data["businesses"].append({
-                "id": "new-" + body.tenant_id[:8], "tenant_id": body.tenant_id, "name": body.name, "type": body.business_type,
-                "publishable_key": body.publishable_key, "secret_key": body.secret_key, "plan": "free", "is_new": True,
-            })
-            config_path.write_text(json.dumps(data, indent=2), encoding="utf8")
+        async with writing:
+            data = await store.load()
+            if not any(b["tenant_id"] == body.tenant_id for b in data["businesses"]):
+                data["businesses"].append({
+                    "id": "new-" + body.tenant_id[:8], "tenant_id": body.tenant_id, "name": body.name, "type": body.business_type,
+                    "publishable_key": body.publishable_key, "secret_key": body.secret_key, "plan": "free", "is_new": True,
+                })
+                await store.save(data)
         return {"status": "ok"}
 
     @router.put("/businesses/{business_id}")
     async def update_business(business_id: str, body: dict[str, Any]) -> dict[str, str]:
         """What the backend cannot be asked for (opening hours, which rule set is the default) and replaced keys: kept here for the test pages."""
-        data = load()
-        business = next((b for b in data["businesses"] if b["id"] == business_id), None)
-        if business is None:
-            raise HTTPException(404, "No such business")
-        for key in ("hours", "default_policy_id", "secret_key", "publishable_key"):
-            if key in body:
-                business[key] = body[key]
-        config_path.write_text(json.dumps(data, indent=2), encoding="utf8")
+        async with writing:
+            data = await store.load()
+            business = next((b for b in data["businesses"] if b["id"] == business_id), None)
+            if business is None:
+                raise HTTPException(404, "No such business")
+            for key in ("hours", "default_policy_id", "secret_key", "publishable_key"):
+                if key in body:
+                    business[key] = body[key]
+            await store.save(data)
         return {"status": "ok"}
 
     @router.post("/admin-token")
     async def admin_token(body: TokenAsk) -> dict[str, Any]:
         """Stands in for the WordPress plugin: exchanges the business's secret key for an admin token for a user of the given role."""
-        business = next((b for b in load()["businesses"] if b["id"] == body.business), None)
+        business = next((b for b in (await store.load())["businesses"] if b["id"] == body.business), None)
         if business is None:
             raise HTTPException(404, "No such business")
         user_id = {"owner": "owner-1", "manager": "manager-1"}.get(body.role, f"staff-{body.resource_id or 'all'}")
@@ -173,6 +197,37 @@ def dev_router(app: FastAPI, config_path: Path) -> APIRouter:
     @router.get("/messages")
     async def messages(after: int = 0) -> list[dict[str, Any]]:
         """What the backend 'sent' (WhatsApp, SMS, email), newest last."""
-        return [m for m in INBOX if m["id"] > after]
+        return [m for m in INBOX if m["id"] > after][-200:]
 
     return router
+
+
+# ------------------------------------------------------------------ serving the test pages
+SKELETON = (
+    '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+    '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
+    "<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}"
+    "body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body>{page}</body></html>"
+)
+#: The API answers carry "default-src 'none'" (they are never pages); the test pages need their own scripts, styles and fonts.
+PAGE_CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'")
+
+
+def web_pages(directory: Path) -> Any:
+    """The test pages (``web/``): index.html wrapped in a document, never cached, with a content policy that lets them run."""
+    from starlette.responses import HTMLResponse, Response
+    from starlette.staticfiles import StaticFiles
+    from starlette.types import Scope
+
+    class WebPages(StaticFiles):
+        async def get_response(self, path: str, scope: Scope) -> Response:
+            if path in ("", ".", "index.html"):
+                response: Response = HTMLResponse(SKELETON.replace("{page}", (directory / "index.html").read_text(encoding="utf8")))
+            else:
+                response = await super().get_response(path, scope)
+            response.headers["Content-Security-Policy"] = PAGE_CSP
+            response.headers["Cache-Control"] = "no-store"
+            return response
+
+    return WebPages(directory=directory, html=True)

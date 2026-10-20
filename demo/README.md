@@ -1,9 +1,13 @@
-# JustSimple demo API
+# JustSimple online demo: website and API
 
-The real booking engine (`backend/`, unchanged) running on the internet with five sample businesses on the free plan, for demos and for
-building against (a chatbot, an app, a website). Started by `demo/server.py`.
+The real booking engine (`backend/`, unchanged) running on the internet with five sample businesses on the free plan. Started by `demo/server.py`.
 
-**It is a public demo.** Every key, including the secret keys, is shown on its start page, and everyone shares the same data. Nothing is
+* **The demo website, at `/`**: the same pages as the local test site (`localsite/web`): the booking page for all five kinds of business, My bookings
+  (sign in with a code or an emailed link: both appear under **Messages** in the top strip), the business admin (owner / manager / staff), and
+  self-service sign-up. Testers just open the link: nothing to install.
+* **The API, for building against** (a chatbot, an app, a website): the start page with the keys at `/api`, the documentation at `/docs`.
+
+**It is a public demo.** Every key, including the secret keys, is shown on the `/api` page, and everyone shares the same data. Nothing is
 really sent: WhatsApp, SMS and email messages (sign-in codes too) are kept in memory and shown at `/demo/messages`. Never put real
 customers or a real business into it.
 
@@ -14,8 +18,8 @@ customers or a real business into it.
    `justsimple-demo-db`, both free, in Singapore. Press **Apply**.
 3. Wait for the first deploy (5-10 minutes: it installs the packages, builds the database, then adds the sample data, which takes a minute or two
    more on the first start only). The log ends with `[demo] ready on port ...`.
-4. Open the service's address (`https://justsimple-demo-api.onrender.com` or similar). The start page lists the businesses and their keys; the API
-   documentation is at `/docs`.
+4. Open the service's address (`https://justsimple-demo-api.onrender.com` or similar). That is the demo website; the keys are at `/api` and the API
+   documentation at `/docs`. Businesses signed up on the website, and keys replaced there, are kept in the database (`demo_state`), so they survive a restart.
 
 Good to know:
 * **Free web service sleeps** after 15 minutes without visitors; the next request takes 30-60 seconds. Open the page a minute before a demo.
@@ -62,7 +66,7 @@ $env:PLATFORM_ADMIN_TOKEN = python -c "import secrets;print(secrets.token_urlsaf
 python demo/server.py
 ```
 
-4. Open <http://localhost:8000>: the start page with the keys; the API docs at <http://localhost:8000/docs>. The first start adds the sample data
+4. Open <http://localhost:8000>: the demo website; the keys at <http://localhost:8000/api>, the API docs at <http://localhost:8000/docs>. The first start adds the sample data
    (a minute or two); later starts reuse it. Stop with Ctrl+C; the data stays in Docker. To start again from fresh sample data:
    `docker compose -f backend/docker-compose.dev.yml down -v` and repeat from step 1.
 

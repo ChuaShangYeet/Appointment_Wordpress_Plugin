@@ -135,37 +135,6 @@ def migrate(env: dict[str, str]) -> None:
     subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], cwd=BACKEND, env={**os.environ, **env}, check=True, capture_output=True, text=True)
 
 
-SKELETON = (
-    '<!doctype html><html lang="en"><head><meta charset="utf-8">'
-    '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
-    "<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}"
-    "body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body>{page}</body></html>"
-)
-#: The API answers carry "default-src 'none'" (they are never pages); the test pages need their own scripts, styles and fonts.
-PAGE_CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-            "font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'")
-
-
-def _web_pages_class():  # (defined late: Starlette is importable only once the backend's packages are on the path)
-    from starlette.responses import HTMLResponse, Response
-    from starlette.staticfiles import StaticFiles
-    from starlette.types import Scope
-
-    class WebPages(StaticFiles):
-        """The test pages: index.html wrapped in a document, never cached, with a content policy that lets them run."""
-
-        async def get_response(self, path: str, scope: Scope) -> Response:
-            if path in ("", ".", "index.html"):
-                response: Response = HTMLResponse(SKELETON.replace("{page}", (WEB / "index.html").read_text(encoding="utf8")))
-            else:
-                response = await super().get_response(path, scope)
-            response.headers["Content-Security-Policy"] = PAGE_CSP
-            response.headers["Cache-Control"] = "no-store"
-            return response
-
-    return WebPages
-
-
 async def serve(port: int, s: dict[str, str], open_browser: bool = False) -> None:
     sys.path.insert(0, str(BACKEND))
     sys.path.insert(0, str(HERE))
@@ -181,7 +150,6 @@ async def serve(port: int, s: dict[str, str], open_browser: bool = False) -> Non
     from app.services.webhooks import WebhookPublisher
     from app import worker
 
-    WebPages = _web_pages_class()
     devtools.install_memory_redis()
     devtools.install_inbox()
     devtools.install_geocoder()
@@ -204,8 +172,8 @@ async def serve(port: int, s: dict[str, str], open_browser: bool = False) -> Non
         CONFIG.write_text(json.dumps(data, indent=2), encoding="utf8")
         say("sample data ready.")
 
-    app.include_router(devtools.dev_router(app, CONFIG))
-    app.mount("/", WebPages(directory=WEB, html=True), name="web")
+    app.include_router(devtools.dev_router(app, devtools.FileStore(CONFIG)))
+    app.mount("/", devtools.web_pages(WEB), name="web")
 
     outbox.set_event_publisher(outbox.CompositePublisher(NotificationPublisher(), WebhookPublisher(), CalendarPublisher()))
     stop = asyncio.Event()

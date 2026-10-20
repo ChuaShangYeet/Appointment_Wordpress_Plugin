@@ -45,12 +45,13 @@ pre {{ font: 12.5px/1.5 'JetBrains Mono', ui-monospace, monospace; background:va
     return HTMLResponse(doc, headers={"Content-Security-Policy": CSP, "Cache-Control": "no-store"})
 
 
-def router(state: dict[str, Any], inbox: Callable[[], list[dict[str, Any]]]) -> APIRouter:
+def router(store: Any, inbox: Callable[[], list[dict[str, Any]]]) -> APIRouter:
+    """``store`` holds the businesses and their keys (``DbStore``): read on every request, as keys can be replaced from the website."""
     r = APIRouter(tags=["demo"])
-    businesses = state["businesses"]
-    customer = state["sample_customer"]
 
     def info() -> dict[str, Any]:
+        businesses = [b for b in store.data["businesses"] if not b.get("is_new")]  # (the five sample businesses, not ones visitors sign up)
+        customer = store.data["sample_customer"]
         return {
             "note": "Public demo: every key here is shared with everyone and the data is shared. Never use real customers or businesses.",
             "docs": "/docs",
@@ -78,8 +79,10 @@ def router(state: dict[str, Any], inbox: Callable[[], list[dict[str, Any]]]) -> 
         return _page("Link", f"""<h1>Emailed link</h1><p class="lead">In a real product this page finishes the step. In the demo, send the token to <b>{html.escape(call)}</b>.</p>
 <div class="card"><span class="label">Token</span><div class="k">{html.escape(token)}</div></div>""")
 
-    @r.get("/", response_class=HTMLResponse, include_in_schema=False)
+    @r.get("/api", response_class=HTMLResponse, include_in_schema=False)
     async def home() -> HTMLResponse:
+        businesses = [b for b in store.data["businesses"] if not b.get("is_new")]
+        customer = store.data["sample_customer"]
         cards = "".join(f"""<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>{html.escape(b["name"])}</b><span class="pill">{html.escape(TYPES.get(b["type"], b["type"]))}</span></div>
 <span class="label">Publishable key (X-Site-Key)</span><div class="k">{html.escape(b["publishable_key"])}</div>
 <span class="label">Secret key (X-API-Key)</span><div class="k">{html.escape(b["secret_key"])}</div></div>""" for b in businesses)
@@ -98,7 +101,7 @@ curl "$BASE/v1/admin/bookings?date=YYYY-MM-DD" -H "Authorization: Bearer ACCESS_
         body = f"""<div class="brand"><span class="logo">{BRAND[0]}</span>{BRAND}<span class="pill">Demo API</span></div>
 <div style="display:flex;flex-direction:column;gap:12px"><h1>Bookings for salons, spas, restaurants, workshops and home services.</h1>
 <p class="lead">This is the real booking engine with five sample businesses on the free plan. Call it from a chatbot, an app or a website: every rule (opening hours, staff shifts, double-booking protection, notice periods, plan limits) applies.</p></div>
-<div class="links"><a class="btn" href="/docs">Open the API docs</a><a class="btn ghost" href="/demo/info">Keys as JSON</a><a class="btn ghost" href="/demo/messages">Messages sent</a></div>
+<div class="links"><a class="btn" href="/">Open the demo website</a><a class="btn ghost" href="/docs">API docs</a><a class="btn ghost" href="/demo/info">Keys as JSON</a><a class="btn ghost" href="/demo/messages">Messages sent</a></div>
 <div class="warn"><b>Public demo.</b> These keys are shared with everyone, and so is the data. Nothing is really sent: WhatsApp, SMS and email messages (sign-in codes too) appear under <a href="/demo/messages">Messages sent</a>. Never use real customer details.</div>
 <section><h2>The sample businesses</h2><div class="grid">{cards}</div></section>
 <section><h2>Try it</h2><p class="lead" style="margin-bottom:12px">Sample customer with bookings at every business: {html.escape(customer["name"])}, {html.escape(customer["phone"])}, {html.escape(customer["email"])}.</p><pre>{html.escape(sample)}</pre></section>"""

@@ -173,10 +173,16 @@ window.JS = window.JS || {};
   async function tokenFromInbox(to, kind, since = 0) {
     for (let i = 0; i < 20; i++) {
       await pollInbox();
-      const m = INBOX.slice().reverse().find((x) => x.id > since && x.to === to && x.body.includes('#link/' + kind + '/'));
-      if (m) return decodeURIComponent(m.body.split('#link/' + kind + '/')[1].split(/[\s"'<>)]/)[0]);
+      // (the local site's links end in #link/<kind>/<token>, the hosted demo's in /demo/link/<kind>/<token>)
+      const m = INBOX.slice().reverse().find((x) => x.id > since && x.to === to && linkToken(x.body, kind));
+      if (m) return linkToken(m.body, kind);
       await new Promise((r) => setTimeout(r, 250));
     }
+    return null;
+  }
+  function linkToken(body, kind) {
+    const found = /(?:#|\/demo\/)link\/([a-z-]+)\/([^\s"'<>)?&]+)/g;
+    for (const m of body.matchAll(found)) if (m[1] === kind) return decodeURIComponent(m[2]);
     return null;
   }
   JS.inbox = INBOX;
@@ -233,7 +239,8 @@ window.JS = window.JS || {};
       JS.SAMPLE_CUSTOMER = CFG.sample_customer;
     },
     reload: loadBusiness,
-    reset() { JS.toast('To start again from the sample data, close the local site and run reset.bat (or python run_local.py --reset).'); },
+    hosted() { return !!CFG.hosted; },
+    reset() { JS.toast(CFG.hosted ? 'This online demo is shared by everyone, so it cannot be reset from here.' : 'To start again from the sample data, close the local site and run reset.bat (or python run_local.py --reset).'); },
     armScenario() { scenarioArmed = true; },
     businesses() { return CFG.businesses.filter((c) => SNAP[c.id]).map((c) => ({ id: c.id, name: SNAP[c.id].name, type: c.type, kind: SNAP[c.id].kind, plan: SNAP[c.id].plan })); },
     business(id) { return snap(id); },
@@ -320,7 +327,7 @@ window.JS = window.JS || {};
     },
     linkWasSent(id, rawEmail) {
       const email = normEmail(rawEmail), after = (api._linkAsked && api._linkAsked.after) || 0;
-      return INBOX.some((m) => m.id > after && m.to === email && m.body.includes('#link/sign-in/'));
+      return INBOX.some((m) => m.id > after && m.to === email && linkToken(m.body, 'sign-in'));
     },
     async openMagicLink(id, rawEmail) {
       const email = normEmail(rawEmail);
@@ -534,7 +541,8 @@ window.JS = window.JS || {};
       if (!body.accepted_terms) throw new ApiError(422, 'validation_failed', 'Some details need fixing', { fields: { accepted_terms: 'Tick the box to accept the terms' } });
       const email = normEmail(body.owner_email);
       api._signupAsked = { email, after: lastMsg };
-      const out = { ...body, owner_email: body.owner_email.trim() };
+      const terms = (await http('GET', '/v1/signup/config')).terms_version; // (the page sends the version of the terms it showed)
+      const out = { ...body, owner_email: body.owner_email.trim(), accepted_terms_version: terms };
       delete out.accepted_terms;
       for (const k of Object.keys(out)) if (out[k] === null || out[k] === '') delete out[k];
       try { await http('POST', '/v1/signup', { body: out }); } catch (e) {

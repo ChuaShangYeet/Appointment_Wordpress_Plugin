@@ -7,8 +7,10 @@ What it does, in order:
 2. makes sure PostGIS and btree_gist exist, then brings the schema up to date with the backend's own migrations;
 3. on the first start only, adds the five sample businesses and their bookings through the real API (``localsite/seed.py``) and keeps
    their keys in the table ``demo_state`` (Render's disk is wiped on every deploy; the database is not);
-4. serves the API (docs at ``/docs``), the sweep worker, and three demo routes: ``/`` (a page with the keys and links), ``/demo/info``
-   (the same as JSON) and ``/demo/messages`` (what the backend "sent": nothing leaves the server, so sign-in codes are read there).
+4. serves the API (docs at ``/docs``), the sweep worker, **the demo website at ``/``** (the local test site's pages, ``localsite/web``: booking,
+   My bookings, business admin, sign-up, all on the real API), and the demo routes: ``/api`` (a page with the keys and links), ``/demo/info``
+   (the same as JSON), ``/demo/messages`` (what the backend "sent": nothing leaves the server, so sign-in codes are read there) and the website's
+   own ``/dev/*`` routes (the business list, an admin token per role in place of the WordPress plugin, the inbox).
 
 **This is a public demo:** the keys, including the secret keys, are shown to anyone, and every visitor shares the same data. Never put real
 customers or a real business into it. Messages (WhatsApp, SMS, email) are never sent; Redis is an in-memory stand-in, so it runs as ONE instance.
@@ -117,6 +119,22 @@ async def load_state(url: str) -> dict[str, Any] | None:
     return json.loads(raw) if raw else None
 
 
+class DbStore:
+    """The website's list of businesses and their keys, kept in ``demo_state`` (Render wipes the disk on every deploy; the database stays)."""
+
+    hosted = True
+
+    def __init__(self, url: str, data: dict[str, Any]) -> None:
+        self.url, self.data = url, data
+
+    async def load(self) -> dict[str, Any]:
+        return json.loads(json.dumps(self.data))  # (a copy: a change counts only once saved)
+
+    async def save(self, data: dict[str, Any]) -> None:
+        await save_state(self.url, data)
+        self.data = data
+
+
 async def save_state(url: str, data: dict[str, Any]) -> None:
     import asyncpg
 
@@ -185,7 +203,10 @@ async def serve(env: dict[str, str]) -> None:
 
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://localhost") as client:
         await raise_monthly_limits(client, settings.platform_admin_token, state["businesses"])
-    app.include_router(pages.router(state, lambda: list(devtools.INBOX)))
+    store = DbStore(url, state)
+    app.include_router(pages.router(store, lambda: list(devtools.INBOX)))
+    app.include_router(devtools.dev_router(app, store))
+    app.mount("/", devtools.web_pages(LOCALSITE / "web"), name="web")  # (last: every route above wins over a file of the same name)
     outbox.set_event_publisher(outbox.CompositePublisher(NotificationPublisher(), WebhookPublisher(), CalendarPublisher()))
     port = int(os.environ.get("PORT", "8000"))
     stop = asyncio.Event()
