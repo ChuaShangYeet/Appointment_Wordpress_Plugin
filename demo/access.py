@@ -33,6 +33,7 @@ from collections import defaultdict, deque
 from collections.abc import Awaitable, Callable
 from typing import Any
 from urllib.parse import parse_qs
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -42,6 +43,7 @@ log = logging.getLogger("demo")
 COOKIE = "demo_access"
 COOKIE_DAYS = 30
 LINK_MINUTES = 30
+KL = ZoneInfo("Asia/Kuala_Lumpur")  # (the owner reads the lists in Malaysia time; the database keeps UTC)
 SCHEMA = [
     """CREATE TABLE IF NOT EXISTS demo_visitors (
         id bigserial PRIMARY KEY,
@@ -401,8 +403,9 @@ class Access:
         return [dict(r) for r in rows]
 
 
-def _iso(d: Any) -> str:
-    return d.isoformat() if d else ""
+def _kl(d: Any) -> str:
+    """A time for the CSV files, in Malaysia time: 2026-10-21 14:05:09 (a form spreadsheets read as a date and time)."""
+    return d.astimezone(KL).strftime("%Y-%m-%d %H:%M:%S") if d else ""
 
 
 def router(access: Access, site: Callable[[Request], Awaitable[Response]], resetter: Any = None) -> APIRouter:
@@ -473,15 +476,15 @@ def router(access: Access, site: Callable[[Request], Awaitable[Response]], reset
             return access.page("Demo reset", f"""<h1>Demo reset</h1><div class="warn">{note}</div>
 <form method="post" action="/demo/visitors"><input type="hidden" name="token" value="{html.escape(token)}"><button class="btn" type="submit" style="border:0;cursor:pointer">Back to the visitors</button></form>""")
         if what == "log.csv":
-            return csv_response("demo-access-log.csv", ["time_utc", "event", "what_happened", "email", "organisation", "mobile", "client_address"],
-                                [[_iso(x["at"]), x["event"], EVENT_LABELS.get(x["event"], x["event"]), x["email"] or "", x["organisation"] or "", x["phone"] or "",
+            return csv_response("demo-access-log.csv", ["time_malaysia", "event", "what_happened", "email", "organisation", "mobile", "client_address"],
+                                [[_kl(x["at"]), x["event"], EVENT_LABELS.get(x["event"], x["event"]), x["email"] or "", x["organisation"] or "", x["phone"] or "",
                                   x["client_address"] or ""] for x in await access.access_log()])
         visitors = await access.visitors()
         if what == "visitors.csv":
-            return csv_response("demo-visitors.csv", ["email", "mobile", "organisation", "registered_at", "confirmed_at", "last_login_at", "logins"],
-                                [[v["email"], v["phone"] or "", v["organisation"], _iso(v["created_at"]), _iso(v["verified_at"]), _iso(v["last_seen_at"]), v["login_count"]]
+            return csv_response("demo-visitors.csv", ["email", "mobile", "organisation", "registered_malaysia", "confirmed_malaysia", "last_login_malaysia", "logins"],
+                                [[v["email"], v["phone"] or "", v["organisation"], _kl(v["created_at"]), _kl(v["verified_at"]), _kl(v["last_seen_at"]), v["login_count"]]
                                  for v in visitors])
-        fmt = lambda d: d.strftime("%d %b %Y, %H:%M UTC") if d else "—"  # noqa: E731
+        fmt = lambda d: d.astimezone(KL).strftime("%d %b %Y, %H:%M") if d else "—"  # noqa: E731
         vrows = "".join(f"<tr><td>{html.escape(v['email'])}</td><td>{html.escape(v['phone'] or '')}</td><td>{html.escape(v['organisation'])}</td><td>{fmt(v['created_at'])}</td>"
                         f"<td>{'Yes, ' + fmt(v['verified_at']) if v['verified_at'] else 'Not yet'}</td><td>{fmt(v['last_seen_at'])}</td><td>{v['login_count']}</td></tr>" for v in visitors)
         lrows = "".join(f"<tr><td>{fmt(x['at'])}</td><td>{html.escape(EVENT_LABELS.get(x['event'], x['event']))}</td><td>{html.escape(x['email'] or '—')}</td>"
@@ -491,7 +494,7 @@ def router(access: Access, site: Callable[[Request], Awaitable[Response]], reset
         table = 'style="border-collapse:collapse;width:100%;font-size:.92rem" cellpadding="8"'
         reset_box = ""
         if resetter is not None:
-            from reset import KL, reset_hour
+            from reset import reset_hour
 
             last, hour = await resetter.last_reset(), reset_hour()
             when = last.astimezone(KL).strftime("%d %b %Y, %H:%M") + " Malaysia time" if last else "never"
@@ -502,6 +505,7 @@ def router(access: Access, site: Callable[[Request], Awaitable[Response]], reset
 <div>{button("reset", "Reset the demo data now")}</div></div></section>"""
         return access.page("Demo visitors", f"""<h1>Demo visitors ({len(visitors)})</h1>
 <div class="links">{button("log.csv", "Download the register and log-in log (CSV)")}{button("visitors.csv", "Download the visitors (CSV)")}</div>
+<p style="color:var(--muted)">All times are Malaysia time (UTC+8), here and in the CSV files.</p>
 {reset_box}
 <section><h2>Visitors</h2><div class="card" style="overflow-x:auto"><table {table}><thead><tr style="text-align:left"><th>Email</th><th>Mobile</th><th>Organisation</th><th>Registered</th><th>Confirmed</th><th>Last log-in</th><th>Log-ins</th></tr></thead>
 <tbody>{vrows or '<tr><td colspan="7">Nobody yet.</td></tr>'}</tbody></table></div></section>
