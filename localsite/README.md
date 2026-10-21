@@ -22,7 +22,7 @@ To throw everything away and start again from the sample data, double-click **re
 ## What to try
 
 The dark strip at the top is the test site's own control panel, not part of the product. It picks the **area**, the **business**
-(five sample businesses, one of each kind) and a **scenario**, and opens **Messages**.
+(five sample businesses, one of each kind), and opens **Messages**.
 
 | Area | What it shows |
 |---|---|

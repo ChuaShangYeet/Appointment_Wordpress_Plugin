@@ -16,7 +16,7 @@
 
   function init() {
     return {
-      step: null, serviceId: null, serviceIds: [], addonIds: [], resourceId: 'any',
+      step: null, serviceId: null, serviceIds: [], addonIds: [], resourceId: 'any', free: null, freeKey: null, loadingFree: false,
       month: null, monthKey: null, loadingMonth: false, date: null, slots: null, slotsKey: null, loadingSlots: false, notice: [], slot: null,
       party: 2, tableType: 'normal', separate: false,
       vehicle: { mode: null, savedId: null, plate: '', modelId: '', year: '' }, vehicleErr: null,
@@ -65,6 +65,40 @@
     if (!still) { s.date = (month.find((d) => d.available) || {}).date || null; s.slot = null; }
     await loadSlots();
   }
+  /* Who step: each member of staff's next free time (and the first-available one's), so nobody without a free time is offered */
+  const STAFF_DAYS = 21;
+  function staffFor(b) {
+    const chosen = services(b).filter((x) => !x.is_addon);
+    return b.resources.filter((r) => r.type === 'staff' && r.status !== 'inactive' && chosen.every((x) => !x.staff || x.staff.includes(r.id)));
+  }
+  const freeKey = (b) => JSON.stringify({ ...query(b), resource_id: null });
+  async function nextFree(b, resourceId) {
+    const q = { ...query(b), resource_id: resourceId };
+    const month = await api.month(b.id, q, STAFF_DAYS);
+    const day = month.find((d) => d.available);
+    if (!day) return { none: true };
+    const res = await api.availability(b.id, day.date, q);
+    return res.slots.length ? { date: day.date, start_at: res.slots[0].start_at } : { date: day.date };
+  }
+  async function loadFree() {
+    const b = J.biz(), s = st(), key = freeKey(b);
+    s.loadingFree = true; J.render();
+    const ids = ['any', ...staffFor(b).map((r) => r.id)];
+    // (a lookup that fails leaves that person shown, without a time: never hidden on an error)
+    const found = await Promise.all(ids.map((id) => nextFree(b, id === 'any' ? null : id).catch(() => null)));
+    s.loadingFree = false;
+    if (freeKey(J.biz()) !== key) { J.render(); return; } // (the choice changed while asking: the next render asks again)
+    s.free = Object.fromEntries(ids.map((id, n) => [id, found[n]])); s.freeKey = key;
+    if (s.resourceId !== 'any' && s.free[s.resourceId] && s.free[s.resourceId].none) { s.resourceId = 'any'; resetTime(); }
+    J.render();
+  }
+  function nextLabel(x) {
+    if (!x || x.none) return '';
+    const today = T.today();
+    const day = x.date === today ? 'Today' : x.date === T.addDays(today, 1) ? 'Tomorrow' : T.day(x.date, { weekday: 'short', day: 'numeric', month: 'short' });
+    return `Next free: ${day}${x.start_at ? ', ' + T.time(x.start_at) : ''}`;
+  }
+
   async function loadSlots() {
     const b = J.biz(), s = st();
     if (!s.date) { J.render(); return; }
@@ -110,14 +144,22 @@
 
   function staffStep(b) {
     const s = st();
-    const chosen = services(b).filter((x) => !x.is_addon);
-    const staff = b.resources.filter((r) => r.type === 'staff' && r.status !== 'inactive' && chosen.every((x) => !x.staff || x.staff.includes(r.id)));
     const who = J.WHO[b.who] || 'staff member';
+    if (s.freeKey !== freeKey(b)) {
+      if (!s.loadingFree) setTimeout(loadFree);
+      return `<div class="stack"><h2>Who would you like?</h2><div class="row muted">${J.busyLabel('Checking who is free…')}</div></div>`;
+    }
+    const free = s.free;
+    if (free.any && free.any.none) return `<div class="stack"><h2>Who would you like?</h2><div class="empty"><h3>No free times in the next three weeks</h3><p>Call ${J.esc(b.phone)} and we will try to fit you in.</p></div></div>`;
+    const all = staffFor(b), staff = all.filter((r) => !(free[r.id] && free[r.id].none));
+    const away = all.length - staff.length;
+    const when = (id) => (nextLabel(free[id]) ? `<span class="facts"><span>${nextLabel(free[id])}</span></span>` : '');
     return `<div class="stack"><h2>Who would you like?</h2>
       <div class="choices">
-        <button type="button" class="choice" data-act="book.pickStaff" data-id="any" aria-pressed="${s.resourceId === 'any'}"><span class="name">First available ${who}</span><span></span><span class="desc">We pick whoever is free, so you see the most times.</span></button>
-        ${staff.map((r) => `<button type="button" class="choice" data-act="book.pickStaff" data-id="${r.id}" aria-pressed="${s.resourceId === r.id}"><span class="name">${J.esc(r.name)}</span><span></span>${r.note ? `<span class="desc">${J.esc(r.note)}</span>` : ''}</button>`).join('')}
-      </div></div>`;
+        <button type="button" class="choice" data-act="book.pickStaff" data-id="any" aria-pressed="${s.resourceId === 'any'}"><span class="name">First available ${who}</span><span></span><span class="desc">We pick whoever is free, so you see the most times.</span>${when('any')}</button>
+        ${staff.map((r) => `<button type="button" class="choice" data-act="book.pickStaff" data-id="${r.id}" aria-pressed="${s.resourceId === r.id}"><span class="name">${J.esc(r.name)}</span><span></span>${r.note ? `<span class="desc">${J.esc(r.note)}</span>` : ''}${when(r.id)}</button>`).join('')}
+      </div>
+      ${away ? `<p class="hint">${away === 1 ? `One ${who} is` : `${away} ${who}s are`} not shown: no free times in the next three weeks.</p>` : ''}</div>`;
   }
 
   function partyStep(b) {
@@ -252,7 +294,7 @@
 
   function reviewStep(b) {
     const s = st();
-    const pending = J.state.scenario === 'needs_approval' || b.policy.default_status === 'pending';
+    const pending = b.policy.default_status === 'pending';
     const start = s.slot && Date.parse(s.slot.start_at);
     const cancelBy = start && start - b.policy.cancel_notice_h * 3600000;
     const lead = s.notice && s.notice.length;
@@ -309,7 +351,7 @@
     const i = steps.indexOf(s.step);
     const body = { service: serviceStep, addons: addonsStep, staff: staffStep, party: partyStep, vehicle: vehicleStep, address: addressStep, time: timeStep, details: detailsStep, review: reviewStep }[s.step](b);
     const isReview = s.step === 'review';
-    const pending = J.state.scenario === 'needs_approval' || b.policy.default_status === 'pending';
+    const pending = b.policy.default_status === 'pending';
     const price = b.type === 'restaurant' ? '' : total(b) || services(b).length ? `<span class="total">Total <b>${J.priceTotal(services(b))}</b>${duration(b) ? ` · about ${J.mins(duration(b))}` : ''}</span>` : '<span></span>';
     return `<div class="page"><div class="narrow">
       ${J.storefront(b)}
@@ -322,7 +364,7 @@
   }
 
   /* ------------------------------------------------------------------ actions */
-  function go(step) { st().step = step; J.render(); J.top(); }
+  function go(step) { const s = st(); s.step = step; if (step === 'staff') s.freeKey = null; J.render(); J.top(); } // (who is free is asked afresh each time)
   function resetTime() { const s = st(); s.monthKey = null; s.slot = null; s.slots = null; s.taken = null; s.error = null; }
 
   Object.assign(J.actions, {
@@ -391,7 +433,7 @@
         vehicle: b.type !== 'automotive' ? null : savedCar ? { plate_no: savedCar.plate_no, supported_vehicle_id: savedCar.supported_vehicle_id, year: savedCar.year } : { plate_no: v.plate.trim().toUpperCase(), supported_vehicle_id: v.modelId, year: Number(v.year) },
         address: stepsFor(b).includes('address') ? s.address.result : null,
       };
-      const [res, err] = await J.call(() => api.createBooking(b.id, body, J.state.scenario));
+      const [res, err] = await J.call(() => api.createBooking(b.id, body));
       s.busy = false;
       if (res) { s.result = res; s.human = 'no'; go('done'); return; }
       if (!err || !err.status) { J.render(); return; }

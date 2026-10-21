@@ -197,7 +197,7 @@
     async 'acc.sendCode'() {
       const s = st();
       s.busy = true; s.err = null; J.render();
-      const [res, err] = await J.call(() => api.requestOtp(J.state.biz, s.phone, J.state.scenario));
+      const [res, err] = await J.call(() => api.requestOtp(J.state.biz, s.phone));
       s.busy = false;
       if (err) s.err = err.status === 503 ? "We couldn't send the code just now. Try again in a moment, or sign in with an email link instead." : err.detail;
       else { s.codeSent = res; s.code = ''; }
@@ -216,7 +216,7 @@
     async 'acc.sendLink'() {
       const s = st();
       s.busy = true; s.err = null; J.render();
-      const [, err] = await J.call(() => api.requestMagicLink(J.state.biz, s.email, J.state.scenario));
+      const [, err] = await J.call(() => api.requestMagicLink(J.state.biz, s.email));
       s.busy = false;
       if (err) s.err = err.detail; else s.linkSent = true;
       J.render();

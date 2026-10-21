@@ -6,16 +6,15 @@ window.JS = window.JS || {};
   const T = J.T;
   const STORE = 'justsimple-local-v1';
 
-  J.state = { view: 'book', biz: 'spa', scenario: 'normal', role: 'owner' };
+  J.state = { view: 'book', biz: 'spa', role: 'owner' };
   try {
     const saved = JSON.parse(localStorage.getItem(STORE) || '{}');
     if (['book', 'account', 'admin', 'signup'].includes(saved.view)) J.state.view = saved.view;
     if (saved.biz && J.api.businesses().some((b) => b.id === saved.biz)) J.state.biz = saved.biz;
-    if (saved.scenario) J.state.scenario = saved.scenario;
     if (saved.role) J.state.role = saved.role;
   } catch (e) { /* storage blocked: start from the defaults */ }
   function save() {
-    try { localStorage.setItem(STORE, JSON.stringify({ view: J.state.view, biz: J.state.biz, scenario: J.state.scenario, role: J.state.role })); } catch (e) { /* not kept */ }
+    try { localStorage.setItem(STORE, JSON.stringify({ view: J.state.view, biz: J.state.biz, role: J.state.role })); } catch (e) { /* not kept */ }
   }
 
   J.views = {};
@@ -103,10 +102,6 @@ window.JS = window.JS || {};
   };
 
   /* ------------------------------------------------------------------ the prototype strip */
-  const SCENARIOS = [
-    ['normal', 'Everything works'],
-    ['slot_taken', 'Someone takes the slot first'],
-  ];
   const AREAS = [['book', 'Book'], ['account', 'My bookings'], ['admin', 'Business admin'], ['signup', 'Sign up a business']];
   function harness() {
     const list = J.api.businesses();
@@ -121,7 +116,6 @@ window.JS = window.JS || {};
       <div class="controls">
         ${J.state.view === 'signup' ? '' : `<label for="h-biz">Business <select id="h-biz" data-change="setBiz">${list.map((x) => `<option value="${x.id}" ${x.id === J.state.biz ? 'selected' : ''}>${J.esc(x.name)} (${J.esc(x.kind)})</option>`).join('')}</select></label>`}
         ${J.state.view === 'admin' ? `<label for="h-role">Signed in as <select id="h-role" data-change="setRole">${roles.map(([v, t]) => `<option value="${v}" ${J.state.role === v ? 'selected' : ''}>${J.esc(t)}</option>`).join('')}</select></label>` : ''}
-        <label for="h-scn">Scenario <select id="h-scn" data-change="setScenario">${SCENARIOS.map(([v, t]) => `<option value="${v}" ${J.state.scenario === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
         <button type="button" class="hbtn" data-act="inbox" aria-expanded="${!!J.state.inbox}">Messages<span class="count">${J.inbox.length}</span></button>
         ${J.api.hosted() ? '<button type="button" class="hbtn" data-act="signOutDemo">Sign out</button>' : '<button type="button" class="hbtn" data-act="resetDemo">Reset data</button>'}
       </div></div></div>`;
@@ -136,7 +130,6 @@ window.JS = window.JS || {};
     menu() { J.state.menu = !J.state.menu; J.render(); },
     setBiz(ds, el) { J.state.biz = el.value; save(); freshViews(); J.render(); },
     setRole(ds, el) { J.state.role = el.value; save(); J.state.admin.open = null; J.render(); },
-    setScenario(ds, el) { J.state.scenario = el.value; J.api.armScenario(); save(); J.toast('Scenario: ' + SCENARIOS.find(([v]) => v === el.value)[1]); },
     inbox() { J.state.inbox = !J.state.inbox; J.render(); },
     signOutDemo() { J.api.signOut(); },
     resetDemo() { J.api.reset(); if (!J.api.businesses().some((b) => b.id === J.state.biz)) J.state.biz = 'spa'; freshViews(); J.render(); J.toast('Sample data reset'); },

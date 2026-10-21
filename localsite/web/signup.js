@@ -138,7 +138,7 @@
     async 'su.submit'() {
       const s = st();
       s.busy = true; s.err = null; J.render();
-      const [, err] = await J.call(() => api.signupStart(body(), J.state.scenario));
+      const [, err] = await J.call(() => api.signupStart(body()));
       s.busy = false;
       if (err) {
         if (err.extra && err.extra.fields) {

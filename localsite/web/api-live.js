@@ -228,7 +228,6 @@ window.JS = window.JS || {};
   }
 
   /* ------------------------------------------------------------------ the API the screens use */
-  let scenarioArmed = true;
   const api = {
     T,
     allowedMoves,
@@ -243,7 +242,6 @@ window.JS = window.JS || {};
     hosted() { return !!CFG.hosted; },
     async signOut() { await fetch('/demo/access/sign-out', { method: 'POST' }); window.location.href = '/'; },
     reset() { JS.toast(CFG.hosted ? 'This online demo is shared by everyone, so it cannot be reset from here.' : 'To start again from the sample data, close the local site and run reset.bat (or python run_local.py --reset).'); },
-    armScenario() { scenarioArmed = true; },
     businesses() { return CFG.businesses.filter((c) => SNAP[c.id]).map((c) => ({ id: c.id, name: SNAP[c.id].name, type: c.type, kind: SNAP[c.id].kind, plan: SNAP[c.id].plan })); },
     business(id) { return snap(id); },
     staffName(id, rid) { return ((snap(id).resources.find((r) => r.id === rid)) || {}).name || 'Unknown'; },
@@ -275,8 +273,8 @@ window.JS = window.JS || {};
       return { ...g, service_radius_km: b.location ? b.location.radius_km : null };
     },
 
-    /** POST /public/bookings. The scenario "someone takes the slot first" really books that time for another guest a moment before. */
-    async createBooking(id, body, scenario) {
+    /** POST /public/bookings. If the time was taken in the meantime (409), the answer carries that day's other free times. */
+    async createBooking(id, body) {
       const b = snap(id);
       const out = {
         service_ids: body.service_ids, start_at: body.start_at, resource_id: body.resource_id || undefined,
@@ -287,11 +285,6 @@ window.JS = window.JS || {};
         vehicle: body.vehicle || undefined, source: 'headless',
         address: body.address ? { line1: body.address.formatted_address || body.address.line1, latitude: body.address.latitude, longitude: body.address.longitude } : undefined,
       };
-      if (scenario === 'slot_taken' && scenarioArmed) {
-        scenarioArmed = false;
-        const rival = { ...out, customer: { name: 'Lim Mei Ling', phone: '+60172288140' }, health_notes: undefined, special_request: undefined, address: out.address, vehicle: out.vehicle && { ...out.vehicle, plate_no: 'VBK 9034' } };
-        for (let i = 0; i < 6; i++) { try { await http('POST', '/v1/public/bookings', { site: site(id), body: rival }); } catch (e) { break; } }
-      }
       try {
         const made = await http('POST', '/v1/public/bookings', { site: site(id), body: out, headers: { 'Idempotency-Key': 'web-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10) } });
         return {
