@@ -28,9 +28,11 @@
   const MOVE_LABEL = { confirmed: 'Accept', rejected: 'Decline', cancelled: 'Cancel booking', 'in-progress': 'Customer has arrived', completed: 'Mark completed', 'no-show': "Didn't turn up", 'waiting-for-parts': 'Waiting for parts' };
 
   /* ------------------------------------------------------------------ loading */
+  // which list is on screen: a different member of staff is a different list
+  const listKey = (b, s, v) => [b.id, s.date, v.role, v.staffId || '', s.filter, s.version].join('|');
   async function load() {
     const b = J.biz(), s = st(), v = viewer(b);
-    const key = [b.id, s.date, v.role, s.filter, s.version].join('|');
+    const key = listKey(b, s, v);
     s.loading = true;
     const [attn] = await J.call(() => api.attention(b.id, v));
     s.attn = attn;
@@ -308,7 +310,7 @@
   /* ------------------------------------------------------------------ the frame */
   function render() {
     const b = J.biz(), s = st(), v = viewer(b);
-    const key = [b.id, s.date, v.role, s.filter, s.version].join('|');
+    const key = listKey(b, s, v);
     if ((s.tab === 'bookings' || s.tab === 'schedule') && s.listKey !== key && !s.loading) setTimeout(load);
     const tabs = [['bookings', 'Bookings'], ['schedule', 'Schedule']].concat(canManage(v) ? [['setup', 'Set-up'], ['plan', 'Plan & website']] : []);
     if (!tabs.some(([k]) => k === s.tab)) s.tab = 'bookings';
