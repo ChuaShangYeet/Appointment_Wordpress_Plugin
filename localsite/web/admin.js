@@ -10,17 +10,18 @@
       tab: 'bookings', date: T.today(), filter: 'all', list: null, listKey: null, loading: false, attn: null, version: 0,
       open: null, detail: null, err: null, busy: null, move: null, extra: { addonId: '', result: null, busy: false },
       plan: null, site: null, keys: null, newKeys: null, siteForm: { domain: '', err: null, busy: false, open: false },
-      svcForm: { name: '', duration: '60', price: '', where: 'in_office', description: '', travel: '30', extra: false, err: null },
+      svcForm: { name: '', duration: '60', price: '', afterInspection: false, where: 'in_office', description: '', travel: '30', extra: false, err: null },
       prodForm: { name: '', price: '', stock: '10', err: null }, carForm: { make: '', model: '', from: '', to: '', err: null }, resForm: { name: '', type: 'staff', capacity: '4', err: null },
       hours: null, hoursErr: null,
     };
   }
   const st = () => J.state.admin;
   function viewer(b) {
-    const role = J.state.role;
-    const staff = b.resources.find((r) => r.type === 'staff');
-    if (role === 'staff' && staff) return { role, staffId: staff.id, label: staff.name };
-    return { role: role === 'staff' ? 'owner' : role, staffId: null, label: role === 'manager' ? 'Manager' : 'Owner' };
+    const role = String(J.state.role || 'owner');
+    // 'staff:<id>' is one member of staff; one of another business (after switching business) falls back to the owner
+    const staff = role.startsWith('staff:') && b.resources.find((r) => r.type === 'staff' && r.id === role.slice(6));
+    if (staff) return { role: 'staff', staffId: staff.id, label: staff.name };
+    return { role: role === 'manager' ? 'manager' : 'owner', staffId: null, label: role === 'manager' ? 'Manager' : 'Owner' };
   }
   const canManage = (v) => v.role === 'owner' || v.role === 'manager';
   J.adminViewer = () => viewer(J.biz());
@@ -112,13 +113,17 @@
     const moves = api.allowedMoves(b.id, x);
     const sees = canManage(v);
     const rows = [
-      ['When', `${T.day(T.key(x.start_at), { weekday: 'short', day: 'numeric', month: 'short' })}, ${T.time(x.start_at)}–${T.time(x.end_at)}`],
+      ['When', `${T.day(T.key(x.start_at), { weekday: 'short', day: 'numeric', month: 'short' })}, ${T.time(x.start_at)} <span class="muted">· about ${J.mins(Math.round((Date.parse(x.end_at) - Date.parse(x.start_at)) / 60000))}, kept free until ${T.time(x.end_at)}</span>`],
       b.type === 'restaurant' ? ['Party', `${x.party_size} ${x.party_size === 1 ? 'guest' : 'guests'} · ${x.table_type === 'vip' ? 'Private room' : 'Dining room'}${x.minimum_spend_agreed ? ` · agreed min. spend ${J.money(x.minimum_spend_agreed)}` : ''}`] : ['Service', J.esc(x.service_names.join(' + '))],
       [b.type === 'restaurant' ? 'Table' : 'With', J.esc(resNames(b, x)) || '—'],
       ['Customer', `${J.esc(x.customer.name)}<br><span class="mono small">${J.esc(J.fmt.prettyPhone(x.customer.phone))}</span>${x.contact_email ? `<br><span class="small">${J.esc(x.contact_email)}</span>` : ''}`],
     ];
     if (x.vehicle) rows.push(['Car', `<span class="mono">${J.esc(x.vehicle.plate)}</span> · ${J.esc(x.vehicle.model)}${x.vehicle.year ? ', ' + x.vehicle.year : ''}`]);
-    if (x.address) rows.push(['Address', `${J.esc(x.address.line1)} <span class="muted small">(${x.address.distance_km} km)</span>`]);
+    if (x.address) {
+      const a = x.address, place = [a.postcode, a.city].filter(Boolean).join(' ');
+      const map = a.latitude != null ? `<br><a class="small" href="https://www.google.com/maps/search/?api=1&amp;query=${a.latitude},${a.longitude}" target="_blank" rel="noopener noreferrer">Open in Google Maps</a>` : '';
+      rows.push(['Visit at', `${J.esc(a.line1)}${place ? `<br><span class="small">${J.esc(place)}</span>` : ''}${a.distance_km != null ? ` <span class="muted small">(${a.distance_km} km)</span>` : ''}${map}`]);
+    }
     if (x.special_request) rows.push(['Note', J.esc(x.special_request)]);
     rows.push(['Made', `${T.when(x.created_at)} · ${x.source === 'wordpress' ? 'website' : x.source === 'admin' ? 'by staff' : 'booking page'}`]);
     const adds = b.type === 'salon' ? b.services.filter((y) => y.is_addon) : [];
@@ -164,15 +169,16 @@
     return `<div class="stack-lg">${checklist}
       ${b.type !== 'restaurant' ? `<section class="card stack"><h2>Services</h2>
         ${b.services.length ? `<div class="scrollx"><table class="table"><thead><tr><th>Service</th><th>Time</th>${b.type === 'professional' ? '<th>Where</th>' : ''}<th>Price</th></tr></thead><tbody>${b.services.map((x) => `<tr><td><b>${J.esc(x.name)}</b>${x.is_addon ? ' <span class="chip">Extra</span>' : ''}${x.service_category === 'inspection' ? ' <span class="chip">Inspection</span>' : ''}${x.description ? `<br><span class="small muted">${J.esc(x.description)}</span>` : ''}</td>
-          <td class="mono">${J.mins(x.duration_minutes)}${x.buffer_minutes ? `<br><span class="small muted">+ ${x.buffer_minutes} min to tidy up</span>` : ''}</td>
-          ${b.type === 'professional' ? `<td>${x.location_type === 'on_site' ? `At the customer's<br><span class="small muted">${x.travel_buffer_minutes} min travel each way</span>` : 'At our office'}</td>` : ''}
-          <td class="mono">${J.money(x.price)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No services yet.</p>'}
+          <td class="mono">about ${J.mins(x.duration_minutes)}${x.buffer_minutes ? `<br><span class="small muted">+ ${x.buffer_minutes} min to tidy up</span>` : ''}</td>
+          ${b.type === 'professional' ? `<td>${x.location_type === 'on_site' ? `At the customer's<br><span class="small muted">${x.travel_buffer_minutes ? `${x.travel_buffer_minutes} min travel each way` : 'No travel time kept'}</span>` : 'At our office'}</td>` : ''}
+          <td class="mono">${J.price(x)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No services yet.</p>'}
         <form class="stack" data-submit="adm.addService"><span class="label">Add a service</span><div class="grid2">
           ${J.field({ id: 'sv-name', label: 'Name', model: 'admin.svcForm.name', placeholder: 'Deep tissue massage' })}
-          ${J.field({ id: 'sv-dur', label: 'Minutes', model: 'admin.svcForm.duration', type: 'number', attrs: 'min="5" max="1440" inputmode="numeric"' })}
-          ${J.field({ id: 'sv-price', label: 'Price (RM)', model: 'admin.svcForm.price', type: 'number', attrs: 'min="0" inputmode="decimal"', placeholder: '0 = free' })}
+          ${J.field({ id: 'sv-dur', label: 'Usual length (minutes)', model: 'admin.svcForm.duration', type: 'number', attrs: 'min="5" max="1440" inputmode="numeric"', hint: 'Customers see it as "about". Your calendar keeps this much time; when a job ends early or runs late, move the next booking.' })}
+          ${J.field({ id: 'sv-price', label: s.svcForm.afterInspection ? 'Starting price (RM)' : 'Price (RM)', model: 'admin.svcForm.price', type: 'number', attrs: 'min="0" inputmode="decimal"', placeholder: '0', hint: s.svcForm.afterInspection ? 'What the customer pays at least, like an inspection fee. Leave 0 when you can\'t say yet.' : '0 means free.' })}
           ${b.type === 'professional' ? J.field({ id: 'sv-where', label: 'Where', model: 'admin.svcForm.where', options: [['in_office', 'At our office'], ['on_site', "At the customer's address"]] }) : ''}
-          ${b.type === 'professional' && s.svcForm.where === 'on_site' ? J.field({ id: 'sv-travel', label: 'Travel time each way (minutes)', model: 'admin.svcForm.travel', type: 'number', attrs: 'min="0" max="240" inputmode="numeric"', hint: 'Kept free before and after each visit, so the technician can get there and back.' }) : ''}</div>
+          ${b.type === 'professional' && s.svcForm.where === 'on_site' ? J.field({ id: 'sv-travel', label: 'Travel time each way (minutes)', model: 'admin.svcForm.travel', type: 'number', attrs: 'min="0" max="240" inputmode="numeric"', hint: 'Kept free before and after each visit, so the technician can get there and back. Put 0 to keep none, and move the next visit yourself when a job runs over.' }) : ''}</div>
+          <label class="check" for="sv-inspect"><input id="sv-inspect" type="checkbox" data-model="admin.svcForm.afterInspection" data-rerender ${s.svcForm.afterInspection ? 'checked' : ''}><span>We tell the price after we have looked at the job (like a car with an unknown problem, or a house's wiring)</span></label>
           ${J.field({ id: 'sv-desc', label: 'Description', model: 'admin.svcForm.description', area: true, optional: true, placeholder: 'What the customer gets, in a sentence or two', hint: 'Shown under the service on your booking page.' })}
           ${b.type === 'salon' ? `<label class="check" for="sv-extra"><input id="sv-extra" type="checkbox" data-model="admin.svcForm.extra" ${s.svcForm.extra ? 'checked' : ''}><span>This is an extra (added to a main service, like a scalp massage)</span></label>` : ''}
           ${s.svcForm.err ? `<div class="notice bad"><span>${J.esc(s.svcForm.err)}</span></div>` : ''}<div><button class="btn small" type="submit">Add service</button></div></form></section>` : `<section class="card stack"><h2>Seating times</h2><p>Reservations start every ${b.slotSettings.interval} minutes from ${T.clock(b.slotSettings.first)} to ${T.clock(b.slotSettings.last)}. A table is kept for ${b.slotSettings.duration} minutes plus ${b.slotSettings.buffer} to reset it.</p></section>`}
@@ -399,11 +405,11 @@
     async 'adm.addService'() {
       const s = st(), f = s.svcForm;
       const [, err] = await J.call(() => api.addService(J.state.biz, {
-        name: f.name, duration_minutes: Number(f.duration), price: Number(f.price || 0), location_type: f.where, description: f.description.trim() || null,
+        name: f.name, duration_minutes: Number(f.duration), price: Number(f.price || 0), price_after_inspection: !!f.afterInspection, location_type: f.where, description: f.description.trim() || null,
         travel_buffer_minutes: f.where === 'on_site' ? Number(f.travel || 0) : 0, is_addon: !!f.extra,
       }));
       if (err) { f.err = err.detail; J.render(); return; }
-      s.svcForm = { name: '', duration: '60', price: '', where: 'in_office', description: '', travel: '30', extra: false, err: null }; J.toast('Service added'); J.render();
+      s.svcForm = { name: '', duration: '60', price: '', afterInspection: false, where: 'in_office', description: '', travel: '30', extra: false, err: null }; J.toast('Service added'); J.render();
     },
     async 'adm.addProduct'() {
       const s = st(), f = s.prodForm;

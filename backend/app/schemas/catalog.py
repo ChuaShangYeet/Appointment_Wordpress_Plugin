@@ -14,6 +14,8 @@ class ServiceBase(BaseModel):
     duration_minutes: int = Field(gt=0, le=1440)
     buffer_minutes: int = Field(default=0, ge=0, le=480)
     price: Decimal = Field(default=Decimal("0"), ge=0)
+    #: The price is told after the business has seen the job; ``price`` is then what is known up front (0, or a starting price).
+    price_after_inspection: bool = False
     policy_id: uuid.UUID | None = None
     active: bool = True
     #: Salon: an optional extra that lengthens a base service (exactly one base service per appointment).
@@ -30,12 +32,17 @@ class ServiceCreate(ServiceBase):
     resource_ids: list[uuid.UUID] = Field(default_factory=list)
 
 
+#: Service settings that always hold a value: a change may leave one out (kept), but cannot empty it (a null would fail in the database).
+_SERVICE_REQUIRED = ("name", "duration_minutes", "buffer_minutes", "price", "price_after_inspection", "active", "is_addon", "location_type", "travel_buffer_minutes")
+
+
 class ServiceUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=150)
     description: str | None = None
     duration_minutes: int | None = Field(default=None, gt=0, le=1440)
     buffer_minutes: int | None = Field(default=None, ge=0, le=480)
     price: Decimal | None = Field(default=None, ge=0)
+    price_after_inspection: bool | None = None
     policy_id: uuid.UUID | None = None
     active: bool | None = None
     resource_ids: list[uuid.UUID] | None = None
@@ -43,6 +50,13 @@ class ServiceUpdate(BaseModel):
     service_category: Literal["inspection", "standard"] | None = None
     location_type: Literal["in_office", "virtual", "on_site"] | None = None
     travel_buffer_minutes: int | None = Field(default=None, ge=0, le=240)
+
+    @model_validator(mode="after")
+    def _no_nulls(self) -> ServiceUpdate:
+        emptied = [k for k in _SERVICE_REQUIRED if k in self.model_fields_set and getattr(self, k) is None]
+        if emptied:
+            raise ValueError(f"cannot be empty: {', '.join(emptied)}")
+        return self
 
 
 class ServiceOut(ServiceBase):

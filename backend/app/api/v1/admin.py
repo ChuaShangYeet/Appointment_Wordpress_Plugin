@@ -25,6 +25,7 @@ from app.models import (
     BookingStatusHistory,
     BusinessProfile,
     Customer,
+    CustomerAddress,
     Review,
     DataRequest,
     BookingItem,
@@ -117,6 +118,7 @@ from app.schemas.scheduling import (
     TimeSlotSettingIn,
     TimeSlotSettingOut,
     UpsellRequest,
+    VisitAddressOut,
     UpsellResult,
 )
 from app.services import booking as booking_service
@@ -244,8 +246,10 @@ async def get_booking(booking_id: uuid.UUID, principal: Staff, db: DbDep, tenant
         )).all()
     ]
     customer = (await _customers(db, [b]))[b.customer_id]
+    address = await db.get(CustomerAddress, b.address_id) if b.address_id else None
     return BookingDetailOut(
-        **_admin_out(b, customer).model_dump(), health_notes=notes, customer_gender=customer.gender, policy_snapshot=b.policy_snapshot, items=items, products=products
+        **_admin_out(b, customer).model_dump(), health_notes=notes, customer_gender=customer.gender, policy_snapshot=b.policy_snapshot, items=items, products=products,
+        visit_address=VisitAddressOut.model_validate(address) if address else None,
     )
 
 

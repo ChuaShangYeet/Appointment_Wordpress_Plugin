@@ -208,8 +208,8 @@ window.JS = window.JS || {};
       // BACKEND GAP: the admin booking answer has the resources but not their own times (travel padding, a workshop's segments); the whole booking's time is used
       allocations: (x.resource_ids || []).map((rid) => ({ rid, s: Date.parse(x.start_at), e: Date.parse(x.end_at) })),
       minimum_spend_agreed: x.minimum_spend_agreed == null ? null : Number(x.minimum_spend_agreed),
-      // BACKEND GAP: the admin answer has vehicle_id and address_id only, not the car or the address, so the drawer cannot show them
-      vehicle: null, address: null, flags: x.flags || [],
+      // BACKEND GAP: the admin answer has vehicle_id only, not the car, so the drawer cannot show it. The visit's address comes with the booking's detail.
+      vehicle: null, address: x.visit_address || null, flags: x.flags || [],
     };
   }
   /** Which status buttons apply and why one is not open yet (the backend's TRANSITIONS and its timed moves, STATUS_EARLY_MINUTES = 60). */
@@ -398,7 +398,9 @@ window.JS = window.JS || {};
       const d = await http('GET', `/v1/admin/bookings/${bookingId}`, { token: await owner(id) });
       const staff = (d.resource_ids || []).find((rid) => (b.resources.find((r) => r.id === rid) || {}).type === 'staff');
       const q = { service_ids: d.service_ids, party_size: d.party_size, table_type: d.table_type || 'normal', allow_separate_seating: d.allow_separate_seating, resource_id: anyStaff || b.type === 'restaurant' || b.type === 'automotive' ? null : staff || null };
-      if (b.type === 'professional' && d.address_id) return []; // BACKEND GAP: the visit's address (needed for an on-site visit's free times) cannot be read by the admin
+      const pin = d.visit_address; // (an on-site visit: its free times are looked up where it goes)
+      if (pin && pin.latitude != null) Object.assign(q, { latitude: pin.latitude, longitude: pin.longitude });
+      else if (b.type === 'professional' && d.address_id) return []; // (an address without a map pin: no free times can be worked out)
       const res = await api.availability(id, date, q);
       return res.slots.filter((x) => x.start_at.slice(0, 16) !== new Date(d.start_at).toISOString().slice(0, 16));
     },
@@ -465,7 +467,7 @@ window.JS = window.JS || {};
       const staff = b.resources.filter((r) => r.type === 'staff').map((r) => r.id);
       const bays = b.type === 'automotive' ? b.resources.filter((r) => r.type === 'bay').map((r) => r.id) : [];
       await http('POST', '/v1/admin/services', { token: await owner(id), body: {
-        name: body.name, duration_minutes: body.duration_minutes, price: body.price || 0, location_type: body.location_type || 'in_office',
+        name: body.name, duration_minutes: body.duration_minutes, price: body.price || 0, price_after_inspection: !!body.price_after_inspection, location_type: body.location_type || 'in_office',
         travel_buffer_minutes: body.location_type === 'on_site' ? body.travel_buffer_minutes ?? 30 : 0, description: body.description || undefined,
         is_addon: !!body.is_addon, resource_ids: [...staff, ...bays],
       } });

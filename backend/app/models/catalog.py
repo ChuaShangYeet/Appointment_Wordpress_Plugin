@@ -25,6 +25,8 @@ class Service(UUIDMixin, TimestampMixin, TenantMixin, Base):
     #: Cleanup/turnaround time reserved after the service.
     buffer_minutes: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0"))
+    #: The price is told after an inspection; ``price`` is then what is known up front (0, or a starting price).
+    price_after_inspection: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     #: Overrides the tenant default policy when set.
     policy_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("booking_policies.id", ondelete="SET NULL")

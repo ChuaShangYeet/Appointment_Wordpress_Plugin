@@ -215,7 +215,17 @@ professionals (`staff` with shifts), services with `service_category` (`inspecti
 * **Travel buffer** — an on-site visit reserves `travel_buffer_minutes` *before and after* the appointment
   on the professional's schedule; the whole padded block must fit inside their shift and hours. The
   customer-visible `start_at`/`end_at` exclude the travel time. Travel is modelled per visit (no route
-  chaining between consecutive visits).
+  chaining between consecutive visits). A business that would rather keep no travel time sets 0 and moves the next visit when
+  a job runs over (*Admin rescheduling*; the admin's free times for an on-site visit are looked up at its address, see *Where the visit goes*).
+* **Price after inspection** (2026-10-21, migration 0033, any kind of business) — `price_after_inspection: true` on a service
+  (`POST|PATCH /admin/services`, shown on `GET /public/services`) means the business tells the customer the price once it has seen the
+  job (a car nobody knows what is wrong with, a house's wiring). `price` is then what is known up front: 0 when nothing is, or a
+  starting price such as an inspection fee. So `price: 0` without the flag still means free. `PATCH /admin/services` can no longer
+  empty a setting that always holds a value (`name`, `duration_minutes`, `buffer_minutes`, `price`, `price_after_inspection`, `active`,
+  `is_addon`, `location_type`, `travel_buffer_minutes`): sending `null` for one is 422 (it was a 500); leaving it out keeps it.
+* **Where the visit goes** (2026-10-21) — `GET /admin/bookings/{id}` carries `visit_address {line1, city, postcode, latitude, longitude}`
+  for an on-site visit, to every admin role (a technician sees only their own jobs). The pin is what the admin page needs to look up free
+  times when the visit has to move. `null` for other bookings, and once the customer is erased.
 * **Auto-assignment** — the least-loaded qualified professional, or a named one (`resource_id`).
 * **Virtual appointments** — a service with `location_type: "virtual"` is an online meeting. **The business brings its own meeting service** (decided 2026-10-19: the system
   makes no video rooms). Each consultant can save their own room once (`meeting_link` on the staff member: `POST|PATCH /admin/resources`, a Google Meet, Zoom or Teams

@@ -25,6 +25,14 @@ window.JS = window.JS || {};
   J.esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   J.money = (n) => (Number(n) === 0 ? 'Free' : 'RM ' + Number(n).toLocaleString('en-MY', { maximumFractionDigits: 2 }));
   J.biz = () => J.api.business(J.state.biz);
+  /** A service's price as the customer reads it: 0 is free, unless the price is told after an inspection (then a price above 0 is where it starts). */
+  J.price = (x) => (x.price_after_inspection ? (Number(x.price) > 0 ? 'From ' + J.money(x.price) : 'Price after inspection') : J.money(x.price));
+  /** The total of several services, read the same way. */
+  J.priceTotal = (list) => {
+    const sum = list.reduce((t, x) => t + Number(x.price), 0);
+    if (!list.some((x) => x.price_after_inspection)) return J.money(sum);
+    return sum > 0 ? 'From ' + J.money(sum) : 'Price after inspection';
+  };
   J.mins = (n) => (n >= 60 ? `${Math.floor(n / 60)} h${n % 60 ? ' ' + (n % 60) + ' min' : ''}` : `${n} min`);
   J.initials = (name) => name.split(/\s+/).filter((w) => /^[A-Za-z]/.test(w)).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || 'JS';
   J.first = (name) => (String(name || '').split(/\s+/)[0] || '');
@@ -104,7 +112,7 @@ window.JS = window.JS || {};
     const list = J.api.businesses();
     const b = J.biz();
     const staff = b.resources.filter((r) => r.type === 'staff');
-    const roles = [['owner', 'Owner'], ['manager', 'Manager']].concat(staff.length ? [['staff', `Staff: ${staff[0].name}`]] : []);
+    const roles = [['owner', 'Owner'], ['manager', 'Manager']].concat(staff.map((r) => [`staff:${r.id}`, `Staff: ${r.name}`]));
     return `<div class="harness-inner">
       <div class="brand"><b>JustSimple</b><span class="tag">${J.api.hosted() ? 'Online demo · shared · sample data resets nightly' : 'Local test site · real backend'}</span></div>
       <button type="button" class="hbtn hmenu" data-act="menu" aria-expanded="${!!J.state.menu}" aria-controls="hpanel">${J.state.menu ? 'Close' : AREAS.find(([v]) => v === J.state.view)[1] + ' ▾'}</button>

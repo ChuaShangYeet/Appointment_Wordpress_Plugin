@@ -221,6 +221,17 @@ class TicketProductOut(BaseModel):
     unit_price: Decimal
 
 
+class VisitAddressOut(BaseModel):
+    """Where an on-site visit goes: the address to drive to, and its map pin (free times to move the visit are looked up from it)."""
+
+    model_config = ConfigDict(from_attributes=True)
+    line1: str
+    city: str | None = None
+    postcode: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+
+
 class BookingDetailOut(BookingAdminOut):
     """Detail view; ``health_notes`` is only populated for owner/manager (PDPA)."""
 
@@ -230,6 +241,8 @@ class BookingDetailOut(BookingAdminOut):
     policy_snapshot: dict[str, Any]
     items: list[TicketItemOut] = Field(default_factory=list)
     products: list[TicketProductOut] = Field(default_factory=list)
+    #: On-site visits: where to go (every admin role: staff see their own jobs only). ``None`` for other bookings, and once the customer is erased.
+    visit_address: VisitAddressOut | None = None
 
 
 class StatusChangeOut(BaseModel):
