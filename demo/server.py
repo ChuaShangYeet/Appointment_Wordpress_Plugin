@@ -3,8 +3,9 @@
     python demo/server.py            (from the repository root; PORT and DATABASE_URL come from the environment)
 
 What it does, in order:
-1. reads the settings from the environment (``DATABASE_URL`` as Render gives it, ``postgres://...``, is accepted);
-2. makes sure PostGIS and btree_gist exist, then brings the schema up to date with the backend's own migrations;
+1. reads the settings from the environment (``DATABASE_URL`` as Render gives it, ``postgres://...``, or as Neon gives it, ``...?sslmode=require``);
+2. makes sure PostGIS and btree_gist exist, then brings the schema up to date with the backend's own migrations; where the database user may create
+   roles (Neon), the backend itself then connects as a plain role of its own, so that Row-Level Security applies to it (see ``app_role``);
 3. on the first start only, adds the five sample businesses and their bookings through the real API (``localsite/seed.py``) and keeps
    their keys in the table ``demo_state`` (Render's disk is wiped on every deploy; the database is not);
 4. serves the API (docs at ``/docs``), the sweep worker, **the demo website at ``/``** (the local test site's pages, ``localsite/web``: booking,
@@ -18,6 +19,8 @@ customers or a real business into it. Messages (WhatsApp, SMS, email) are never 
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -25,6 +28,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -38,17 +42,27 @@ def say(text: str) -> None:
     print(f"[demo] {text}", flush=True)
 
 
-def asyncpg_url(url: str) -> str:
-    """``postgres://u:p@h/db`` (Render, Heroku) or ``postgresql://`` -> the SQLAlchemy asyncpg form the backend expects."""
+def _address(url: str) -> tuple[str, bool]:
+    """``(the address without its scheme and ?options, whether it asks for SSL)``. Neon's ends in ``?sslmode=require&channel_binding=require``:
+    the SQLAlchemy driver takes neither as it stands, and asyncpg would send ``channel_binding`` to the server as a setting; only SSL matters."""
+    base, _, query = url.partition("?")
     for prefix in ("postgresql+asyncpg://", "postgres://", "postgresql://"):
-        if url.startswith(prefix):
-            return "postgresql+asyncpg://" + url[len(prefix):]
+        if base.startswith(prefix):
+            ssl = any(k in ("sslmode", "ssl") and v not in ("disable", "allow", "prefer", "false") for k, v in parse_qsl(query))
+            return base[len(prefix):], ssl
     raise SystemExit("DATABASE_URL must be a PostgreSQL address (postgres://user:password@host:5432/database)")
+
+
+def asyncpg_url(url: str) -> str:
+    """``postgres://u:p@h/db`` (Render, Heroku), ``postgresql://...?sslmode=require`` (Neon) -> the SQLAlchemy asyncpg form the backend expects."""
+    rest, ssl = _address(url)
+    return "postgresql+asyncpg://" + rest + ("?ssl=require" if ssl else "")
 
 
 def plain_url(url: str) -> str:
     """The same address for asyncpg itself (the sample loader's direct connection)."""
-    return "postgresql://" + asyncpg_url(url)[len("postgresql+asyncpg://"):]
+    rest, ssl = _address(url)
+    return "postgresql://" + rest + ("?sslmode=require" if ssl else "")
 
 
 def public_url() -> str:
@@ -89,8 +103,9 @@ def environment() -> dict[str, str]:
     return {**env, **{k: v for k, v in os.environ.items() if k in env and k not in ("DATABASE_URL", "MIGRATION_DATABASE_URL")}}
 
 
-async def prepare_database(url: str) -> None:
-    """PostGIS and btree_gist must exist before the first migration. Render's database user may create them; elsewhere a superuser may have to."""
+async def prepare_database(url: str, secret: str) -> str | None:
+    """PostGIS and btree_gist must exist before the first migration. Render's and Neon's database users may create them; elsewhere a superuser may
+    have to. Returns the backend's own address (``app_role``), or ``None`` when it connects as the owner."""
     import asyncpg
 
     conn = await asyncpg.connect(plain_url(url))
@@ -101,6 +116,50 @@ async def prepare_database(url: str) -> None:
             except asyncpg.PostgresError as exc:
                 raise SystemExit(f"Could not create the {ext} extension ({exc}). Create it once as an administrator: CREATE EXTENSION {ext};") from exc
         await conn.execute("CREATE TABLE IF NOT EXISTS demo_state (key text PRIMARY KEY, value jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())")
+        return await app_role(conn, url, secret)
+    finally:
+        await conn.close()
+
+
+#: The backend's own login where the database user may create roles (see ``app_role``)
+APP_ROLE = "justsimple_demo_app"
+
+
+async def app_role(conn: Any, url: str, secret: str) -> str | None:
+    """Row-Level Security does not apply to the tables' owner, nor to a role with BYPASSRLS (Neon gives its own users that), and the backend's
+    start-up checks refuse a role it does not apply to. Where the database user may create roles (Neon), the backend gets a plain one of its own
+    and the owner keeps the migrations and the demo's own tables; where it may not (Render), the backend connects as the owner, as before.
+    The password comes from JWT_SECRET, so it is the same on every start and nothing has to be stored."""
+    import asyncpg
+
+    password = hmac.new(secret.encode(), b"demo database role", hashlib.sha256).hexdigest()  # (hex only: safe inside the quotes below)
+    try:
+        exists = await conn.fetchval("SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = $1)", APP_ROLE)
+        await conn.execute(f"{'ALTER' if exists else 'CREATE'} ROLE {APP_ROLE} LOGIN PASSWORD '{password}'")
+        db = await conn.fetchval("SELECT current_database()")
+        await conn.execute(f'GRANT CONNECT ON DATABASE "{db}" TO {APP_ROLE}')
+        await conn.execute(f"GRANT USAGE ON SCHEMA public TO {APP_ROLE}")
+    except asyncpg.PostgresError as exc:
+        say(f"the backend connects as the database owner (no role of its own: {exc.__class__.__name__})")
+        return None
+    unsafe = await conn.fetchval("SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = $1", APP_ROLE)
+    if unsafe:
+        raise SystemExit(f"the role {APP_ROLE} skips Row-Level Security (superuser or BYPASSRLS): drop it and start again")
+    parts = urlsplit(plain_url(url))
+    host = parts.netloc.rsplit("@", 1)[-1]
+    say(f"the backend connects as its own role, {APP_ROLE}")
+    return asyncpg_url(urlunsplit(parts._replace(netloc=f"{APP_ROLE}:{password}@{host}")))
+
+
+async def grant_app_role(url: str) -> None:
+    """After the migrations: the backend's role may read and write every table, except the migration bookkeeping and the demo's own state."""
+    import asyncpg
+
+    conn = await asyncpg.connect(plain_url(url))
+    try:
+        await conn.execute(f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {APP_ROLE}")
+        await conn.execute(f"GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {APP_ROLE}")
+        await conn.execute(f"REVOKE ALL ON TABLE alembic_version, demo_state FROM {APP_ROLE}")
     finally:
         await conn.close()
 
@@ -200,7 +259,7 @@ async def serve(env: dict[str, str]) -> None:
     captcha.configure(settings)
     delivery.configure_providers(settings)
 
-    url = env["DATABASE_URL"]
+    url = env["MIGRATION_DATABASE_URL"]  # (the owner: the demo's own tables, the sample loader and the nightly reset)
 
     async def reseed() -> dict[str, Any]:
         """The five sample businesses and their bookings, through the real API (first start, and every reset: see reset.py)."""
@@ -269,8 +328,12 @@ async def serve(env: dict[str, str]) -> None:
 def main() -> None:
     env = environment()
     os.environ.update(env)
-    asyncio.run(prepare_database(env["DATABASE_URL"]))
+    backend_url = asyncio.run(prepare_database(env["MIGRATION_DATABASE_URL"], os.environ["JWT_SECRET"]))
     migrate(env)
+    if backend_url:
+        asyncio.run(grant_app_role(env["MIGRATION_DATABASE_URL"]))
+        env["DATABASE_URL"] = backend_url
+        os.environ["DATABASE_URL"] = backend_url
     asyncio.run(serve(env))
 
 

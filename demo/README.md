@@ -38,8 +38,9 @@ customers or a real business into it.
 ## Deploy on Render (about 15 minutes, once)
 
 1. Sign up at <https://render.com> (a GitHub sign-in is simplest) and allow Render to see the repository `Appointment_Wordpress_Plugin`.
-2. **New > Blueprint**, pick the repository. Render reads `render.yaml`: one web service `justsimple-demo-api` and one database
-   `justsimple-demo-db`, both free, in Singapore. Press **Apply**.
+2. Make the database on Neon first (see *The database (Neon)* below) and copy its connection string.
+   Then on Render: **New > Blueprint**, pick the repository. Render reads `render.yaml`: one free web service `justsimple-demo-api` in Singapore.
+   It asks for `DATABASE_URL` (paste Neon's connection string) and the `DEMO_SMTP_*` values. Press **Apply**.
 3. Wait for the first deploy (5-10 minutes: it installs the packages, builds the database, then adds the sample data, which takes a minute or two
    more on the first start only). The log ends with `[demo] ready on port ...`.
 4. Open the service's address (`https://justsimple-demo-api.onrender.com` or similar). That is the demo website; the keys are at `/api` and the API
@@ -47,11 +48,24 @@ customers or a real business into it.
 
 Good to know:
 * **Free web service sleeps** after 15 minutes without visitors; the next request takes 30-60 seconds. Open the page a minute before a demo.
-* **Free database expires after 30 days.** Render emails before; then create a new one (the next start fills it again) or move to a paid plan (from about US$7 a month).
+* **The database is on Neon, not Render.** Render's free database is deleted after 30 days; Neon's free plan does not expire. Neon puts the
+  database to sleep after a few idle minutes and wakes it on the next connection (under a second).
 * **Messages are kept in memory**, so they are gone after a restart or a sleep. Bookings and businesses are in the database and stay.
 * If the start fails with `PDPA_ENCRYPTION_KEY must decode to 32 bytes`, set it by hand in the service's Environment tab to the output of
   `python -c "import os,base64;print(base64.b64encode(os.urandom(32)).decode())"` and deploy again.
 * If it fails with `Could not create the postgis extension`, the database plan does not offer PostGIS: tell me and we pick another host.
+* The log line `the backend connects as its own role, justsimple_demo_app` is expected on Neon: the demo makes that role so that Row-Level Security
+  applies to the backend (Neon's own user skips it). On a database whose user may not create roles it says `connects as the database owner` instead.
+
+### The database (Neon)
+
+1. Sign up at <https://neon.com> (a GitHub sign-in is simplest; the free plan needs no card).
+2. Create a project: any name, **Postgres 17**, region **AWS Asia Pacific 1 (Singapore)** (next to Render's Singapore service).
+3. On the project's dashboard press **Connect**, turn **Connection pooling off** (the backend keeps its own connections), and copy the
+   connection string (`postgresql://neondb_owner:...@ep-....ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require`).
+   The demo accepts it exactly as copied.
+4. On Render: the service > **Environment** > `DATABASE_URL` > paste it > **Save, rebuild and deploy**. The first start builds the database and
+   adds the sample data (a few minutes). The visitors list and log start empty: download the CSV files from `/demo/visitors` before switching.
 * **Starting again from fresh sample data:** delete the row in the `demo_state` table and every business (or create a new database), then restart.
 
 ## Run it on your own computer (no Render needed)

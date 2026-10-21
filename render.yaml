@@ -1,6 +1,7 @@
 # Render blueprint for the public demo API (demo/server.py). Render > New > Blueprint > pick this repository.
-# One web service (the API, its worker and the demo pages in one process) and one PostgreSQL database. Both on the free plan:
-# the web service sleeps after 15 minutes without visitors (the next visit takes 30-60 s), and a free database expires after 30 days.
+# One web service (the API, its worker and the demo pages in one process) on the free plan: it sleeps after 15 minutes without visitors
+# (the next visit takes 30-60 s). The database is on Neon's free plan, which does not expire (Render's free database is deleted after 30 days):
+# see "The database (Neon)" in demo/README.md.
 services:
   - type: web
     name: justsimple-demo-api
@@ -13,10 +14,9 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.14.0"
+      # Neon's connection string, pasted on Render (Environment tab), never in this file: it holds the password
       - key: DATABASE_URL
-        fromDatabase:
-          name: justsimple-demo-db
-          property: connectionString
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: PDPA_ENCRYPTION_KEY  # (generateValue makes a base64 value of 32 bytes, which is what the key must be)
@@ -37,10 +37,3 @@ services:
         sync: false
       - key: DEMO_SMTP_FROM
         sync: false
-
-databases:
-  - name: justsimple-demo-db
-    plan: free
-    region: singapore
-    databaseName: justsimple_demo
-    postgresMajorVersion: "16"
