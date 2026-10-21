@@ -151,8 +151,44 @@ window.JS = window.JS || {};
     }
     const view = J.views[J.state.view];
     if (view.after) view.after();
+    remember();
   };
   J.top = () => window.scrollTo({ top: 0 });
+
+  /* ------------------------------------------------------------------ the browser's Back and Forward
+     The site is one page, so each place (an area, plus a booking step, an admin tab or open booking, an account tab) is written to the
+     address as #area/place and kept in the browser's history. Back and Forward hand the place to its area (views[name].goPlace),
+     which goes there only if it still can (a later booking step needs the earlier ones filled in); otherwise the address is corrected. */
+  const AREA_IDS = ['book', 'account', 'admin', 'signup'];
+  let shown = null, restoring = false;
+  function placeNow() {
+    const view = J.views[J.state.view];
+    const sub = view.place ? view.place() : '';
+    return J.state.view + (sub ? '/' + sub : '');
+  }
+  function remember() {
+    const now = placeNow();
+    if (now === shown && location.hash === '#' + now) return;
+    try { // (the same place with another address: Back or Forward asked for a place that could not be reached, so the address is corrected)
+      if (shown === null || restoring || now === shown) history.replaceState(null, '', '#' + now);
+      else history.pushState(null, '', '#' + now);
+    } catch (e) { /* history not available: Back leaves the site, as before */ }
+    shown = now;
+  }
+  function goTo(hash) {
+    const [area, ...rest] = decodeURIComponent(hash || '').split('/');
+    if (!AREA_IDS.includes(area)) return false;
+    for (const name of Object.keys(J.views)) if (!J.state[name]) J.state[name] = J.views[name].init();
+    J.state.view = area; J.state.menu = false; save();
+    const view = J.views[area];
+    if (view.goPlace) view.goPlace(rest.join('/'));
+    return true;
+  }
+  window.addEventListener('popstate', () => {
+    restoring = true;
+    try { goTo(location.hash.slice(1)); J.render(); } finally { restoring = false; }
+    J.top();
+  });
 
   /** What the backend "sent": nothing leaves this computer, so the codes and links people would get by WhatsApp, SMS or email show up here. */
   function inboxPanel() {
@@ -199,6 +235,7 @@ window.JS = window.JS || {};
     });
     // hold countdowns and "now" lines move with the clock
     setInterval(() => { if (J.state.view === 'admin' && !typing()) J.render(); }, 30000);
+    goTo(location.hash.slice(1)); // (a refreshed page or a shared link opens where it points, as far as it still can)
     J.render();
   };
 })();

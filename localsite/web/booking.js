@@ -446,5 +446,16 @@
     },
   });
 
-  J.views.book = { init, render, slotGrid, dayStrip };
+  /** Back and Forward: the step on screen, and going to one (only a step whose earlier steps are filled in; after a booking is made, only its done page). */
+  function place() { return st().step || ''; }
+  function goPlace(step) {
+    const b = J.biz(), s = st(), steps = stepsFor(b);
+    if (s.step === 'done') return false;
+    const i = steps.indexOf(step);
+    if (i < 0 || steps.slice(0, i).some((x) => !canContinue(b, x))) return false;
+    s.step = step; s.error = null;
+    if (step === 'staff') s.freeKey = null;
+    return true;
+  }
+  J.views.book = { init, render, slotGrid, dayStrip, place, goPlace };
 })();

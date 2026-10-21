@@ -500,5 +500,15 @@
     },
   });
 
-  J.views.admin = { init, render };
+  /** Back and Forward: the tab, and the booking open in it. */
+  function place() { const s = st(); return s.tab + (s.open && (s.tab === 'bookings' || s.tab === 'schedule') ? '/' + s.open : ''); }
+  function goPlace(p) {
+    const s = st(), [tab, id] = p.split('/');
+    if (!['bookings', 'schedule', 'setup', 'plan'].includes(tab)) return false;
+    if (tab !== s.tab) { s.tab = tab; if (tab === 'plan') s.plan = null; if (tab === 'setup') s.hours = null; }
+    if (id && id !== s.open) { setTimeout(() => openDetail(id)); s.open = id; s.detail = null; s.move = null; }
+    else if (!id) { s.open = null; s.detail = null; s.move = null; }
+    return true;
+  }
+  J.views.admin = { init, render, place, goPlace };
 })();

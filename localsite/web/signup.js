@@ -175,5 +175,14 @@
     },
   });
 
-  J.views.signup = { init, render };
+  /** Back and Forward: the step; only back to a step already passed, and not once the request is sent. */
+  const ORDER = ['type', 'business', 'website'];
+  function place() { const s = st(); s.far = Math.max(s.far || 0, ORDER.indexOf(s.step)); return s.step; }
+  function goPlace(step) {
+    const s = st(), i = ORDER.indexOf(step);
+    if (i < 0 || !ORDER.includes(s.step) || i > (s.far || 0)) return false;
+    s.step = step; s.err = null;
+    return true;
+  }
+  J.views.signup = { init, render, place, goPlace };
 })();

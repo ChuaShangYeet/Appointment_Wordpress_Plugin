@@ -311,5 +311,13 @@
     },
   });
 
-  J.views.account = { init, render };
+  /** Back and Forward: the tab of a signed-in customer (nothing to go back to before signing in). */
+  function place() { const s = st(); return s.session ? s.tab : ''; }
+  function goPlace(tab) {
+    const s = st();
+    if (!s.session || !['upcoming', 'past', 'details'].includes(tab)) return false;
+    s.tab = tab; s.move = null; s.cancelAsk = null;
+    return true;
+  }
+  J.views.account = { init, render, place, goPlace };
 })();
