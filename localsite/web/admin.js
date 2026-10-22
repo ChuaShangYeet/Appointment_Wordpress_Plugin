@@ -80,6 +80,7 @@
     const rows = b.resources.filter((r) => !v.staffId || r.id === v.staffId);
     const ticks = [];
     for (let m = lo; m <= hi; m += 60) ticks.push(`<span style="left:${((m - lo) / span) * 100}%">${String(Math.floor(m / 60) % 24).padStart(2, '0')}:00</span>`);
+    const hourLines = ticks.map((t, n) => (n ? `<i class="hr" style="left:${((n * 60) / span) * 100}%" aria-hidden="true"></i>` : '')).join('');
     const nowLine = s.date === T.today() ? `<i class="now-line" style="left:${pct(Date.now())}%" aria-hidden="true"></i>` : '';
     const blocks = (rid) => s.list.filter((x) => !['cancelled', 'rejected', 'no-show'].includes(x.status)).flatMap((x) => x.allocations.filter((a) => a.rid === rid && a.e > a.s).flatMap((a) => {
       const bs = Date.parse(x.start_at), be = Date.parse(x.end_at);
@@ -92,7 +93,7 @@
     })).join('');
     return `<div class="board"><div class="board-inner">
       <div class="board-hours"><span></span><div class="ticks">${ticks.join('')}</div></div>
-      ${rows.map((r) => `<div class="board-row"><span class="rname">${J.esc(r.name)}<small>${r.type === 'table' ? r.capacity + ' seats' + ((r.attributes || {}).is_vip ? ' · private' : '') : r.type === 'bay' ? 'Bay' : J.esc(r.note || '')}${r.status === 'inactive' ? ' · off' : ''}</small></span><div class="track">${blocks(r.id)}${nowLine}</div></div>`).join('')}
+      ${rows.map((r) => `<div class="board-row"><span class="rname">${J.esc(r.name)}<small>${r.type === 'table' ? r.capacity + ' seats' + ((r.attributes || {}).is_vip ? ' · private' : '') : r.type === 'bay' ? 'Bay' : J.esc(r.note || '')}${r.status === 'inactive' ? ' · off' : ''}</small></span><div class="track">${hourLines}${blocks(r.id)}${nowLine}</div></div>`).join('')}
     </div></div><p class="hint" style="margin-top:8px">Dashed blocks are requests waiting for an answer; a mark on the left edge means the booking needs a look.</p>`;
   }
 
@@ -111,7 +112,7 @@
 
   function drawer(b, v) {
     const s = st(), x = s.detail;
-    if (!x) return `<aside class="drawer"><div class="card row muted">${J.busyLabel('Loading…')}</div></aside>`;
+    if (!x) return `<aside class="drawer${J.arrival('drawer')}"><div class="card row muted">${J.busyLabel('Loading…')}</div></aside>`;
     const moves = api.allowedMoves(b.id, x);
     const sees = canManage(v);
     const rows = [
@@ -130,8 +131,8 @@
     rows.push(['Made', `${T.when(x.created_at)} · ${x.source === 'wordpress' ? 'website' : x.source === 'admin' ? 'by staff' : 'booking page'}`]);
     const adds = b.type === 'salon' ? b.services.filter((y) => y.is_addon) : [];
     const canMove = sees && ['pending', 'confirmed'].includes(x.status);
-    return `<aside class="drawer" aria-label="Booking details"><div class="card">
-      <div class="spread"><div class="stack" style="gap:4px"><h2>${J.esc(x.customer.name)}</h2><span class="mono small muted">REF ${J.esc(x.ref)}</span></div><button type="button" class="closex" data-act="adm.close" aria-label="Close">✕</button></div>
+    return `<aside class="drawer${J.arrival('drawer')}" aria-label="Booking details"><div class="card">
+      <div class="spread"><div class="stack" style="gap:4px"><h2>${J.esc(x.customer.name)}</h2><span class="mono small muted">REF ${J.esc(x.ref)}</span></div><button type="button" class="closex" data-act="adm.close" aria-label="Close">${J.icon('x')}</button></div>
       <div class="row">${J.chip(x.status)}${x.status === 'pending' ? `<span class="small muted">${holdLeft(x)}</span>` : ''}</div>
       ${s.err ? `<div class="notice bad"><span>${J.esc(s.err)}</span></div>` : ''}
       ${x.status === 'pending' ? `<div class="notice warn"><strong>Waiting for your answer</strong><span>The ${b.type === 'restaurant' ? 'table' : 'time'} is held until ${T.time(x.hold_expires_at)}. If nobody answers by then the request is declined automatically and the customer is told.</span></div>` : ''}
@@ -321,14 +322,13 @@
     else if (s.tab === 'plan') main = planView(b, v);
     else {
       const open = !!s.open;
-      main = `${s.filter === 'all' ? `<div class="spread" style="margin-bottom:12px"><div class="datenav"><button type="button" class="back" data-act="adm.day" data-d="-1" aria-label="Previous day">←</button><span class="d">${isToday ? 'Today' : T.day(s.date, { weekday: 'long' })}<br><span class="muted small" style="font-family:var(--font-body);font-weight:500">${T.day(s.date, { day: 'numeric', month: 'long', year: 'numeric' })}</span></span><button type="button" class="back" data-act="adm.day" data-d="1" aria-label="Next day">→</button></div>
+      main = `${s.filter === 'all' ? `<div class="spread" style="margin-bottom:12px"><div class="datenav"><button type="button" class="back" data-act="adm.day" data-d="-1" aria-label="Previous day">${J.icon('chevron-left')}</button><span class="d">${isToday ? 'Today' : T.day(s.date, { weekday: 'long' })}<br><span class="muted small">${T.day(s.date, { day: 'numeric', month: 'long', year: 'numeric' })}</span></span><button type="button" class="back" data-act="adm.day" data-d="1" aria-label="Next day">${J.icon('chevron-right')}</button></div>
           ${isToday ? '' : '<button type="button" class="btn ghost small" data-act="adm.today">Back to today</button>'}</div>`
         : `<div class="spread" style="margin-bottom:12px"><h3>${s.filter === 'pending' ? 'Requests waiting for an answer' : s.filter === 'flagged' ? 'Bookings to review' : 'Appointments that clash'}</h3><button type="button" class="btn ghost small" data-act="adm.filter" data-f="all">Show the day view</button></div>`}
         <div class="adminbody ${open ? 'open' : ''}"><div style="min-width:0">${s.tab === 'schedule' && s.filter === 'all' ? boardView(b, v) : listView(b)}</div>${open ? drawer(b, v) : ''}</div>`;
     }
     return `<div class="page"><div class="wide">
-      <div class="adminhead"><div class="stack" style="gap:4px"><span class="label">${J.esc(b.kind)} · admin</span><h1>${J.esc(b.name)}</h1></div>
-        <span class="small muted">Signed in as <b>${J.esc(v.label)}</b>${v.staffId ? ' (sees own appointments only)' : ''}</span></div>
+      <div class="adminhead"><div class="stack" style="gap:2px"><h1>${J.esc(b.name)}</h1><span class="sub">${J.esc(b.kind)} · signed in as <b>${J.esc(v.label)}</b>${v.staffId ? ' (sees own appointments only)' : ''}</span></div></div>
       <div class="tabs" role="tablist">${tabs.map(([k, t]) => `<button type="button" role="tab" aria-current="${s.tab === k}" data-act="adm.tab" data-tab="${k}">${t}</button>`).join('')}</div>
       ${s.tab === 'bookings' || s.tab === 'schedule' ? `<div class="attn">
         <button type="button" data-act="adm.filter" data-f="pending" aria-pressed="${s.filter === 'pending'}" ${a.pending.length ? '' : 'disabled'}><span class="n">${a.pending.length}</span> request${a.pending.length === 1 ? '' : 's'} to answer</button>
@@ -340,6 +340,7 @@
   /* ------------------------------------------------------------------ actions */
   async function openDetail(id) {
     const s = st();
+    if (!s.open) J.arrive('drawer', 'enter');
     s.open = id; s.detail = null; s.err = null; s.move = null; s.extra = { addonId: '', result: null, busy: false }; J.render();
     const [d] = await J.call(() => api.adminBooking(J.state.biz, id, viewer(J.biz())));
     s.detail = d; J.render();

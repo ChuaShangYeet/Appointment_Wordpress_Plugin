@@ -1,0 +1,756 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-22T02:06:11+00:00",
+  "title": "Design System: JustSimple Booking Demo",
+  "extensions": {
+    "colorMeta": {
+      "ground": {
+        "role": "neutral",
+        "displayName": "Shop Floor",
+        "canonical": "#f6f7f6",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242524",
+          "#414241",
+          "#616161",
+          "#828282",
+          "#a4a5a4",
+          "#c8c9c8",
+          "#eeefee"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "raised": {
+        "role": "neutral",
+        "displayName": "Shelf",
+        "canonical": "#f2f4f3",
+        "tonalRamp": [
+          "#0a0b0b",
+          "#242525",
+          "#414242",
+          "#606261",
+          "#818382",
+          "#a4a5a4",
+          "#c8cac9",
+          "#edefee"
+        ]
+      },
+      "active": {
+        "role": "neutral",
+        "displayName": "Pressed",
+        "canonical": "#e9ecea",
+        "tonalRamp": [
+          "#0a0c0a",
+          "#232624",
+          "#404341",
+          "#5f6260",
+          "#808381",
+          "#a3a6a4",
+          "#c7cac8",
+          "#ecefed"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#e3e6e4",
+        "tonalRamp": [
+          "#0a0c0a",
+          "#232624",
+          "#404341",
+          "#5f6260",
+          "#808381",
+          "#a3a6a4",
+          "#c7cac8",
+          "#ecefed"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Inner Rule",
+        "canonical": "#edf0ee",
+        "tonalRamp": [
+          "#0a0c0a",
+          "#232624",
+          "#404341",
+          "#5f6260",
+          "#808381",
+          "#a3a6a4",
+          "#c7cac8",
+          "#ecefed"
+        ]
+      },
+      "control": {
+        "role": "neutral",
+        "displayName": "Control Edge",
+        "canonical": "#cfd4d1",
+        "tonalRamp": [
+          "#090c0a",
+          "#222624",
+          "#3f4341",
+          "#5e6260",
+          "#7f8481",
+          "#a2a6a3",
+          "#c6cac7",
+          "#ebf0ed"
+        ]
+      },
+      "control-hover": {
+        "role": "neutral",
+        "displayName": "Control Hover",
+        "canonical": "#a9b1ad",
+        "tonalRamp": [
+          "#070d0a",
+          "#202724",
+          "#3d4440",
+          "#5c6360",
+          "#7d8481",
+          "#9fa7a3",
+          "#c3cbc7",
+          "#e8f1ed"
+        ]
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "Ink Text",
+        "canonical": "#121614",
+        "tonalRamp": [
+          "#080c0a",
+          "#222624",
+          "#3f4341",
+          "#5e6360",
+          "#7e8481",
+          "#a1a6a4",
+          "#c5cbc8",
+          "#eaf0ed"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Quiet Text",
+        "canonical": "#59625e",
+        "tonalRamp": [
+          "#060d0a",
+          "#1f2724",
+          "#3c4441",
+          "#5b6460",
+          "#7b8581",
+          "#9ea8a3",
+          "#c2ccc7",
+          "#e7f1ed"
+        ]
+      },
+      "faint": {
+        "role": "neutral",
+        "displayName": "Faint Text",
+        "canonical": "#6a726e",
+        "tonalRamp": [
+          "#070d0a",
+          "#202724",
+          "#3d4440",
+          "#5c635f",
+          "#7c8580",
+          "#9fa7a3",
+          "#c3ccc7",
+          "#e8f1ec"
+        ]
+      },
+      "primary": {
+        "role": "primary",
+        "displayName": "Counter Ink",
+        "canonical": "#151917",
+        "tonalRamp": [
+          "#080c0a",
+          "#222624",
+          "#3f4341",
+          "#5e6360",
+          "#7f8481",
+          "#a1a6a4",
+          "#c5cbc8",
+          "#eaf0ed"
+        ]
+      },
+      "primary-hover": {
+        "role": "primary",
+        "displayName": "Lifted Ink",
+        "canonical": "#2b302d",
+        "tonalRamp": [
+          "#080c0a",
+          "#222624",
+          "#3e4340",
+          "#5d635f",
+          "#7e8480",
+          "#a1a7a3",
+          "#c5cbc7",
+          "#eaf0ec"
+        ]
+      },
+      "on-primary": {
+        "role": "primary",
+        "displayName": "On Ink White",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "accent": {
+        "role": "secondary",
+        "displayName": "JustSimple Green",
+        "canonical": "#157150",
+        "tonalRamp": [
+          "#000f07",
+          "#012d1d",
+          "#034f36",
+          "#177251",
+          "#419572",
+          "#66b994",
+          "#8bdeb7",
+          "#c1ffe1"
+        ]
+      },
+      "accent-ink": {
+        "role": "secondary",
+        "displayName": "Deep Green",
+        "canonical": "#0f5a3f",
+        "tonalRamp": [
+          "#000f07",
+          "#012d1d",
+          "#004f35",
+          "#2b7054",
+          "#4f9274",
+          "#72b696",
+          "#96dbba",
+          "#c2ffe1"
+        ]
+      },
+      "accent-soft": {
+        "role": "secondary",
+        "displayName": "Mint Wash",
+        "canonical": "#e3f2eb",
+        "tonalRamp": [
+          "#040e09",
+          "#1d2823",
+          "#394540",
+          "#58655f",
+          "#788680",
+          "#9ba9a2",
+          "#bfcdc6",
+          "#e4f3ec"
+        ]
+      },
+      "ok": {
+        "role": "tertiary",
+        "displayName": "Confirmed Green",
+        "canonical": "#1f7a4a",
+        "tonalRamp": [
+          "#001005",
+          "#002e16",
+          "#00502b",
+          "#157344",
+          "#409664",
+          "#65ba86",
+          "#8adfa9",
+          "#c6ffd8"
+        ]
+      },
+      "ok-soft": {
+        "role": "tertiary",
+        "displayName": "Confirmed Wash",
+        "canonical": "#e1f4e8",
+        "tonalRamp": [
+          "#030e07",
+          "#1a2920",
+          "#37463d",
+          "#55665c",
+          "#76877d",
+          "#98aa9f",
+          "#bccfc3",
+          "#e1f4e8"
+        ]
+      },
+      "ok-ink": {
+        "role": "tertiary",
+        "displayName": "Confirmed Ink",
+        "canonical": "#14532f",
+        "tonalRamp": [
+          "#000f05",
+          "#012e15",
+          "#0e4f2b",
+          "#34704a",
+          "#56926a",
+          "#79b58c",
+          "#9cdaaf",
+          "#c6ffd6"
+        ]
+      },
+      "warn": {
+        "role": "tertiary",
+        "displayName": "Pending Amber",
+        "canonical": "#b7791f",
+        "tonalRamp": [
+          "#140800",
+          "#361f00",
+          "#5d3902",
+          "#865504",
+          "#b17315",
+          "#d69643",
+          "#fdbb69",
+          "#ffebd4"
+        ]
+      },
+      "warn-soft": {
+        "role": "tertiary",
+        "displayName": "Pending Wash",
+        "canonical": "#fdf3dc",
+        "tonalRamp": [
+          "#110a00",
+          "#2c2412",
+          "#49412e",
+          "#69604d",
+          "#8b826d",
+          "#aea48f",
+          "#d2c8b2",
+          "#f8eed7"
+        ]
+      },
+      "warn-ink": {
+        "role": "tertiary",
+        "displayName": "Pending Ink",
+        "canonical": "#7a4a07",
+        "tonalRamp": [
+          "#140800",
+          "#371f01",
+          "#5f3801",
+          "#865518",
+          "#a9763e",
+          "#ce9960",
+          "#f4bd84",
+          "#feebd7"
+        ]
+      },
+      "warn-line": {
+        "role": "tertiary",
+        "displayName": "Pending Line",
+        "canonical": "#f2d28b",
+        "tonalRamp": [
+          "#110a00",
+          "#312300",
+          "#543e02",
+          "#795d0d",
+          "#9c7e37",
+          "#c0a15b",
+          "#e5c57f",
+          "#ffedc6"
+        ]
+      },
+      "bad": {
+        "role": "tertiary",
+        "displayName": "Error Red",
+        "canonical": "#c4242a",
+        "tonalRamp": [
+          "#1f0001",
+          "#4d0106",
+          "#800210",
+          "#b60d1d",
+          "#df4241",
+          "#ff736b",
+          "#ffb3ab",
+          "#ffe9e6"
+        ]
+      },
+      "bad-soft": {
+        "role": "tertiary",
+        "displayName": "Error Wash",
+        "canonical": "#fdecea",
+        "tonalRamp": [
+          "#120807",
+          "#2e2220",
+          "#4c3e3d",
+          "#6c5d5c",
+          "#8d7e7d",
+          "#b1a19f",
+          "#d5c5c3",
+          "#fbeae8"
+        ]
+      },
+      "bad-ink": {
+        "role": "tertiary",
+        "displayName": "Error Ink",
+        "canonical": "#8a1c20",
+        "tonalRamp": [
+          "#1f0001",
+          "#4d0007",
+          "#7d0b15",
+          "#a43635",
+          "#cb5a55",
+          "#f27d77",
+          "#feb3ac",
+          "#fee9e7"
+        ]
+      },
+      "info": {
+        "role": "tertiary",
+        "displayName": "In-progress Blue",
+        "canonical": "#2f5f9e",
+        "tonalRamp": [
+          "#000a20",
+          "#00234f",
+          "#0f417d",
+          "#3262a1",
+          "#5284c6",
+          "#74a7ec",
+          "#a6ccff",
+          "#e5f0fe"
+        ]
+      },
+      "info-soft": {
+        "role": "tertiary",
+        "displayName": "In-progress Wash",
+        "canonical": "#e8f0fa",
+        "tonalRamp": [
+          "#070c12",
+          "#20262d",
+          "#3c434b",
+          "#5b626a",
+          "#7c838c",
+          "#9ea6af",
+          "#c2cad4",
+          "#e7eff9"
+        ]
+      },
+      "info-ink": {
+        "role": "tertiary",
+        "displayName": "In-progress Ink",
+        "canonical": "#1f426f",
+        "tonalRamp": [
+          "#000a20",
+          "#01244e",
+          "#1f426f",
+          "#3e6392",
+          "#5f84b6",
+          "#80a8dc",
+          "#a6ccfe",
+          "#e4f0ff"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Online demo log-in / register and info page titles only."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Page titles; 1.4rem under 520px."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Step headings and section headings."
+      },
+      "title-sm": {
+        "displayName": "Title Small",
+        "purpose": "Card headings and choice names."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "All running text; inputs at 16px."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Sentence-case field and group labels in the muted colour."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Step names, day names, slot sub-lines, hour ticks (0.74 to 0.8rem)."
+      },
+      "figure": {
+        "displayName": "Figure",
+        "purpose": "The day-strip date numeral; tabular figures wherever numbers are compared."
+      },
+      "code": {
+        "displayName": "Code",
+        "purpose": "API keys and code samples on the online demo pages only."
+      }
+    },
+    "shadows": [
+      {
+        "name": "float",
+        "value": "0 1px 2px rgb(18 22 20 / 6%), 0 12px 32px -6px rgb(18 22 20 / 18%)",
+        "purpose": "Messages panel and toast only."
+      },
+      {
+        "name": "segment-lift",
+        "value": "0 1px 2px rgb(18 22 20 / 12%)",
+        "purpose": "Selected button in a segmented control."
+      },
+      {
+        "name": "focus-halo",
+        "value": "0 0 0 3px rgb(18 22 20 / 10%)",
+        "purpose": "Text inputs on focus, with the border turning primary."
+      },
+      {
+        "name": "focus-halo-invalid",
+        "value": "0 0 0 3px color-mix(in srgb, #c4242a 18%, transparent)",
+        "purpose": "Focused invalid field."
+      },
+      {
+        "name": "selection-ring",
+        "value": "inset 0 0 0 1px #151917",
+        "purpose": "Selected choice row (2px ink outline with its border)."
+      },
+      {
+        "name": "block-hover-ring",
+        "value": "0 0 0 2px #ffffff, 0 0 0 3px #151917",
+        "purpose": "Hovered schedule block (fine pointers only)."
+      },
+      {
+        "name": "focus-outline",
+        "value": "outline: 2px solid #157150; outline-offset: 2px",
+        "purpose": "Keyboard focus on every non-text control."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.23, 1, 0.32, 1)",
+        "purpose": "Step slides, rise, pop, press, toast."
+      },
+      {
+        "name": "ease-drawer",
+        "value": "cubic-bezier(0.32, 0.72, 0, 1)",
+        "purpose": "Admin drawer and phone bottom sheet."
+      },
+      {
+        "name": "state",
+        "value": "150ms ease",
+        "purpose": "Colour, border and shadow changes on hover and selection."
+      },
+      {
+        "name": "press",
+        "value": "transform: scale(0.97) over 160ms ease-out",
+        "purpose": "Every pressable element on :active (choices and list rows 0.99)."
+      },
+      {
+        "name": "step-forward",
+        "value": "240ms ease-out, from opacity 0 translateX(14px)",
+        "purpose": "Next step arriving; gated to the render after a step change."
+      },
+      {
+        "name": "step-back",
+        "value": "240ms ease-out, from opacity 0 translateX(-14px)",
+        "purpose": "Previous step arriving after Back."
+      },
+      {
+        "name": "rise",
+        "value": "360ms ease-out, from opacity 0 translateY(10px) scale(0.99)",
+        "purpose": "A screen or result arriving."
+      },
+      {
+        "name": "pop",
+        "value": "200ms ease-out, from opacity 0 scale(0.96)",
+        "purpose": "Messages panel opening."
+      },
+      {
+        "name": "drawer-in",
+        "value": "260ms ease-drawer, from opacity 0 translateX(16px)",
+        "purpose": "Booking drawer opening on desktop."
+      },
+      {
+        "name": "sheet-in",
+        "value": "320ms ease-drawer, from translateY(100%)",
+        "purpose": "Booking drawer as a bottom sheet at 860px and below."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "fade 160ms",
+        "purpose": "Replaces every entrance under prefers-reduced-motion; press scale off."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "phone",
+        "value": "520px"
+      },
+      {
+        "name": "sheet",
+        "value": "860px"
+      },
+      {
+        "name": "booker-two-column",
+        "value": "900px"
+      },
+      {
+        "name": "product-bar-menu",
+        "value": "960px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Every primary action: Continue, Confirm, Send. Near-black, never green.",
+      "html": "<button class=\"ds-btn\">Continue</button>",
+      "css": ":host{--ground:#f6f7f6;--surface:#fff;--raised:#f2f4f3;--active:#e9ecea;--border:#e3e6e4;--rule:#edf0ee;--control:#cfd4d1;--text:#121614;--muted:#59625e;--faint:#6a726e;--primary:#151917;--primary-hover:#2b302d;--on-primary:#fff;--accent:#157150;--accent-ink:#0f5a3f;--accent-soft:#e3f2eb;--ok-soft:#e1f4e8;--ok-ink:#14532f;--warn:#b7791f;--warn-soft:#fdf3dc;--warn-ink:#7a4a07;--bad-ink:#8a1c20;--bad-soft:#fdecea;--font:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--ease-out:cubic-bezier(0.23,1,0.32,1)} .ds-btn{font-family:var(--font);display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:6px;padding:0 16px;min-height:42px;min-width:150px;font-weight:600;font-size:0.95rem;cursor:pointer;border:1px solid transparent;background:var(--primary);color:var(--on-primary);transition:background-color 150ms ease,transform 160ms var(--ease-out)} .ds-btn:hover{background:var(--primary-hover)} .ds-btn:active{transform:scale(0.97)} .ds-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary actions beside a primary: Keep it, Not now, Copy key.",
+      "html": "<button class=\"ds-btn-ghost\">Keep the current time</button>",
+      "css": ":host{--ground:#f6f7f6;--surface:#fff;--raised:#f2f4f3;--active:#e9ecea;--border:#e3e6e4;--rule:#edf0ee;--control:#cfd4d1;--text:#121614;--muted:#59625e;--faint:#6a726e;--primary:#151917;--primary-hover:#2b302d;--on-primary:#fff;--accent:#157150;--accent-ink:#0f5a3f;--accent-soft:#e3f2eb;--ok-soft:#e1f4e8;--ok-ink:#14532f;--warn:#b7791f;--warn-soft:#fdf3dc;--warn-ink:#7a4a07;--bad-ink:#8a1c20;--bad-soft:#fdecea;--font:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--ease-out:cubic-bezier(0.23,1,0.32,1)} .ds-btn-ghost{font-family:var(--font);display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:6px;padding:0 16px;min-height:42px;font-weight:600;font-size:0.95rem;cursor:pointer;border:1px solid var(--control);background:var(--surface);color:var(--text);transition:background-color 150ms ease,transform 160ms var(--ease-out)} .ds-btn-ghost:hover{background:var(--raised)} .ds-btn-ghost:active{transform:scale(0.97)} .ds-btn-ghost:focus-visible{outline:2px solid var(--accent);outline-offset:2px}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Labelled field; the border turns ink with a soft halo on focus.",
+      "html": "<label class=\"ds-field\"><span>Your name</span><input class=\"ds-input\" type=\"text\" placeholder=\"Full name\"></label>",
+      "css": ":host{--ground:#f6f7f6;--surface:#fff;--raised:#f2f4f3;--active:#e9ecea;--border:#e3e6e4;--rule:#edf0ee;--control:#cfd4d1;--text:#121614;--muted:#59625e;--faint:#6a726e;--primary:#151917;--primary-hover:#2b302d;--on-primary:#fff;--accent:#157150;--accent-ink:#0f5a3f;--accent-soft:#e3f2eb;--ok-soft:#e1f4e8;--ok-ink:#14532f;--warn:#b7791f;--warn-soft:#fdf3dc;--warn-ink:#7a4a07;--bad-ink:#8a1c20;--bad-soft:#fdecea;--font:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--ease-out:cubic-bezier(0.23,1,0.32,1)} .ds-field{font-family:var(--font);display:flex;flex-direction:column;gap:6px;color:var(--text);font-size:15px} .ds-field>span{font-weight:500;font-size:0.92rem} .ds-input{font:inherit;width:100%;background:var(--surface);border:1px solid var(--control);border-radius:6px;padding:9px 12px;min-height:42px;font-size:16px;color:var(--text);transition:border-color 150ms ease,box-shadow 150ms ease} .ds-input::placeholder{color:var(--faint)} .ds-input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgb(18 22 20 / 10%)}"
+    },
+    {
+      "name": "Product Bar Nav",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "The demo's area navigation; the current area sits on the pressed grey.",
+      "html": "<nav class=\"ds-nav\"><button aria-current=\"page\">Book</button><button>My bookings</button><button>Business admin</button><button>Sign up a business</button></nav>",
+      "css": ":host{--ground:#f6f7f6;--surface:#fff;--raised:#f2f4f3;--active:#e9ecea;--border:#e3e6e4;--rule:#edf0ee;--control:#cfd4d1;--text:#121614;--muted:#59625e;--faint:#6a726e;--primary:#151917;--primary-hover:#2b302d;--on-primary:#fff;--accent:#157150;--accent-ink:#0f5a3f;--accent-soft:#e3f2eb;--ok-soft:#e1f4e8;--ok-ink:#14532f;--warn:#b7791f;--warn-soft:#fdf3dc;--warn-ink:#7a4a07;--bad-ink:#8a1c20;--bad-soft:#fdecea;--font:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--ease-out:cubic-bezier(0.23,1,0.32,1)} .ds-nav{font-family:var(--font);display:flex;gap:2px;background:var(--surface);padding:8px;border-bottom:1px solid var(--border)} .ds-nav button{font:inherit;background:transparent;border:0;color:var(--muted);border-radius:6px;padding:7px 12px;cursor:pointer;font-weight:500;font-size:0.94rem;transition:background-color 150ms ease,color 150ms ease,transform 160ms var(--ease-out)} .ds-nav button[aria-current=page]{background:var(--active);color:var(--text)} .ds-nav button:not([aria-current]):hover{color:var(--text);background:var(--raised)} .ds-nav button:active{transform:scale(0.97)} .ds-nav button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}"
+    },
+    {
+      "name": "Status Chips",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "One pill per booking status, with a leading dot.",
+      "html": "<div class=\"ds-chips\"><span class=\"ds-chip ok\">Confirmed</span><span class=\"ds-chip warn\">Pending</span><span class=\"ds-chip\">Completed</span><span class=\"ds-chip bad\">Cancelled</span></div>",
+      "css": ":host{--ground:#f6f7f6;--surface:#fff;--raised:#f2f4f3;--active:#e9ecea;--border:#e3e6e4;--rule:#edf0ee;--control:#cfd4d1;--text:#121614;--muted:#59625e;--faint:#6a726e;--primary:#151917;--primary-hover:#2b302d;--on-primary:#fff;--accent:#157150;--accent-ink:#0f5a3f;--accent-soft:#e3f2eb;--ok-soft:#e1f4e8;--ok-ink:#14532f;--warn:#b7791f;--warn-soft:#fdf3dc;--warn-ink:#7a4a07;--bad-ink:#8a1c20;--bad-soft:#fdecea;--font:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--ease-out:cubic-bezier(0.23,1,0.32,1)} .ds-chips{font-family:var(--font);display:flex;gap:8px;flex-wrap:wrap} .ds-chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:2px 9px;font-size:0.78rem;font-weight:500;line-height:1.5;background:var(--active);color:var(--muted)} .ds-chip::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor} .ds-chip.ok{background:var(--ok-soft);color:var(--ok-ink)} .ds-chip.warn{background:var(--warn-soft);color:var(--warn-ink)} .ds-chip.warn::before{background:var(--warn)} .ds-chip.bad{background:var(--bad-soft);color:var(--bad-ink)}"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "White surface split from the ground by a hairline; no resting shadow.",
+      "html": "<div class=\"ds-card\"><h3>Balinese massage</h3><p>About 1 h with the therapist you choose.</p></div>",
+      "css": ":host{--ground:#f6f7f6;--surface:#fff;--raised:#f2f4f3;--active:#e9ecea;--border:#e3e6e4;--rule:#edf0ee;--control:#cfd4d1;--text:#121614;--muted:#59625e;--faint:#6a726e;--primary:#151917;--primary-hover:#2b302d;--on-primary:#fff;--accent:#157150;--accent-ink:#0f5a3f;--accent-soft:#e3f2eb;--ok-soft:#e1f4e8;--ok-ink:#14532f;--warn:#b7791f;--warn-soft:#fdf3dc;--warn-ink:#7a4a07;--bad-ink:#8a1c20;--bad-soft:#fdecea;--font:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--ease-out:cubic-bezier(0.23,1,0.32,1)} .ds-card{font-family:var(--font);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;color:var(--text);display:flex;flex-direction:column;gap:6px;font-size:15px;line-height:1.55} .ds-card h3{margin:0;font-size:1rem;font-weight:600;letter-spacing:-0.005em} .ds-card p{margin:0;color:var(--muted)}"
+    },
+    {
+      "name": "Service Choice",
+      "kind": "custom",
+      "refersTo": "choice",
+      "description": "Full-width selectable row; selection is a 2px ink outline.",
+      "html": "<div class=\"ds-choices\"><button class=\"ds-choice\" aria-pressed=\"true\"><span class=\"n\">Balinese massage</span><span class=\"p\">RM 150</span><span class=\"d\">About 1 h</span></button><button class=\"ds-choice\" aria-pressed=\"false\"><span class=\"n\">Hot stone therapy</span><span class=\"p\">RM 180</span><span class=\"d\">About 1 h 30 min</span></button></div>",
+      "css": ":host{--ground:#f6f7f6;--surface:#fff;--raised:#f2f4f3;--active:#e9ecea;--border:#e3e6e4;--rule:#edf0ee;--control:#cfd4d1;--text:#121614;--muted:#59625e;--faint:#6a726e;--primary:#151917;--primary-hover:#2b302d;--on-primary:#fff;--accent:#157150;--accent-ink:#0f5a3f;--accent-soft:#e3f2eb;--ok-soft:#e1f4e8;--ok-ink:#14532f;--warn:#b7791f;--warn-soft:#fdf3dc;--warn-ink:#7a4a07;--bad-ink:#8a1c20;--bad-soft:#fdecea;--font:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--ease-out:cubic-bezier(0.23,1,0.32,1)} .ds-choices{font-family:var(--font);display:flex;flex-direction:column;gap:10px} .ds-choice{font:inherit;color:var(--text);display:grid;grid-template-columns:1fr auto;gap:3px 16px;text-align:left;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:15px 18px;cursor:pointer;transition:border-color 150ms ease,box-shadow 150ms ease,transform 160ms var(--ease-out)} .ds-choice .n{font-weight:600;font-size:1rem} .ds-choice .p{font-weight:600;font-variant-numeric:tabular-nums} .ds-choice .d{grid-column:1/-1;color:var(--muted);font-size:0.9rem} .ds-choice[aria-pressed=true]{border-color:var(--primary);box-shadow:inset 0 0 0 1px var(--primary)} .ds-choice[aria-pressed=false]:hover{border-color:#a9b1ad} .ds-choice:active{transform:scale(0.99)} .ds-choice:focus-visible{outline:2px solid var(--accent);outline-offset:2px}"
+    },
+    {
+      "name": "Day Strip and Slots",
+      "kind": "custom",
+      "refersTo": "slot",
+      "description": "Day tiles with green free counts and tabular time slots; selection is solid ink.",
+      "html": "<div class=\"ds-time\"><div class=\"ds-days\"><button class=\"ds-day\" aria-pressed=\"true\"><span class=\"w\">Thu</span><span class=\"n\">22</span><span class=\"c\">27 free</span></button><button class=\"ds-day\"><span class=\"w\">Fri</span><span class=\"n\">23</span><span class=\"c\">36 free</span></button><button class=\"ds-day closed\" disabled><span class=\"w\">Tue</span><span class=\"n\">27</span><span class=\"c\">Closed</span></button></div><div class=\"ds-slots\"><button class=\"ds-slot\" aria-pressed=\"true\">12:15 pm</button><button class=\"ds-slot\">12:30 pm</button><button class=\"ds-slot\">12:45 pm</button></div></div>",
+      "css": ":host{--ground:#f6f7f6;--surface:#fff;--raised:#f2f4f3;--active:#e9ecea;--border:#e3e6e4;--rule:#edf0ee;--control:#cfd4d1;--text:#121614;--muted:#59625e;--faint:#6a726e;--primary:#151917;--primary-hover:#2b302d;--on-primary:#fff;--accent:#157150;--accent-ink:#0f5a3f;--accent-soft:#e3f2eb;--ok-soft:#e1f4e8;--ok-ink:#14532f;--warn:#b7791f;--warn-soft:#fdf3dc;--warn-ink:#7a4a07;--bad-ink:#8a1c20;--bad-soft:#fdecea;--font:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--ease-out:cubic-bezier(0.23,1,0.32,1)} .ds-time{font-family:var(--font);display:flex;flex-direction:column;gap:16px;color:var(--text)} .ds-days{display:flex;gap:8px} .ds-day{font:inherit;color:var(--text);width:72px;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:9px 4px 8px;display:flex;flex-direction:column;gap:1px;align-items:center;cursor:pointer;transition:border-color 150ms ease,background-color 150ms ease,transform 160ms var(--ease-out)} .ds-day .w{font-size:0.78rem;color:var(--muted);font-weight:500} .ds-day .n{font-size:1.3rem;font-weight:600;line-height:1.2;font-variant-numeric:tabular-nums} .ds-day .c{font-size:0.74rem;color:var(--accent-ink);font-weight:500} .ds-day:not([aria-pressed=true]):not(.closed):hover{border-color:#a9b1ad} .ds-day[aria-pressed=true]{background:var(--primary);border-color:var(--primary);color:var(--on-primary)} .ds-day[aria-pressed=true] .w,.ds-day[aria-pressed=true] .c{color:rgb(255 255 255 / 78%)} .ds-day.closed{background:var(--raised);border-color:transparent;cursor:not-allowed} .ds-day.closed .n{color:var(--faint);text-decoration:line-through} .ds-day.closed .c{color:var(--faint)} .ds-slots{display:grid;grid-template-columns:repeat(3,110px);gap:8px} .ds-slot{font:inherit;color:var(--text);border:1px solid var(--border);background:var(--surface);border-radius:6px;min-height:44px;font-weight:600;font-size:0.95rem;font-variant-numeric:tabular-nums;cursor:pointer;transition:border-color 150ms ease,background-color 150ms ease,transform 160ms var(--ease-out)} .ds-slot:not([aria-pressed=true]):hover{border-color:#a9b1ad} .ds-slot[aria-pressed=true]{background:var(--primary);color:var(--on-primary);border-color:var(--primary)} .ds-day:not([disabled]):active,.ds-slot:active{transform:scale(0.97)} .ds-day:focus-visible,.ds-slot:focus-visible{outline:2px solid var(--accent);outline-offset:2px}"
+    },
+    {
+      "name": "Step Bar",
+      "kind": "custom",
+      "refersTo": "step-bar",
+      "description": "Done steps ink, the current step brand green, upcoming steps grey; back arrow on the left.",
+      "html": "<div class=\"ds-flowhead\"><button class=\"ds-back\" aria-label=\"Back\"><svg viewBox=\"0 0 24 24\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m12 19-7-7 7-7\"/><path d=\"M19 12H5\"/></svg></button><div class=\"ds-steps\"><span class=\"done\">Service</span><span class=\"done\">Who</span><span class=\"now\">Time</span><span>Your details</span><span>Confirm</span></div></div>",
+      "css": ":host{--ground:#f6f7f6;--surface:#fff;--raised:#f2f4f3;--active:#e9ecea;--border:#e3e6e4;--rule:#edf0ee;--control:#cfd4d1;--text:#121614;--muted:#59625e;--faint:#6a726e;--primary:#151917;--primary-hover:#2b302d;--on-primary:#fff;--accent:#157150;--accent-ink:#0f5a3f;--accent-soft:#e3f2eb;--ok-soft:#e1f4e8;--ok-ink:#14532f;--warn:#b7791f;--warn-soft:#fdf3dc;--warn-ink:#7a4a07;--bad-ink:#8a1c20;--bad-soft:#fdecea;--font:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--ease-out:cubic-bezier(0.23,1,0.32,1)} .ds-flowhead{font-family:var(--font);display:flex;gap:14px;align-items:center;color:var(--text)} .ds-back{background:var(--surface);border:1px solid var(--control);border-radius:6px;width:36px;height:36px;display:grid;place-items:center;cursor:pointer;color:var(--text);transition:background-color 150ms ease,transform 160ms var(--ease-out)} .ds-back:hover{background:var(--raised)} .ds-back:active{transform:scale(0.97)} .ds-back:focus-visible{outline:2px solid var(--accent);outline-offset:2px} .ds-steps{flex:1;display:flex;gap:6px} .ds-steps span{flex:1 1 0;display:flex;flex-direction:column;gap:7px;font-size:0.8rem;color:var(--faint);font-weight:500;white-space:nowrap} .ds-steps span::before{content:'';height:3px;border-radius:2px;background:var(--active)} .ds-steps span.done{color:var(--muted)} .ds-steps span.done::before{background:var(--primary)} .ds-steps span.now{color:var(--text);font-weight:600} .ds-steps span.now::before{background:var(--accent)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Finished Counter",
+    "overview": "The category standard played straight. A booking page a salon owner would hand to their own customers without apology, and an admin that reads like a working tool: the same calm finish as Cal.com or Amelia, nothing borrowed from a startup landing page. The system wins on restraint and exactness: one face, one near-black ink for every action and selection, white surfaces separated by hairline borders, and a single brand green that appears only where something is meant to be noticed.\n\nDensity is product density, not marketing density. Body text sits at 15px, controls are 42px tall (44px on time slots and phone controls), and spacing steps in 4px units. Pages re-render their markup on every state change, so motion is reserved for arrivals (a new step, the drawer, the Messages panel) and press feedback; nothing animates on an ordinary re-render.\n\nLight theme only. The old direction this replaced (a tinted-green SaaS card stack with three typefaces and uppercase micro-labels) is the confirmed anti-reference.",
+    "keyCharacteristics": [
+      "Neutral grey-green ground, white surfaces, 1px borders, no resting shadows.",
+      "Hanken Grotesk for everything, tabular figures for times, prices and counts.",
+      "Near-black (#151917 family) carries every primary action and every selection.",
+      "Brand green is a signal, never a fill for actions.",
+      "Outline icons from one set (Lucide paths, 1.75 stroke), drawn at text size in text colour.",
+      "Motion only on arrival; scale(0.97) press feedback on everything pressable."
+    ],
+    "rules": [
+      {
+        "name": "The Ink Decides Rule",
+        "body": "Actions and selections are near-black. A primary button, a picked slot, a picked day and a picked choice all use the primary ink; none of them is ever green.",
+        "section": "colors"
+      },
+      {
+        "name": "The Green Is a Signal Rule",
+        "body": "Brand green appears only on the mark and monogram, the current step, free-day counts, confirmed status, the passed human check, meter fills, links and focus. If green would mean \"press here\", it is wrong.",
+        "section": "colors"
+      },
+      {
+        "name": "The Status Stays on Status Rule",
+        "body": "Warn, bad, ok and info colours appear only on status chips, schedule blocks, notices, meters, error text and the danger button; never as decoration.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Face Rule",
+        "body": "Hanken Grotesk sets every word on the booking page, My bookings, the admin and sign-up. The only second face is JetBrains Mono for literal keys and code on the online demo pages.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Figures Rule",
+        "body": "Anything a person compares in a column (times, prices, totals, counts, references, dates) uses `font-variant-numeric: tabular-nums`.",
+        "section": "typography"
+      },
+      {
+        "name": "The Sentence Case Rule",
+        "body": "Labels are sentence case at 500 weight in the muted colour. No uppercase, letter-spaced micro-labels.",
+        "section": "typography"
+      },
+      {
+        "name": "The Float-Only Shadow Rule",
+        "body": "A surface that sits in the page flow has no shadow at rest. Only the Messages panel and the toast carry the float shadow.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Border Not Shadow Rule",
+        "body": "Separate surfaces with the 1px hairline; separate rows inside a surface with the inner rule.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do use counter ink (#151917) for every primary action and every selected day, slot, choice, tab and segment.",
+      "Do keep brand green (#157150) to the mark, the monogram, the current step, free counts, confirmed status, meter fills, links (as #0f5a3f) and the focus outline.",
+      "Do separate surfaces with a 1px #e3e6e4 border and rows inside them with the #edf0ee rule.",
+      "Do set times, prices, totals, counts and references in tabular figures.",
+      "Do draw icons from the one outline set (Lucide paths, 1.75 stroke, 1em, currentColor) via the shared icon helper.",
+      "Do animate only arrivals (step change, drawer, Messages) and gate them so a re-render never replays them; fall back to a 160ms fade under reduced motion.",
+      "Do give everything pressable the scale(0.97) press and keep hover styles behind `(hover: hover) and (pointer: fine)`.",
+      "Do keep controls at 42px and touch targets at 44px on phones."
+    ],
+    "donts": [
+      "Don't fill a primary button or a selection with brand green.",
+      "Don't put a shadow on a card, choice, list or step card at rest; the float shadow belongs to the Messages panel and the toast.",
+      "Don't add a second typeface to the website; JetBrains Mono is for literal keys and code on the online demo pages only.",
+      "Don't use uppercase, letter-spaced micro-labels or tinted-green card stacks.",
+      "Don't use status colours for decoration.",
+      "Don't add a dark theme; the product is light only.",
+      "Don't use text glyphs or emoji as icons."
+    ]
+  }
+}

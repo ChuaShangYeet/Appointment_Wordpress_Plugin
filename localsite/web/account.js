@@ -107,11 +107,11 @@
     const start = new Date(x.start_at);
     let review = '';
     if (x.status === 'completed') {
-      if (x.review) review = `<span class="small">You rated this <span class="stars">${'★'.repeat(x.review.rating)}</span>${x.review.comment ? ': “' + J.esc(x.review.comment) + '”' : ''}</span>`;
+      if (x.review) review = `<span class="small">You rated this <span class="stars">${J.icon('star').repeat(x.review.rating)}</span>${x.review.comment ? ': “' + J.esc(x.review.comment) + '”' : ''}</span>`;
       else if (s.rate && s.rate.id === x.id) {
         const r = s.rate;
         review = `<div class="card flat stack" style="background:var(--surface-2)"><span class="label">How was it?</span>
-          <div class="rate" role="radiogroup" aria-label="Rating">${[1, 2, 3, 4, 5].map((n) => `<button type="button" role="radio" aria-checked="${r.rating === n}" aria-label="${n} star${n > 1 ? 's' : ''}" class="${n <= r.rating ? 'on' : ''}" data-act="acc.star" data-n="${n}">★</button>`).join('')}</div>
+          <div class="rate" role="radiogroup" aria-label="Rating">${[1, 2, 3, 4, 5].map((n) => `<button type="button" role="radio" aria-checked="${r.rating === n}" aria-label="${n} star${n > 1 ? 's' : ''}" class="${n <= r.rating ? 'on' : ''}" data-act="acc.star" data-n="${n}">${J.icon('star')}</button>`).join('')}</div>
           ${J.field({ id: 'a-comment', label: 'Anything to add?', model: 'account.rate.comment', area: true, optional: true, hint: 'Shown on the booking page with your first name only.' })}
           ${r.err ? `<p class="err">${J.esc(r.err)}</p>` : ''}
           <div class="row"><button type="button" class="btn" data-act="acc.rateSend" ${r.rating && !r.busy ? '' : 'disabled'}>${r.busy ? J.busyLabel('Sending…') : 'Send review'}</button><button type="button" class="btn ghost" data-act="acc.rateClose">Not now</button></div></div>`;

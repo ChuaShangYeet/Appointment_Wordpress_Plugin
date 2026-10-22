@@ -70,13 +70,41 @@ window.JS = window.JS || {};
     return `<label class="field ${err ? 'invalid' : ''}" for="${id}"><span>${J.esc(label)}${optional ? ' <span class="opt">(optional)</span>' : ''}</span>${control}${hint ? `<span class="hint">${hint}</span>` : ''}${err ? `<span class="err">${J.esc(err)}</span>` : ''}</label>`;
   };
 
+  /** One outline icon set (paths from Lucide, ISC licence), drawn at the text size in the text colour. */
+  const ICONS = {
+    'arrow-left': '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+    'chevron-left': '<path d="m15 18-6-6 6-6"/>',
+    'chevron-right': '<path d="m9 18 6-6-6-6"/>',
+    'chevron-down': '<path d="m6 9 6 6 6-6"/>',
+    x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    star: '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
+    pin: '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    home: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    mail: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+    'log-out': '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+    reset: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+    menu: '<path d="M4 12h16"/><path d="M4 6h16"/><path d="M4 18h16"/>',
+    minus: '<path d="M5 12h14"/>',
+    plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  };
+  J.icon = (name) => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${ICONS[name]}</svg>`;
+  /** The JustSimple mark: a booked day. */
+  J.MARK = '<svg class="mark" viewBox="0 0 28 28" aria-hidden="true" focusable="false"><rect width="28" height="28" rx="7" fill="#157150"/><path d="M10 6.5v3M18 6.5v3" stroke="#fff" stroke-width="2" stroke-linecap="round"/><rect x="6.5" y="8" width="15" height="13.5" rx="3" fill="none" stroke="#fff" stroke-width="1.8"/><path d="m10.6 14.9 2.3 2.3 4.5-4.5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  /** Entrances: the page re-renders on every change, so an element animates in only on the render right after J.arrive(key, cls) was called. */
+  let arriving = {};
+  J.arrive = (key, cls) => { arriving[key] = cls; };
+  J.arrival = (key) => (arriving[key] ? ' ' + arriving[key] : '');
+
   /** The business's header as its customers see it. */
   const COVERS = { spa: 'spa', salon: 'salon', restaurant: 'restaurant', automotive: 'workshop', professional: 'home' };  // (img/: free Unsplash photos)
   J.storefront = function (b) {
     const [avg, n] = b.rating || [0, 0];
     const cover = COVERS[b.type] ? `<img class="cover" src="img/${COVERS[b.type]}.webp" alt="" width="1200" height="600" decoding="async">` : '';
-    return `${cover}<div class="storefront"><div class="monogram" aria-hidden="true">${J.esc(J.initials(b.name))}</div><div class="stack" style="gap:4px"><h1>${J.esc(b.name)}</h1>
-      <div class="meta"><span>${J.esc(b.kind)}</span>${n ? `<span><span class="stars" aria-hidden="true">★</span> ${avg} (${n} reviews)</span>` : ''}<span>${J.esc(b.address)}</span>${b.place && b.place.maps_url ? `<a href="${J.esc(b.place.maps_url)}" target="_blank" rel="noopener noreferrer">Directions</a>` : ''}</div></div></div>`;
+    return `<div class="storefront-wrap">${cover}<div class="storefront"><div class="monogram" aria-hidden="true">${J.esc(J.initials(b.name))}</div><div class="stack" style="gap:2px;min-width:0"><h1>${J.esc(b.name)}</h1>
+      <div class="meta"><span>${J.esc(b.kind)}</span>${n ? `<span><span class="stars">${J.icon('star')}</span>${avg} <span class="muted">(${n} reviews)</span></span>` : ''}<span>${J.icon('pin')}${J.esc(b.address)}</span>${b.place && b.place.maps_url ? `<a href="${J.esc(b.place.maps_url)}" target="_blank" rel="noopener noreferrer">Directions</a>` : ''}</div></div></div></div>`;
   };
 
   J.busyLabel = (text) => `<span class="spinner" aria-hidden="true"></span>${J.esc(text)}`;
@@ -109,16 +137,18 @@ window.JS = window.JS || {};
     const staff = b.resources.filter((r) => r.type === 'staff');
     const roles = [['owner', 'Owner'], ['manager', 'Manager']].concat(staff.map((r) => [`staff:${r.id}`, `Staff: ${r.name}`]));
     return `<div class="harness-inner">
-      <div class="brand"><b>JustSimple</b><span class="tag">${J.api.hosted() ? 'Online demo · shared · sample data resets nightly' : 'Local test site · real backend'}</span></div>
-      <button type="button" class="hbtn hmenu" data-act="menu" aria-expanded="${!!J.state.menu}" aria-controls="hpanel">${J.state.menu ? 'Close' : AREAS.find(([v]) => v === J.state.view)[1] + ' ▾'}</button>
+      <div class="brand">${J.MARK}<b>JustSimple</b><span class="tag">${J.api.hosted() ? 'Online demo · shared, resets nightly' : 'Local test site'}</span></div>
+      <button type="button" class="hbtn hmenu" data-act="menu" aria-expanded="${!!J.state.menu}" aria-controls="hpanel">${J.state.menu ? J.icon('x') + 'Close' : J.icon('menu') + AREAS.find(([v]) => v === J.state.view)[1]}</button>
       <div class="hpanel ${J.state.menu ? 'open' : ''}" id="hpanel">
-      <nav aria-label="Prototype areas">${AREAS.map(([v, t]) => `<button type="button" data-act="nav" data-view="${v}" ${J.state.view === v ? 'aria-current="page"' : ''}>${t}</button>`).join('')}</nav>
+      <nav aria-label="Demo areas">${AREAS.map(([v, t]) => `<button type="button" data-act="nav" data-view="${v}" ${J.state.view === v ? 'aria-current="page"' : ''}>${t}</button>`).join('')}</nav>
       <div class="controls">
-        ${J.state.view === 'signup' ? '' : `<label for="h-biz">Business <select id="h-biz" data-change="setBiz">${list.map((x) => `<option value="${x.id}" ${x.id === J.state.biz ? 'selected' : ''}>${J.esc(x.name)} (${J.esc(x.kind)})</option>`).join('')}</select></label>`}
+        <button type="button" class="hbtn" data-act="inbox" aria-expanded="${!!J.state.inbox}">${J.icon('mail')}Messages<span class="count">${J.inbox.length}</span></button>
+        ${J.api.hosted() ? `<button type="button" class="hbtn" data-act="signOutDemo">${J.icon('log-out')}Sign out</button>` : `<button type="button" class="hbtn" data-act="resetDemo">${J.icon('reset')}Reset data</button>`}
+      </div>
+      ${J.state.view === 'signup' ? '' : `<div class="hctx">
+        <label for="h-biz">Business <select id="h-biz" data-change="setBiz">${list.map((x) => `<option value="${x.id}" ${x.id === J.state.biz ? 'selected' : ''}>${J.esc(x.name)} (${J.esc(x.kind)})</option>`).join('')}</select></label>
         ${J.state.view === 'admin' ? `<label for="h-role">Signed in as <select id="h-role" data-change="setRole">${roles.map(([v, t]) => `<option value="${v}" ${J.state.role === v ? 'selected' : ''}>${J.esc(t)}</option>`).join('')}</select></label>` : ''}
-        <button type="button" class="hbtn" data-act="inbox" aria-expanded="${!!J.state.inbox}">Messages<span class="count">${J.inbox.length}</span></button>
-        ${J.api.hosted() ? '<button type="button" class="hbtn" data-act="signOutDemo">Sign out</button>' : '<button type="button" class="hbtn" data-act="resetDemo">Reset data</button>'}
-      </div></div></div>`;
+      </div>`}</div></div>`;
   }
 
   function freshViews() {
@@ -130,7 +160,7 @@ window.JS = window.JS || {};
     menu() { J.state.menu = !J.state.menu; J.render(); },
     setBiz(ds, el) { J.state.biz = el.value; save(); freshViews(); J.render(); },
     setRole(ds, el) { J.state.role = el.value; save(); J.state.admin.open = null; J.render(); },
-    inbox() { J.state.inbox = !J.state.inbox; J.render(); },
+    inbox() { J.state.inbox = !J.state.inbox; if (J.state.inbox) J.arrive('inbox', 'enter'); J.render(); },
     signOutDemo() { J.api.signOut(); },
     resetDemo() { J.api.reset(); if (!J.api.businesses().some((b) => b.id === J.state.biz)) J.state.biz = 'spa'; freshViews(); J.render(); J.toast('Sample data reset'); },
   });
@@ -151,6 +181,7 @@ window.JS = window.JS || {};
     }
     const view = J.views[J.state.view];
     if (view.after) view.after();
+    arriving = {};
     remember();
   };
   J.top = () => window.scrollTo({ top: 0 });
@@ -194,7 +225,7 @@ window.JS = window.JS || {};
   function inboxPanel() {
     if (!J.state.inbox) return '';
     const list = J.inbox.slice().reverse().slice(0, 40);
-    return `<aside class="inbox" aria-label="Messages sent"><div class="spread"><b>Messages sent</b><button type="button" class="closex" data-act="inbox" aria-label="Close">✕</button></div>
+    return `<aside class="inbox${J.arrival('inbox')}" aria-label="Messages sent"><div class="spread"><h2 style="font-size:1rem">Messages sent</h2><button type="button" class="closex" data-act="inbox" aria-label="Close">${J.icon('x')}</button></div>
       <p class="hint">Nothing is really sent: WhatsApp, SMS and email messages appear here instead. Sign-in codes are in the WhatsApp messages; the buttons on the page open the emailed links for you.</p>
       ${list.length ? list.map((m) => `<div class="msg"><span class="label">${J.esc(m.channel)} to ${J.esc(m.to)} · ${T.time(m.sent_at)}</span>${m.subject ? `<b>${J.esc(m.subject)}</b><br>` : ''}${J.esc(m.body)}</div>`).join('') : '<p class="muted">Nothing yet.</p>'}</aside>`;
   }

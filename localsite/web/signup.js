@@ -31,7 +31,7 @@
   function typeStep() {
     const s = st();
     return `<div class="stack-lg"><div class="stack"><h2>What kind of business is it?</h2><p class="muted">This decides how bookings work, and can't be changed later.</p></div>
-      <div class="types">${TYPES.map(([id, g, name, desc]) => `<button type="button" class="choice" data-act="su.type" data-id="${id}" aria-pressed="${s.type === id}"><span class="glyph" aria-hidden="true">${g}</span><span class="name">${name}</span><span class="desc">${desc}</span></button>`).join('')}</div>
+      <div class="types">${TYPES.map(([id, g, name, desc]) => `<button type="button" class="choice" data-act="su.type" data-id="${id}" aria-pressed="${s.type === id}"><span class="name">${name}</span><span class="desc">${desc}</span></button>`).join('')}</div>
       <div><button type="button" class="btn" data-act="su.next" ${s.type ? '' : 'disabled'}>Continue</button></div></div>`;
   }
 
@@ -64,7 +64,7 @@
         <li><time class="mono">${p.bookings_per_month}</time><span>bookings a month</span></li><li><time class="mono">${p.resources}</time><span>staff, tables or bays</span></li>
         <li><time class="mono">${p.services}</time><span>services</span></li><li><time class="mono">${p.whatsapp_per_month} + ${p.sms_per_month}</time><span>WhatsApp and SMS messages a month (email is unlimited)</span></li></ul></div>
       <label class="check ${e('accepted_terms') ? 'invalid' : ''}" for="su-terms"><input id="su-terms" type="checkbox" data-model="signup.terms" ${s.terms ? 'checked' : ''}><span>I accept the <span class="btn link" style="display:inline">terms of service</span> (version 1) and the privacy notice.${e('accepted_terms') ? `<br><span class="err">${J.esc(e('accepted_terms'))}</span>` : ''}</span></label>
-      <div class="human ${s.human === 'ok' ? 'ok' : ''}"><button type="button" data-act="su.human" aria-label="Confirm you are a person" ${s.human !== 'no' ? 'disabled' : ''}>${s.human === 'ok' ? '✓' : s.human === 'checking' ? '<span class="spinner"></span>' : ''}</button><span>${s.human === 'ok' ? 'Done' : "I'm a person, not a bot"}</span><span class="who">human check</span></div>
+      <div class="human ${s.human === 'ok' ? 'ok' : ''}"><button type="button" data-act="su.human" aria-label="Confirm you are a person" ${s.human !== 'no' ? 'disabled' : ''}>${s.human === 'ok' ? J.icon('check') : s.human === 'checking' ? '<span class="spinner"></span>' : ''}</button><span>${s.human === 'ok' ? 'Done' : "I'm a person, not a bot"}</span><span class="who">human check</span></div>
       ${s.err ? `<div class="notice bad"><span>${J.esc(s.err)}</span></div>` : ''}
       <div class="row"><button type="button" class="btn ghost" data-act="su.back">Back</button><button type="button" class="btn" data-act="su.submit" ${s.human === 'ok' && !s.busy ? '' : 'disabled'}>${s.busy ? J.busyLabel('Sending…') : 'Create my business'}</button></div></div>`;
   }
@@ -103,8 +103,8 @@
     const i = steps.indexOf(s.step);
     const body = { type: typeStep, business: businessStep, website: websiteStep, sent: sentStep, done: doneStep }[s.step]();
     return `<div class="page"><div class="narrow">
-      <div class="stack" style="margin-bottom:20px;gap:6px"><span class="label">JustSimple for businesses</span><h1>Take bookings on your own website</h1><p class="muted">Free for small businesses. No card needed.</p></div>
-      ${i >= 0 ? `<div class="stepper">${['Kind of business', 'Details', 'Website and sign-in'].map((t, n) => `<span class="${n < i ? 'done' : n === i ? 'now' : ''}">${t}</span>`).join('')}</div>` : ''}
+      <div class="stack" style="margin-bottom:20px;gap:6px"><h1>Take bookings on your own website</h1><p class="muted">JustSimple for businesses: free for small businesses, no card needed.</p></div>
+      ${i >= 0 ? `<div class="stepper" style="margin-bottom:20px">${['Kind of business', 'Details', 'Website and sign-in'].map((t, n) => `<span class="${n < i ? 'done' : n === i ? 'now' : ''}">${t}</span>`).join('')}</div>` : ''}
       <div class="card">${body}</div></div></div>`;
   }
 

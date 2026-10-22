@@ -198,9 +198,9 @@ class Access:
 {f'<div class="warn">{note}</div>' if note else ''}
 <div class="card" style="display:flex;flex-direction:column;gap:14px">{tabs}{inner}</div></div></div>
 <style>.hero{{display:grid;gap:24px;align-items:start}}.hero>div{{max-width:560px}}
-.photo{{display:block;width:100%;height:auto;aspect-ratio:2/1;object-fit:cover;border-radius:14px;background:var(--line)}}
-@media (min-width:880px){{.hero{{grid-template-columns:minmax(0,560px) minmax(0,1fr);gap:40px}}.photo{{grid-column:2;grid-row:1;aspect-ratio:4/3;object-position:35% 50%;position:sticky;top:24px}}}}.f{{display:flex;flex-direction:column;gap:4px}}.f span{{font-weight:600}}.f i{{font-weight:400;color:var(--muted)}}.f input{{font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--fg)}}.f small{{color:var(--muted)}}.err{{color:#c0362c;font-size:.9rem}}
-.tabs{{display:flex;gap:6px;border-bottom:1px solid var(--line);padding-bottom:10px}}.tabs a{{text-decoration:none;color:var(--muted);font-weight:600;padding:6px 12px;border-radius:8px}}.tabs a[aria-current]{{background:var(--accent-soft);color:var(--accent)}}</style>"""
+.photo{{display:block;width:100%;height:auto;aspect-ratio:2/1;object-fit:cover;border-radius:8px;background:var(--raised)}}
+@media (min-width:880px){{.hero{{grid-template-columns:minmax(0,560px) minmax(0,1fr);gap:40px}}.photo{{grid-column:2;grid-row:1;aspect-ratio:4/3;object-position:35% 50%;position:sticky;top:24px}}}}.f{{display:flex;flex-direction:column;gap:4px}}.f span{{font-weight:500}}.f i{{font-weight:400;color:var(--muted)}}.f input{{font:inherit;padding:9px 12px;border:1px solid var(--control);border-radius:6px;background:var(--surface);color:var(--fg)}}.f small{{color:var(--muted)}}.err{{color:#8a1c20;font-size:.9rem;font-weight:500}}
+.tabs{{display:flex;gap:4px;border-bottom:1px solid var(--line)}}.tabs a{{text-decoration:none;color:var(--muted);font-weight:500;padding:8px 12px 10px;margin-bottom:-1px;border-bottom:2px solid transparent}}.tabs a[aria-current]{{color:var(--fg);font-weight:600;border-bottom-color:var(--primary)}}</style>"""
         return self.page(title, body)
 
     @staticmethod
@@ -443,7 +443,7 @@ def router(access: Access, site: Callable[[Request], Awaitable[Response]], reset
     def token_form(note: str = "") -> HTMLResponse:
         return access.page("Demo visitors", f"""<h1>Demo visitors</h1>{f'<div class="warn">{note}</div>' if note else ''}
 <form method="post" action="/demo/visitors" class="card" style="max-width:480px;display:flex;flex-direction:column;gap:10px">
-<label style="display:flex;flex-direction:column;gap:4px"><b>Platform admin token</b><input name="token" type="password" autocomplete="off" required style="font:inherit;padding:10px;border:1px solid var(--line);border-radius:10px"></label>
+<label style="display:flex;flex-direction:column;gap:4px"><b>Platform admin token</b><input name="token" type="password" autocomplete="off" required style="font:inherit;padding:9px 12px;border:1px solid var(--control);border-radius:6px"></label>
 <small style="color:var(--muted)">PLATFORM_ADMIN_TOKEN in the service's Environment settings on Render.</small>
 <button class="btn" type="submit" style="border:0;cursor:pointer;justify-content:center">Show the lists</button></form>""")
 
