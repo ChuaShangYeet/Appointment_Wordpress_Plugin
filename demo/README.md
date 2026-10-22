@@ -2,7 +2,7 @@
 
 The real booking engine (`backend/`, unchanged) running on the internet with five sample businesses on the free plan. Started by `demo/server.py`.
 
-* **The demo website, at `/`**: the same pages as the local test site (`localsite/web`): the booking page for all five kinds of business, My bookings
+* **The demo website, at `/`**: the same pages as the local test site (`localsite/web`, redesigned 2026-10-22; the register / log-in and `/api` pages in `demo/access.py` and `demo/pages.py` share its look): the booking page for all five kinds of business, My bookings
   (sign in with a code or an emailed link: both appear under **Messages** in the top strip), the business admin (owner / manager / staff), and
   self-service sign-up. Testers just open the link: nothing to install.
 * **The API, for building against** (a chatbot, an app, a website): the start page with the keys at `/api`, the documentation at `/docs`.

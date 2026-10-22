@@ -21,8 +21,9 @@ To throw everything away and start again from the sample data, double-click **re
 
 ## What to try
 
-The dark strip at the top is the test site's own control panel, not part of the product. It picks the **area**, the **business**
-(five sample businesses, one of each kind), and opens **Messages**.
+The white bar at the top is the test site's own control panel, not part of the product. Its first row picks the **area** and opens
+**Messages**; the second row picks the **business** (five sample businesses, one of each kind) and, in Business admin, who is
+**signed in** (owner, manager or one staff member). On a phone the bar folds into a menu button.
 
 | Area | What it shows |
 |---|---|
@@ -32,7 +33,6 @@ The dark strip at the top is the test site's own control panel, not part of the 
 | Sign up a business | A new business signs itself up on the free plan, confirms its email (the button opens the emailed link), gets its keys, and sets itself up. |
 
 Sample sign-ins: phone **012-345 6789** and email **aisha.rahman@gmail.com** have bookings at every business.
-Scenario "Someone takes the slot first": the next booking you confirm finds its time just taken by another guest.
 
 Things that behave as in the real product, so they may surprise you:
 
@@ -55,7 +55,7 @@ instead of WhatsApp/SMS/email, a table of Klang Valley places instead of Google 
 list, an admin token per role in place of the WordPress plugin, the inbox). The backend's code is unchanged. The API runs as the limited
 `booking_app` role, so row-level security applies.
 
-`web/` is the prototype's pages with `api-live.js` in place of the in-browser mock. Where the real API does not give the pages what they
+`web/` started as the prototype's pages with `api-live.js` in place of the in-browser mock; since 2026-10-22 it has its own look (one typeface, near-black actions, the booking page beside the business; see `DESIGN.md` in the project folder), which `prototype/` does not have. All the styles are in `web/index.html`; icons, the mark and the arrival-only animations (`J.arrive`) are in `web/core.js`. Where the real API does not give the pages what they
 need, `api-live.js` says so in a `BACKEND GAP` comment and fills it locally. Found while building it:
 
 1. **A self-service sign-up creates no booking rules** (`app/services/onboarding.py`), so the new business's availability and booking
