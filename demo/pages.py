@@ -16,29 +16,36 @@ TYPES = {"spa": "Spa & wellness", "salon": "Hair salon", "restaurant": "Restaura
 def _page(title: str, body: str) -> HTMLResponse:
     doc = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(title)}</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
-:root {{ --bg:#f7f7fb; --surface:#fff; --line:#e4e4ee; --fg:#14142b; --muted:#5f6178; --accent:#4f46e5; --accent-soft:#eef0ff; --warn:#8a5a00; --warn-soft:#fff5dc; color-scheme: light; }}
+/* the same look as the demo website (localsite/web/index.html): one face, near-black actions, the brand green on the mark and links */
+:root {{ --bg:#f6f7f6; --surface:#fff; --raised:#f2f4f3; --line:#e3e6e4; --control:#cfd4d1; --fg:#121614; --muted:#59625e; --primary:#151917; --accent:#157150; --accent-ink:#0f5a3f; --warn-ink:#7a4a07; --warn-soft:#fdf3dc; --warn-line:#f2d28b; color-scheme: light; }}
 * {{ box-sizing: border-box; }}
-body {{ margin:0; background:var(--bg); color:var(--fg); font:15px/1.55 Inter, system-ui, sans-serif; }}
-main {{ max-width: 1040px; margin: 0 auto; padding: 40px 16px 72px; display:flex; flex-direction:column; gap:28px; }}
-h1 {{ font-size: clamp(1.8rem, 4vw, 2.6rem); line-height:1.1; margin:0; letter-spacing:-0.02em; }}
-h2 {{ font-size:1.2rem; margin:0 0 12px; }}
+body {{ margin:0; background:var(--bg); color:var(--fg); font:15px/1.55 'Hanken Grotesk', system-ui, sans-serif; -webkit-font-smoothing:antialiased; }}
+::selection {{ background:#e3f2eb; color:var(--accent-ink); }}
+main {{ max-width: 1080px; margin: 0 auto; padding: 32px 20px 72px; display:flex; flex-direction:column; gap:28px; }}
+h1 {{ font-size: clamp(1.7rem, 3.4vw, 2.3rem); line-height:1.15; margin:0; letter-spacing:-0.02em; font-weight:600; text-wrap:balance; }}
+h2 {{ font-size:1.15rem; margin:0 0 12px; font-weight:600; letter-spacing:-0.01em; }}
 p {{ margin:0; }}
-a {{ color: var(--accent); }}
-.lead {{ color: var(--muted); font-size:1.05rem; max-width: 720px; }}
-.brand {{ display:flex; gap:10px; align-items:center; font-weight:700; font-size:1.05rem; }}
-.logo {{ width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg, var(--accent), #a855f7); color:#fff; display:grid; place-items:center; font-weight:700; }}
-.pill {{ display:inline-block; border-radius:999px; padding:2px 10px; font-size:.78rem; font-weight:600; background:var(--accent-soft); color:var(--accent); }}
+a {{ color: var(--accent-ink); text-underline-offset:3px; }}
+:focus-visible {{ outline:2px solid var(--accent); outline-offset:2px; }}
+.lead {{ color: var(--muted); font-size:1.05rem; max-width: 680px; }}
+.brand {{ display:flex; gap:10px; align-items:center; font-weight:700; font-size:1.05rem; letter-spacing:-0.02em; }}
+.logo {{ width:28px; height:28px; flex:none; font-size:0; background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' rx='7' fill='%23157150'/%3E%3Cpath d='M10 6.5v3M18 6.5v3' stroke='%23fff' stroke-width='2' stroke-linecap='round'/%3E%3Crect x='6.5' y='8' width='15' height='13.5' rx='3' fill='none' stroke='%23fff' stroke-width='1.8'/%3E%3Cpath d='m10.6 14.9 2.3 2.3 4.5-4.5' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / contain; }}
+.pill {{ font-size:.85rem; font-weight:500; color:var(--muted); letter-spacing:0; }}
 .grid {{ display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:16px; }}
-.card {{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px; box-shadow: 0 1px 2px rgb(20 20 43 / 5%), 0 8px 24px rgb(20 20 43 / 5%); min-width:0; display:flex; flex-direction:column; gap:10px; }}
-.k {{ font: 12.5px/1.4 'JetBrains Mono', ui-monospace, monospace; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:6px 8px; overflow-wrap:anywhere; }}
-.label {{ font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:600; }}
-.warn {{ background:var(--warn-soft); color:var(--fg); border:1px solid color-mix(in srgb, var(--warn) 35%, transparent); border-radius:12px; padding:12px 14px; }}
-pre {{ font: 12.5px/1.5 'JetBrains Mono', ui-monospace, monospace; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px; overflow-x:auto; margin:0; }}
+.card {{ background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:20px; min-width:0; display:flex; flex-direction:column; gap:10px; }}
+.k {{ font: 12.5px/1.45 'JetBrains Mono', ui-monospace, monospace; background:var(--raised); border-radius:6px; padding:7px 9px; overflow-wrap:anywhere; }}
+.label {{ font-size:.87rem; color:var(--muted); font-weight:500; }}
+.warn {{ background:var(--warn-soft); color:var(--warn-ink); border:1px solid var(--warn-line); border-radius:8px; padding:12px 14px; }}
+pre {{ font: 12.5px/1.55 'JetBrains Mono', ui-monospace, monospace; background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:16px; overflow-x:auto; margin:0; }}
 .links {{ display:flex; flex-wrap:wrap; gap:10px; }}
-.btn {{ display:inline-flex; align-items:center; border-radius:10px; padding:10px 16px; font-weight:600; text-decoration:none; background:var(--accent); color:#fff; }}
-.btn.ghost {{ background:transparent; color:var(--fg); border:1px solid var(--line); }}
+.btn {{ display:inline-flex; align-items:center; justify-content:center; border-radius:6px; padding:0 16px; min-height:42px; font:inherit; font-weight:600; text-decoration:none; background:var(--primary); color:#fff; transition: background-color 150ms ease, transform 160ms cubic-bezier(0.23, 1, 0.32, 1); }}
+.btn:active {{ transform: scale(0.97); }}
+.btn.ghost {{ background:var(--surface); color:var(--fg); border:1px solid var(--control); }}
+@media (hover: hover) and (pointer: fine) {{ .btn:hover {{ background:#2b302d; }} .btn.ghost:hover {{ background:var(--raised); }} }}
+input {{ font-size:16px !important; border-color:var(--control) !important; border-radius:6px !important; min-height:42px; }}
+input:focus {{ outline:none; border-color:var(--primary) !important; box-shadow:0 0 0 3px rgb(18 22 20 / 10%); }}
 .msg {{ border-top:1px solid var(--line); padding:10px 0; white-space:pre-wrap; overflow-wrap:anywhere; font-size:.9rem; }}
 </style></head><body><main>{body}</main></body></html>"""
     return HTMLResponse(doc, headers={"Content-Security-Policy": CSP, "Cache-Control": "no-store"})

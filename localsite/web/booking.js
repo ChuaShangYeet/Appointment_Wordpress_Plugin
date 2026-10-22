@@ -119,7 +119,7 @@
           const n = s.serviceIds.indexOf(x.id);
           return `<button type="button" class="choice" data-act="book.toggleService" data-id="${x.id}" aria-pressed="${n >= 0}">
             <span class="name">${n >= 0 ? `<span class="mono">${n + 1}.</span> ` : ''}${J.esc(x.name)}</span><span class="price">${J.price(x)}</span>
-            <span class="desc">${J.esc(x.description)}</span><span class="facts"><span>About ${J.mins(x.duration_minutes)}</span>${x.parts ? '<span>Parts ordered in</span>' : ''}</span></button>`;
+            <span class="desc">${J.esc(x.description)}</span><span class="facts"><span>${J.icon('clock')}About ${J.mins(x.duration_minutes)}</span>${x.parts ? '<span>Parts ordered in</span>' : ''}</span></button>`;
         }).join('')}</div>
         ${lead.length ? `<div class="notice warn"><strong>Some parts have to be ordered</strong><span>${lead.map((p) => `${J.esc(p.name)}: about ${p.estimated_lead_time_days} days`).join('; ')}. You can still book now; we will ask you to agree to the wait before you confirm.</span></div>` : ''}</div>`;
     }
@@ -129,7 +129,7 @@
       <div class="choices">${list.map((x) => `<button type="button" class="choice" data-act="book.pickService" data-id="${x.id}" aria-pressed="${s.serviceId === x.id}">
         <span class="name">${J.esc(x.name)}</span><span class="price">${J.price(x)}</span>
         ${x.description ? `<span class="desc">${J.esc(x.description)}</span>` : ''}
-        <span class="facts"><span>About ${J.mins(x.duration_minutes)}</span>${x.location_type === 'on_site' ? '<span>At your home</span>' : x.location_type === 'in_office' && b.type === 'professional' ? '<span>At our office</span>' : ''}${x.service_category === 'inspection' ? '<span>Inspection and quote</span>' : ''}</span></button>`).join('')}</div></div>`;
+        <span class="facts"><span>${J.icon('clock')}About ${J.mins(x.duration_minutes)}</span>${x.location_type === 'on_site' ? `<span>${J.icon('home')}At your home</span>` : x.location_type === 'in_office' && b.type === 'professional' ? '<span>At our office</span>' : ''}${x.service_category === 'inspection' ? '<span>Inspection and quote</span>' : ''}</span></button>`).join('')}</div></div>`;
   }
 
   function addonsStep(b) {
@@ -138,7 +138,7 @@
     const base = b.services.find((x) => x.id === s.serviceId);
     return `<div class="stack"><h2>Add anything?</h2><p class="muted">Extras are done in the same visit, straight after your ${J.esc(base ? base.name.toLowerCase() : 'service')}. They add time to your appointment.</p>
       <div class="choices">${adds.map((x) => `<button type="button" class="choice" data-act="book.toggleAddon" data-id="${x.id}" aria-pressed="${s.addonIds.includes(x.id)}">
-        <span class="name">${J.esc(x.name)}</span><span class="price">+ ${J.price(x)}</span><span class="desc">${J.esc(x.description)}</span><span class="facts"><span>+ ${J.mins(x.duration_minutes)}</span></span></button>`).join('')}</div>
+        <span class="name">${J.esc(x.name)}</span><span class="price">+ ${J.price(x)}</span><span class="desc">${J.esc(x.description)}</span><span class="facts"><span>${J.icon('clock')}+ ${J.mins(x.duration_minutes)}</span></span></button>`).join('')}</div>
       ${(b.products || []).length ? `<div class="card flat stack"><span class="label">On our shelf (buy at the salon)</span>${b.products.map((p) => `<div class="spread small"><span>${J.esc(p.name)}</span><span class="muted">${J.money(p.price)} · ${p.stock_status === 'in_stock' ? 'In stock' : 'Out of stock'}</span></div>`).join('')}</div>` : ''}</div>`;
   }
 
@@ -167,9 +167,9 @@
     const vipFrom = Math.min(...b.resources.filter((r) => (r.attributes || {}).is_vip).map((r) => r.attributes.minimum_spend || 0));
     return `<div class="stack-lg"><h2>Book a table</h2>
       <div class="stack"><span class="label">How many people?</span>
-        <div class="row"><button type="button" class="btn ghost" data-act="book.party" data-d="-1" ${s.party <= 1 ? 'disabled' : ''} aria-label="One fewer">−</button>
-        <span class="mono" style="font-size:1.6rem;min-width:3ch;text-align:center" aria-live="polite">${s.party}</span>
-        <button type="button" class="btn ghost" data-act="book.party" data-d="1" ${s.party >= 20 ? 'disabled' : ''} aria-label="One more">+</button>
+        <div class="row"><button type="button" class="btn ghost" data-act="book.party" data-d="-1" ${s.party <= 1 ? 'disabled' : ''} aria-label="One fewer">${J.icon('minus')}</button>
+        <span class="mono" style="font-size:1.6rem;font-weight:600;min-width:3ch;text-align:center" aria-live="polite">${s.party}</span>
+        <button type="button" class="btn ghost" data-act="book.party" data-d="1" ${s.party >= 20 ? 'disabled' : ''} aria-label="One more">${J.icon('plus')}</button>
         <span class="muted">${s.party === 1 ? 'person' : 'people'}</span></div></div>
       <div class="stack"><span class="label">Where would you like to sit?</span>
         <div class="seg" role="group" aria-label="Seating"><button type="button" data-act="book.table" data-t="normal" aria-pressed="${s.tableType === 'normal'}">Dining room</button><button type="button" data-act="book.table" data-t="vip" aria-pressed="${s.tableType === 'vip'}">Private room</button></div>
@@ -309,14 +309,13 @@
           : `This is less than ${b.policy.cancel_notice_h} hours away, so once booked it can't be cancelled or moved online. If your plans change, call ${J.esc(b.phone)}.`}</span></div>
       ${spend ? `<label class="check" for="b-spend"><input id="b-spend" type="checkbox" data-model="book.acceptSpend" ${s.acceptSpend ? 'checked' : ''}><span>I agree to a <b>minimum spend of ${J.money(spend)}</b> for the private room.</span></label>` : ''}
       ${lead ? `<label class="check" for="b-lead"><input id="b-lead" type="checkbox" data-model="book.ackLead" ${s.ackLead ? 'checked' : ''}><span>I understand some parts have to be ordered (about ${Math.max(...s.notice.map((p) => p.estimated_lead_time_days))} days) and my appointment may move if they arrive late.</span></label>` : ''}
-      <div class="human ${s.human === 'ok' ? 'ok' : ''}"><button type="button" data-act="book.human" aria-label="Confirm you are a person" ${s.human !== 'no' ? 'disabled' : ''}>${s.human === 'ok' ? '✓' : s.human === 'checking' ? '<span class="spinner"></span>' : ''}</button><span>${s.human === 'ok' ? 'Done' : "I'm a person, not a bot"}</span><span class="who">human check</span></div></div>`;
+      <div class="human ${s.human === 'ok' ? 'ok' : ''}"><button type="button" data-act="book.human" aria-label="Confirm you are a person" ${s.human !== 'no' ? 'disabled' : ''}>${s.human === 'ok' ? J.icon('check') : s.human === 'checking' ? '<span class="spinner"></span>' : ''}</button><span>${s.human === 'ok' ? 'Done' : "I'm a person, not a bot"}</span><span class="who">human check</span></div></div>`;
   }
 
   function doneStep(b) {
     const x = st().result;
     const pending = x.status === 'pending';
     return `<div class="stack-lg"><div class="ticket"><div class="top ${pending ? 'pending' : ''}">
-        <span class="label" style="color:inherit;opacity:.8">${pending ? 'Request sent' : 'Booked'}</span>
         <h2>${pending ? 'Waiting for ' + J.esc(b.name) + ' to confirm' : "You're booked in"}</h2>
         <span class="ref">REF ${J.esc(x.ref)}</span></div>
       <div class="body stack">${summaryRows(b, x)}
@@ -340,6 +339,18 @@
     }
   }
 
+  /** What is chosen so far, beside the steps on a wide screen (the footer carries the total on a phone). */
+  function selection(b) {
+    const s = st(), rows = [];
+    if (b.type === 'restaurant') rows.push(['Table', `${s.party} ${s.party === 1 ? 'person' : 'people'} · ${s.tableType === 'vip' ? 'Private room' : 'Dining room'}`]);
+    if (b.type === 'automotive' && (s.vehicle.savedId || s.vehicle.modelId)) rows.push(['Car', J.esc(vehicleText(b))]);
+    if (services(b).length) rows.push(['Service', services(b).map((x) => J.esc(x.name)).join(', ') + `<br><span class="muted">About ${J.mins(duration(b))}</span>`]);
+    if (b.type !== 'restaurant' && stepsFor(b).indexOf(s.step) > stepsFor(b).indexOf('staff')) rows.push(['With', s.resourceId === 'any' ? `First available ${J.WHO[b.who] || ''}` : J.esc(api.staffName(b.id, s.resourceId))]);
+    if (s.slot) rows.push(['When', `${T.day(T.key(s.slot.start_at), { weekday: 'short', day: 'numeric', month: 'short' })}, ${T.time(s.slot.start_at)}`]);
+    const tot = b.type !== 'restaurant' && services(b).length ? `<div class="tot"><span>Total</span><span>${J.priceTotal(services(b))}</span></div>` : '';
+    return `<section class="sel" aria-label="Your booking"><h2>Your booking</h2>${rows.length ? `<dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>${tot}` : '<p class="none">Nothing chosen yet.</p>'}</section>`;
+  }
+
   function render() {
     const b = J.biz(), s = st();
     const steps = stepsFor(b);
@@ -347,24 +358,30 @@
     if ((b.type === 'restaurant' ? !b.resources.length : !b.services.length) || b.policy.missing) {
       return `<div class="page"><div class="narrow">${J.storefront(b)}<div class="card empty"><h2>Not taking online bookings yet</h2><p>${J.esc(b.name)} is still setting up. Check back soon${b.phone ? ', or call ' + J.esc(b.phone) : ''}.</p></div></div></div>`;
     }
-    if (s.step === 'done') return `<div class="page"><div class="narrow">${J.storefront(b)}${doneStep(b)}</div></div>`;
+    if (s.step === 'done') return `<div class="page"><div class="booker"><aside class="bizpane">${J.storefront(b)}</aside><div class="${J.arrival('book-step').trim()}" style="min-width:0">${doneStep(b)}</div></div></div>`;
     const i = steps.indexOf(s.step);
     const body = { service: serviceStep, addons: addonsStep, staff: staffStep, party: partyStep, vehicle: vehicleStep, address: addressStep, time: timeStep, details: detailsStep, review: reviewStep }[s.step](b);
     const isReview = s.step === 'review';
     const pending = b.policy.default_status === 'pending';
     const price = b.type === 'restaurant' ? '' : total(b) || services(b).length ? `<span class="total">Total <b>${J.priceTotal(services(b))}</b>${duration(b) ? ` · about ${J.mins(duration(b))}` : ''}</span>` : '<span></span>';
-    return `<div class="page"><div class="narrow">
-      ${J.storefront(b)}
-      <div class="stepper" aria-label="Steps">${steps.map((x, n) => `<span class="${n < i ? 'done' : n === i ? 'now' : ''}">${LABEL[x]}</span>`).join('')}</div>
-      <div class="flowhead">${i > 0 ? '<button type="button" class="back" data-act="book.back" aria-label="Back">←</button>' : ''}<span class="label">Step ${i + 1} of ${steps.length}</span></div>
-      ${body}
-      <div class="footer-bar">${price || '<span></span>'}
-        <button type="button" class="btn" data-act="${isReview ? 'book.confirm' : 'book.next'}" ${canContinue(b, s.step) ? '' : 'disabled'}>${isReview ? (s.busy ? J.busyLabel('Booking…') : pending ? 'Send request' : 'Confirm booking') : 'Continue'}</button></div>
+    return `<div class="page"><div class="booker">
+      <aside class="bizpane">${J.storefront(b)}${selection(b)}</aside>
+      <section class="flow" aria-label="Book">
+        <div class="flowhead">${i > 0 ? `<button type="button" class="back" data-act="book.back" aria-label="Back">${J.icon('arrow-left')}</button>` : '<span class="back" style="visibility:hidden" aria-hidden="true"></span>'}
+          <div class="stepper" aria-label="Step ${i + 1} of ${steps.length}">${steps.map((x, n) => `<span class="${n < i ? 'done' : n === i ? 'now' : ''}" ${n === i ? 'aria-current="step"' : ''}>${LABEL[x]}</span>`).join('')}</div></div>
+        <div class="${J.arrival('book-step').trim()}">${body}</div>
+        <div class="footer-bar">${price || '<span></span>'}
+          <button type="button" class="btn" data-act="${isReview ? 'book.confirm' : 'book.next'}" ${canContinue(b, s.step) ? '' : 'disabled'}>${isReview ? (s.busy ? J.busyLabel('Booking…') : pending ? 'Send request' : 'Confirm booking') : 'Continue'}</button></div>
+      </section>
     </div></div>`;
   }
 
   /* ------------------------------------------------------------------ actions */
-  function go(step) { const s = st(); s.step = step; if (step === 'staff') s.freeKey = null; J.render(); J.top(); } // (who is free is asked afresh each time)
+  function go(step) { // (who is free is asked afresh each time)
+    const s = st(), steps = stepsFor(J.biz());
+    J.arrive('book-step', step === 'done' ? 'enter-rise' : steps.indexOf(step) < steps.indexOf(s.step) ? 'enter-back' : 'enter-fwd');
+    s.step = step; if (step === 'staff') s.freeKey = null; J.render(); J.top();
+  }
   function resetTime() { const s = st(); s.monthKey = null; s.slot = null; s.slots = null; s.taken = null; s.error = null; }
 
   Object.assign(J.actions, {

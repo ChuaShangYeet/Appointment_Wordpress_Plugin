@@ -13,3 +13,8 @@ localsite/data/
 # Editor / tool state
 .claude/
 ~$*
+
+# Design tooling: screenshots and inspector output (rebuilt on demand)
+.impeccable/review/
+.impeccable/mocks/
+.taste-skill/
