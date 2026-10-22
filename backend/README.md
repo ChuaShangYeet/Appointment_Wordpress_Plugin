@@ -650,28 +650,38 @@ per tenant and request (date, services, resource, party size, table type, separa
 
 ## Countries, time zones and daylight saving
 
-The service is built for **Malaysia (`MY`), Singapore (`SG`) and Australia (`AU`)**, most of all Malaysia (`app/core/countries.py`: one table, one entry per country; adding a country is adding an entry and a test).
-A business picks its country **once, when it is set up** (`POST /auth/tenants {"country": "AU", ...}`; left out it is Malaysia, or the country of a given `phone_country_code`, as before countries existed), and the country settles the rest:
+A business can be in **any country** (2026-10-22, migration 0034; before, only Malaysia, Singapore and Australia). Most of all it is built for Malaysia, and **Malaysia (`MY`), Singapore (`SG`) and Australia (`AU`) are known in detail**
+(`app/core/countries.py`, written by hand: exact postcode, list of states, privacy law). **Every other country** (242 in all) comes from `app/core/world.py`, which `backend/scripts/make_world.py` writes from the IANA time-zone database
+(`tzdata`'s `iso3166.tab` and `zone.tab`: the countries and each one's zones), Google's libphonenumber (calling codes) and the Unicode CLDR (English names, currency); places with no phone code or no clock of their own (Antarctica, Bouvet Island) are left out.
+Run the script again when the time-zone database changes; it needs `phonenumbers` and `babel`, which the service itself does not.
+A business picks its country **once, when it is set up** (`POST /auth/tenants {"country": "AU", ...}`, the ISO 3166 code in capitals; left out it is Malaysia, or the country of a given `phone_country_code` of 60, 65 or 61, as before countries existed), and the country settles the rest:
 
-| | Malaysia | Singapore | Australia |
-|---|---|---|---|
-| time zones to choose from | `Asia/Kuala_Lumpur` | `Asia/Singapore` | `Australia/` Sydney (default; also ACT), Melbourne, Brisbane, Adelaide, Perth, Darwin, Hobart, Broken_Hill, Eucla, Lord_Howe |
-| clock changes | none | none | Sydney, Melbourne, Hobart, Adelaide, Broken_Hill (1 hour) and Lord_Howe (30 minutes); not Brisbane, Perth, Darwin, Eucla |
-| phone code (completes a number typed without one) | 60 | 65 | 61 |
-| postcode | 5 digits | 6 digits | 4 digits |
-| states in an address | the 13 states and 3 federal territories (`SGR`, `KUL`, ...) | none | `NSW VIC QLD SA WA TAS NT ACT` |
-| currency | MYR | SGD | AUD |
-| lookup bias for typed addresses | `my` | `sg` | `au` |
+| | Malaysia | Singapore | Australia | every other country (`US`, `GB`, `JP` ...) |
+|---|---|---|---|---|
+| time zones to choose from | `Asia/Kuala_Lumpur` | `Asia/Singapore` | `Australia/` Sydney (default; also ACT), Melbourne, Brisbane, Adelaide, Perth, Darwin, Hobart, Broken_Hill, Eucla, Lord_Howe | the country's zones in `zone.tab` (one for most; the United States 29, Canada 23, Russia 26). Default: the first `zone.tab` lists (usually the capital's), or where most people live (`America/Toronto`, `America/Sao_Paulo`, `Europe/Moscow`: `DEFAULT_ZONES` in the script) |
+| clock changes | none | none | Sydney, Melbourne, Hobart, Adelaide, Broken_Hill (1 hour) and Lord_Howe (30 minutes); not Brisbane, Perth, Darwin, Eucla | whatever the zone does (`zoneinfo` applies it) |
+| phone code (completes a number typed without one) | 60 | 65 | 61 | the country's (libphonenumber): 1 for the United States and Canada, 44, 81 ... |
+| postcode | 5 digits | 6 digits | 4 digits | optional; 2 to 10 letters, digits, spaces or hyphens, kept in capitals with single spaces (`SW1A 1AA`, `M5V 3L9`) |
+| states in an address | the 13 states and 3 federal territories (`SGR`, `KUL`, ...) | none | `NSW VIC QLD SA WA TAS NT ACT` | optional, kept as typed (`Ontario`); no list |
+| currency | MYR | SGD | AUD | the country's (CLDR): USD, GBP, JPY, EUR ... |
+| lookup bias for typed addresses | `my` | `sg` | `au` | the country's domain (`us`, `uk` for the United Kingdom, `jp`) |
+| privacy law named | PDPA 2010 | PDPA 2012 | Privacy Act 1988 | none (`null`) |
 
-* **Sign-up checks.** The time zone (default: the country's first) must be one of the country's; a `phone_country_code` that is not the country's, a country that is none of the three and a zone of another country are 422 with a message that names the choices.
-  `GET /v1/countries` (no key; it is what a sign-up or settings page reads) lists the countries with their time zones, states, postcode shape, currency and privacy law.
-* **The address in parts.** `address_line1`, `address_line2`, `city`, `state` (code or name, any case: `selangor` is `SGR`) and `postcode` can be given at sign-up and in `PUT /admin/business-profile`: all or nothing (street, city and postcode, and the state where the country has states),
-  postcode and state checked for the country (Singapore has no states and its city defaults to Singapore). They become the profile, and the one-line `address` the page shows is written **from** the parts (what is sent as `address` alongside them is ignored). Sent without parts, `address` is kept as typed and the parts are cleared.
+**How a business's time is worked out.** The country only limits which zones may be chosen; the business's clock is its one IANA zone (`tenants.timezone`), and everything else follows from that zone through `zoneinfo`
+(the `tzdata` package in `requirements.txt`, so the zones do not depend on the server's own copy): opening hours and shifts are clock times in that zone, all interval maths is in UTC (see *Daylight saving* below), and the booking page, messages and day boundaries are shown in it.
+Nothing about time is worked out from the country itself, so a country added from `zone.tab` needs no rule of its own.
+
+* **Sign-up checks.** The time zone (default: the country's first) must be one of the country's; a `phone_country_code` that is not the country's, a code that is not a country (`XX`, `my` in small letters, `MYS`) and a zone of another country are 422 with a message that names the choices.
+  `GET /v1/countries` (no key; it is what a sign-up or settings page reads) lists every country, by name, with its time zones, phone code, currency and `exact_address`: `true` for the three, with `postcode_digits`, `postcode_example`, `states` and `privacy_law`; `false` for the rest, with those `null` or empty.
+* **The address in parts.** `address_line1`, `address_line2`, `city`, `state` and `postcode` can be given at sign-up and in `PUT /admin/business-profile`: all or nothing. In the three countries known in detail, street, city and postcode are needed, and the state where the country has states (code or name, any case: `selangor` is `SGR`;
+  Singapore has no states and its city defaults to Singapore). Everywhere else **only the street and city are needed**: the state, province or region is kept as typed (up to 100 characters, so `business_profiles.state` grew from 3 in migration 0034) and the postcode is optional and loosely checked.
+  The one-line `address` is written in the country's order: `12 Jalan Bukit, 50450 Petaling Jaya, Selangor`, `1 George St, Sydney NSW 2000`, `1 Raffles Place, Singapore 048616`, elsewhere `street, city, region postcode` (`290 Bremner Blvd, Toronto, Ontario M5V 3L9`).
+  They become the profile, and the one-line `address` the page shows is written **from** the parts (what is sent as `address` alongside them is ignored). Sent without parts, `address` is kept as typed and the parts are cleared.
   Postcodes are checked by shape only, not against the post office's list. Without an address at sign-up there is no profile yet (the page shows the business's name only), as before.
 * **`GET /admin/business-settings`** (manager+) shows the country, currency, phone code and time zone with the zones on offer; **`PUT /admin/business-settings {"timezone": ...}`** (owner only, audit-logged) moves the business to another of its country's zones (a Queensland
   business set up as Sydney). Opening hours and shifts are clock times, so they move with the zone: the availability cache for the business is cleared and upcoming bookings no longer inside their shift or the opening hours are **flagged** (`X-Bookings-Flagged`), never cancelled.
   The country itself cannot be changed (it would change the phone code, currency and postcode rules under existing customers).
-* **Customers' postcodes** (saved addresses, an on-site booking's address) are kept in the country's shape (spaces removed) and a wrong shape is 422 before any paid lookup is made; typed addresses are looked up with the business's country as the bias (`GEOCODING_REGION` no longer exists).
+* **Customers' postcodes** (saved addresses, an on-site booking's address) are kept in the country's shape (spaces removed in the three; capitals and single spaces elsewhere) and a wrong shape is 422 before any paid lookup is made; typed addresses are looked up with the business's country as the bias (`GEOCODING_REGION` no longer exists).
 * **Daylight saving.** A day is not always 24 hours: in Sydney the night of the first Sunday in October is 23 hours (02:00 becomes 03:00) and of the first Sunday in April 25 (03:00 becomes 02:00). Opening hours and shifts are clock times, so a 22:00-06:00 shift is 7 real hours
   on the first night and 9 on the second. All the interval maths (windows, breaks, busy times, the slot grid, every allocator) is done in UTC and shown in the business's zone only at the end (`Interval` converts whatever it is given: two datetimes in the same zone are compared by their clock
   readings, which is wrong across a change). The grid stays on the quarter hour of the wall clock; no start is offered in the hour the clocks skip; **both passes of a repeated hour are offered and can be booked** (02:30 on summer time and 02:30 again on standard time are two different moments, and the
@@ -757,7 +767,7 @@ A business can set itself up on the **free plan** without the operator (`app/ser
 (the website's confirmation page, `{token}` marks the token) and `TERMS_URL` (start-up warns about each that is missing). Nothing exists until the owner's email address is confirmed:
 
 1. **`GET /v1/signup/config`** (no key) - `{enabled, terms_version, terms_url}`: what the sign-up page shows and which `terms_version` it must send back.
-2. **`POST /v1/signup`** (no key) `{name, business_type, country, timezone?, owner_email, accepted_terms_version, address_line1, address_line2?, city, state, postcode, site_name?, domain}` - **`domain` (the business's website, `shop.example`) is required and `allowed_origins` is refused**: see *Free plan: one account, one business, one website* - the same checks as the operator's
+2. **`POST /v1/signup`** (no key) `{name, business_type, country, timezone?, owner_email, accepted_terms_version, address_line1, address_line2?, city, state, postcode, site_name?, domain}` (outside Malaysia, Singapore and Australia `state` and `postcode` may be left out) - **`domain` (the business's website, `shop.example`) is required and `allowed_origins` is refused**: see *Free plan: one account, one business, one website* - the same checks as the operator's
    onboarding (country, zone, address) with the address **required** and the terms version required to be the current one (`TERMS_VERSION`). Nothing is created: the request is kept in Redis for `SIGNUP_TOKEN_TTL_SECONDS` (a day), under a hashed one-time token, and the link is mailed.
    The answer is **always `202 {"status": "sent"}`** for a valid request, even when the address already has a business (then no mail is sent), so the form cannot be used to find out who is a customer. One pending request per address (a newer one cancels the older link);
    `SIGNUP_RESEND_COOLDOWN_SECONDS` (60) between requests for one address (429, the same for every address); a mail that cannot be sent is 503 and leaves nothing behind. **`plan` and any other field not listed is refused**: a business cannot choose its plan.
@@ -1094,7 +1104,8 @@ password (scram) authentication and TLS to the database, a real Redis, the rever
   the SMTP provider is unverified against a real server, and so is every live delivery.
 
 * Plans: see *Plans and limits* for what is not built (no billing, no feature switches: only the limits listed there); the free numbers are proposals; a business over a limit after a downgrade is only told, nothing is enforced retroactively.
-* Countries: only Malaysia, Singapore and Australia, one country per business, fixed at sign-up (no change afterwards). Postcodes and states are checked by shape and list, not against the post office's data; phone numbers are still only respelled, not checked against a country's numbering plan.
+* Countries: every country, but only Malaysia, Singapore and Australia in detail; one country per business, fixed at sign-up (no change afterwards). Postcodes and states are checked by shape and list in the three, and only loosely elsewhere (no list of states, any postcode of 2 to 10 letters and digits, or none),
+  never against the post office's data; no privacy law is named outside the three; phone numbers are still only respelled, not checked against a country's numbering plan.
   Self-service sign-up exists but is off by default (see *Self-service sign-up*); the platform operator can still create a business (`POST /auth/tenants`), where an address is optional. Daylight saving is tested in Sydney, Melbourne, Hobart, Adelaide (half-hour offsets) and Lord Howe (a 30-minute change), spring and autumn, for every kind of business
   (`tests/test_dst.py`, `test_dst_nights.py`, `test_dst_zones.py`), and in Brisbane (none); Broken Hill (same clock as Adelaide) and the zones without a change (Perth, Darwin, Eucla) are not tested separately. The slot grid steps in real time, so it keeps
   to the wall clock only when the step divides the clock change: the default 15- and 30-minute steps always do, but an **hourly** grid (`SLOT_STEP_MINUTES=60`, or a restaurant interval of an hour) reads xx:30 instead of xx:00 on Lord Howe between the two changes

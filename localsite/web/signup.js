@@ -15,9 +15,17 @@
   const MAPS_LINK = /^https:\/\/(maps\.app\.goo\.gl\/|goo\.gl\/maps|(www\.|maps\.)?google\.[a-z.]+\/maps|maps\.google\.)/i;
   const FIELDS = { type: ['business_type'], business: ['name', 'address_line1', 'city', 'state', 'postcode'], website: ['domain', 'owner_email', 'accepted_terms'] };
 
+  /** The time zone this browser is set to (Asia/Kuala_Lumpur), to start the country and zone where the person is. */
+  const HERE = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (x) { return ''; } })();
+  /** The zone to start a country on: this browser's when it is one of the country's, else the country's default (the first). */
+  const startZone = (code) => { const zones = J.COUNTRIES[code].zones; return (zones.find(([z]) => z === HERE) || zones[0])[0]; };
+  /** A postcode outside Malaysia, Singapore and Australia: 2 to 10 letters, digits, spaces or hyphens (the backend's LOOSE_POSTCODE). */
+  const LOOSE_POSTCODE = /^[A-Z0-9][A-Z0-9 -]{0,8}[A-Z0-9]$/i;
+
   function init() {
+    const country = Object.keys(J.COUNTRIES).find((k) => J.COUNTRIES[k].zones.some(([z]) => z === HERE)) || (J.COUNTRIES.MY ? 'MY' : Object.keys(J.COUNTRIES)[0]);
     return {
-      step: 'type', type: null, name: '', country: 'MY', timezone: 'Asia/Kuala_Lumpur', line1: '', line2: '', city: '', state: '', postcode: '',
+      step: 'type', type: null, name: '', country, timezone: startZone(country), line1: '', line2: '', city: '', state: '', postcode: '',
       mapsUrl: '', place: null, domain: '', email: '', terms: false, human: 'no', errors: {}, busy: false, err: null, created: null,
     };
   }
@@ -35,21 +43,36 @@
       <div><button type="button" class="btn" data-act="su.next" ${s.type ? '' : 'disabled'}>Continue</button></div></div>`;
   }
 
-  function businessStep() {
-    const s = st(), c = J.COUNTRIES[s.country];
-    return `<div class="stack-lg"><h2>About your business</h2>
-      ${J.field({ id: 'su-name', label: 'Business name', model: 'signup.name', err: e('name'), placeholder: 'Serene Lotus Spa', hint: 'As customers know it. You can change it later.' })}
-      <div class="stack"><span class="label">Country</span><div class="seg" role="group" aria-label="Country">${Object.entries(J.COUNTRIES).map(([k, x]) => `<button type="button" data-act="su.country" data-c="${k}" aria-pressed="${s.country === k}">${x.name}</button>`).join('')}</div>
-        <span class="hint">Sets your time zone choices, phone code (+${c.calling}), currency (${c.currency}) and address format. It can't be changed later.</span></div>
-      ${c.zones.length > 1 ? J.field({ id: 'su-tz', label: 'Time zone', model: 'signup.timezone', options: c.zones.map(([z, l]) => [z, `${l} (${z.split('/')[1].replace('_', ' ')})`]), hint: 'Opening hours and booking times follow this clock, including daylight saving.' }) : ''}
-      <div class="stack"><span class="label">Address</span>
-        ${J.field({ id: 'su-l1', label: 'Street', model: 'signup.line1', err: e('address_line1'), attrs: 'autocomplete="address-line1"' })}
-        ${J.field({ id: 'su-l2', label: 'Unit, floor or building', model: 'signup.line2', optional: true, attrs: 'autocomplete="address-line2"' })}
+  /** The address fields the country asks for: Malaysia and Australia a city and a state from the list, Singapore just the postcode (both exact);
+   *  everywhere else the city, and a state or region and a postcode typed freely, both optional. */
+  function addressFields(s, c) {
+    if (!c.exact) {
+      return `${J.field({ id: 'su-city', label: 'City or town', model: 'signup.city', err: e('city'), attrs: 'autocomplete="address-level2"' })}
         <div class="grid2">
+          ${J.field({ id: 'su-state', label: 'State, province or region', model: 'signup.state', optional: true, err: e('state'), attrs: 'autocomplete="address-level1" maxlength="100"' })}
+          ${J.field({ id: 'su-pc', label: 'Postcode', model: 'signup.postcode', optional: true, err: e('postcode'), attrs: 'maxlength="12" autocomplete="postal-code"' })}
+        </div>`;
+    }
+    return `<div class="grid2">
           ${c.states.length ? J.field({ id: 'su-city', label: s.country === 'AU' ? 'Suburb' : 'City', model: 'signup.city', err: e('city'), attrs: 'autocomplete="address-level2"' }) : ''}
           ${c.states.length ? J.field({ id: 'su-state', label: 'State', model: 'signup.state', err: e('state'), options: [['', 'Choose']].concat(c.states.map(([k, n]) => [k, n])) }) : ''}
           ${J.field({ id: 'su-pc', label: 'Postcode', model: 'signup.postcode', err: e('postcode'), placeholder: c.postcodeExample, attrs: `inputmode="numeric" maxlength="${c.postcode + 2}" autocomplete="postal-code"` })}
-        </div></div>
+        </div>`;
+  }
+
+  function businessStep() {
+    const s = st(), c = J.COUNTRIES[s.country];
+    if (!c.zones.some(([z]) => z === s.timezone)) { s.timezone = startZone(s.country); s.state = ''; s.errors = {}; } // (the country was just changed)
+    const city = (z) => z.split('/').pop().replace(/_/g, ' ');
+    return `<div class="stack-lg"><h2>About your business</h2>
+      ${J.field({ id: 'su-name', label: 'Business name', model: 'signup.name', err: e('name'), placeholder: 'Serene Lotus Spa', hint: 'As customers know it. You can change it later.' })}
+      ${J.field({ id: 'su-country', label: 'Country', model: 'signup.country', live: true, options: Object.entries(J.COUNTRIES).map(([k, x]) => [k, x.name]), attrs: 'autocomplete="country"',
+        hint: `Sets your time zone choices, phone code (+${c.calling}), currency (${c.currency}) and address format. It can't be changed later.` })}
+      ${c.zones.length > 1 ? J.field({ id: 'su-tz', label: 'Time zone', model: 'signup.timezone', options: c.zones.map(([z, l]) => [z, l.includes(city(z)) ? l : `${l} (${city(z)})`]), hint: 'Opening hours and booking times follow this clock, including daylight saving.' }) : ''}
+      <div class="stack"><span class="label">Address</span>
+        ${J.field({ id: 'su-l1', label: 'Street', model: 'signup.line1', err: e('address_line1'), attrs: 'autocomplete="address-line1"' })}
+        ${J.field({ id: 'su-l2', label: 'Unit, floor or building', model: 'signup.line2', optional: true, attrs: 'autocomplete="address-line2"' })}
+        ${addressFields(s, c)}</div>
       ${J.field({ id: 'su-maps', label: 'Google Maps link', model: 'signup.mapsUrl', optional: true, err: e('maps_url'), placeholder: 'https://maps.app.goo.gl/…', hint: 'In Google Maps, open your business, tap <b>Share</b> and copy the link. Customers get directions from it. You can also add it later in Set-up.', attrs: 'inputmode="url" autocomplete="off"' })}
       <div class="row"><button type="button" class="btn ghost" data-act="su.back">Back</button><button type="button" class="btn" data-act="su.next">Continue</button></div></div>`;
   }
@@ -112,7 +135,7 @@
     const s = st(), c = J.COUNTRIES[s.country];
     return {
       name: s.name, business_type: s.type, country: s.country, timezone: s.timezone, address_line1: s.line1, address_line2: s.line2 || null,
-      city: c.states.length ? s.city : 'Singapore', state: s.state || null, postcode: s.postcode, domain: s.domain, owner_email: s.email, accepted_terms: s.terms, accepted_terms_version: '1',
+      city: c.exact && !c.states.length ? c.name : s.city, state: s.state.trim() || null, postcode: s.postcode.trim() || null, domain: s.domain, owner_email: s.email, accepted_terms: s.terms, accepted_terms_version: '1',
     };
   }
   function localCheck(step) {
@@ -120,10 +143,11 @@
     if (step === 'business') {
       if (!s.name.trim()) err.name = "Enter your business's name";
       if (!s.line1.trim()) err.address_line1 = 'The street is needed';
-      if (c.states.length && !s.city.trim()) err.city = 'The city or suburb is needed';
+      if ((c.states.length || !c.exact) && !s.city.trim()) err.city = c.exact ? 'The city or suburb is needed' : 'The city or town is needed';
       if (c.states.length && !s.state) err.state = 'Choose the state';
       if (s.mapsUrl.trim() && !MAPS_LINK.test(s.mapsUrl.trim())) err.maps_url = 'Paste the link Google Maps gives you: it starts with https://maps.app.goo.gl/ or https://www.google.com/maps';
-      if (!new RegExp(`^\\d{${c.postcode}}$`).test(s.postcode.replace(/\s/g, ''))) err.postcode = `A ${c.name} postcode has ${c.postcode} digits (for example ${c.postcodeExample})`;
+      if (c.exact && !new RegExp(`^\\d{${c.postcode}}$`).test(s.postcode.replace(/\s/g, ''))) err.postcode = `A ${c.name} postcode has ${c.postcode} digits (for example ${c.postcodeExample})`;
+      if (!c.exact && s.postcode.trim() && !LOOSE_POSTCODE.test(s.postcode.trim().replace(/\s+/g, ' '))) err.postcode = 'A postcode has 2 to 10 letters, digits, spaces or hyphens';
     }
     s.errors = err;
     return !Object.keys(err).length;
@@ -131,7 +155,6 @@
 
   Object.assign(J.actions, {
     'su.type'(ds) { st().type = ds.id; J.render(); },
-    'su.country'(ds) { const s = st(); s.country = ds.c; s.timezone = J.COUNTRIES[ds.c].zones[0][0]; s.state = ''; s.errors = {}; J.render(); },
     'su.back'() { const s = st(); s.step = s.step === 'website' ? 'business' : 'type'; s.err = null; J.render(); J.top(); },
     'su.next'() { const s = st(); if (s.step === 'business' && !localCheck('business')) { J.render(); return; } s.step = s.step === 'type' ? 'business' : 'website'; J.render(); J.top(); },
     'su.human'() { const s = st(); s.human = 'checking'; J.render(); setTimeout(() => { s.human = 'ok'; J.render(); }, 900); },

@@ -57,14 +57,14 @@ class Tenant(UUIDMixin, TimestampMixin, Base):
         CheckConstraint("latitude IS NULL OR latitude BETWEEN -90 AND 90", name="latitude"),
         CheckConstraint("longitude IS NULL OR longitude BETWEEN -180 AND 180", name="longitude"),
         CheckConstraint("service_radius_km IS NULL OR service_radius_km > 0", name="service_radius_km"),
-        CheckConstraint("country IN ('MY','SG','AU')", name="country"),
+        CheckConstraint("country ~ '^[A-Z]{2}$'", name="country"),  # (which codes are countries is app.core.countries' to say)
         #: one business per owner address (only those that signed themselves up have one)
         Index("uq_tenants_owner_email", "owner_email", unique=True, postgresql_where=text("owner_email IS NOT NULL")),
     )
 
     name: Mapped[str] = mapped_column(String(150))
     business_type: Mapped[str] = mapped_column(String(20), default="spa")
-    #: ``MY``, ``SG`` or ``AU`` (``app.core.countries``): the time zones it may choose from, its phone code, postcodes, states and currency follow from it.
+    #: ISO 3166 code (``MY``; ``app.core.countries``): the time zones it may choose from, its phone code, postcodes, states and currency follow from it.
     country: Mapped[str] = mapped_column(String(2), default="MY", server_default="MY")
     #: The plan whose limits apply (``plans.code``): ``free`` or ``paid`` to begin with. A business set up by the operator is ``paid`` unless said otherwise.
     plan: Mapped[str] = mapped_column(String(20), ForeignKey("plans.code"), default="paid", server_default="paid")

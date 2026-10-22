@@ -44,6 +44,15 @@ COOKIE = "demo_access"
 COOKIE_DAYS = 30
 LINK_MINUTES = 30
 KL = ZoneInfo("Asia/Kuala_Lumpur")  # (the owner reads the lists in Malaysia time; the database keeps UTC)
+PHONE_COUNTRY = "MY"  # the country the mobile number on Register starts on
+
+
+def _phone_countries() -> list[tuple[str, str, str]]:
+    """``(country code, name, calling code)`` of every country, by name, for the country picked in front of the mobile number on Register
+    (``app.core.countries``: the same list a business signs up from). A number typed with ``+`` keeps its own code."""
+    from app.core.countries import IN_NAME_ORDER
+
+    return [(c.code, c.name, c.calling_code) for c in IN_NAME_ORDER]
 SCHEMA = [
     """CREATE TABLE IF NOT EXISTS demo_visitors (
         id bigserial PRIMARY KEY,
@@ -199,7 +208,10 @@ class Access:
 <div class="card" style="display:flex;flex-direction:column;gap:14px">{tabs}{inner}</div></div></div>
 <style>.hero{{display:grid;gap:24px;align-items:start}}.hero>div{{max-width:560px}}
 .photo{{display:block;width:100%;height:auto;aspect-ratio:2/1;object-fit:cover;border-radius:8px;background:var(--raised)}}
-@media (min-width:880px){{.hero{{grid-template-columns:minmax(0,560px) minmax(0,1fr);gap:40px}}.photo{{grid-column:2;grid-row:1;aspect-ratio:4/3;object-position:35% 50%;position:sticky;top:24px}}}}.f{{display:flex;flex-direction:column;gap:4px}}.f span{{font-weight:500}}.f i{{font-weight:400;color:var(--muted)}}.f input{{font:inherit;padding:9px 12px;border:1px solid var(--control);border-radius:6px;background:var(--surface);color:var(--fg)}}.f small{{color:var(--muted)}}.err{{color:#8a1c20;font-size:.9rem;font-weight:500}}
+@media (min-width:880px){{.hero{{grid-template-columns:minmax(0,560px) minmax(0,1fr);gap:40px}}.photo{{grid-column:2;grid-row:1;aspect-ratio:4/3;object-position:35% 50%;position:sticky;top:24px}}}}.f{{display:flex;flex-direction:column;gap:4px}}.f span{{font-weight:500}}.f i{{font-weight:400;color:var(--muted)}}.f input{{font:inherit;padding:9px 12px;border:1px solid var(--control);border-radius:6px;background:var(--surface);color:var(--fg)}}.f small{{color:var(--muted)}}
+.f select{{font:inherit;font-size:16px;min-height:42px;padding:9px 8px;border:1px solid var(--control);border-radius:6px;background:var(--surface);color:var(--fg);flex:0 1 auto;max-width:45%;min-width:0}}
+.f select:focus{{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgb(18 22 20 / 10%)}}
+.tel{{display:flex;gap:8px}}.tel input{{flex:1;min-width:0}}.err{{color:#8a1c20;font-size:.9rem;font-weight:500}}
 .tabs{{display:flex;gap:4px;border-bottom:1px solid var(--line)}}.tabs a{{text-decoration:none;color:var(--muted);font-weight:500;padding:8px 12px 10px;margin-bottom:-1px;border-bottom:2px solid transparent}}.tabs a[aria-current]{{color:var(--fg);font-weight:600;border-bottom-color:var(--primary)}}</style>"""
         return self.page(title, body)
 
@@ -209,6 +221,17 @@ class Access:
         return (f'<label class="f"><span>{label}{"" if required else " <i>(optional)</i>"}</span>'
                 f'<input name="{name}" type="{kind}" value="{html.escape(v.get(name, ""))}" autocomplete="{auto}" {"required" if required else ""} maxlength="150">'
                 f'<small>{hint}</small>{err}</label>')
+
+    @staticmethod
+    def _phone_field(v: dict[str, str], e: dict[str, str]) -> str:
+        err = f'<span class="err">{html.escape(e["phone"])}</span>' if "phone" in e else ""
+        chosen = v.get("phone_country") or PHONE_COUNTRY
+        options = "".join(f'<option value="{code}" {"selected" if code == chosen else ""}>{html.escape(name)} (+{calling})</option>'
+                          for code, name, calling in _phone_countries())
+        return (f'<div class="f"><label for="phone"><span>Mobile number <i>(optional)</i></span></label>'
+                f'<div class="tel"><select name="phone_country" aria-label="Country code">{options}</select>'
+                f'<input id="phone" name="phone" type="tel" value="{html.escape(v.get("phone", ""))}" autocomplete="tel-national" maxlength="150"></div>'
+                f'<small>So we can follow up, if you like.</small>{err}</div>')
 
     def login_form(self, values: dict[str, str] | None = None, errors: dict[str, str] | None = None, note: str = "") -> HTMLResponse:
         v, e = values or {}, errors or {}
@@ -223,7 +246,7 @@ class Access:
         inner = f"""<form method="post" action="/demo/access/register" style="display:flex;flex-direction:column;gap:14px">
 {self._field(v, e, "email", "Work email", "email", "We send a link here to confirm it is yours: if it is not in your inbox, check your Spam or Junk folder.", True, "email")}
 {self._field(v, e, "organisation", "Organisation", "text", "Your business or company.", True, "organization")}
-{self._field(v, e, "phone", "Mobile number", "tel", "So we can follow up, if you like.", False, "tel")}
+{self._phone_field(v, e)}
 <button class="btn" type="submit" style="border:0;cursor:pointer;justify-content:center">Register</button></form>
 <small style="color:var(--muted)">The demo is shared with other visitors and uses sample data: please don't enter real customer details in it. Already registered? <a href="/">Log in</a>.</small>"""
         return self._shell("Register for the demo", inner, note, "register")
@@ -263,7 +286,11 @@ class Access:
         from app.core.phone import normalise_phone
 
         raw = parse_qs((await request.body()).decode("utf8", "replace"))
-        values = {k: (raw.get(k, [""])[0]).strip()[:150] for k in ("email", "organisation", "phone")}
+        from app.core.countries import COUNTRIES
+
+        values = {k: (raw.get(k, [""])[0]).strip()[:150] for k in ("email", "organisation", "phone", "phone_country")}
+        if values["phone_country"] not in COUNTRIES:
+            values["phone_country"] = PHONE_COUNTRY
         errors: dict[str, str] = {}
         email, problem = self._email(values["email"])
         if problem:
@@ -275,7 +302,7 @@ class Access:
         phone = None
         if values["phone"]:
             try:
-                phone = normalise_phone(values["phone"], "60")
+                phone = normalise_phone(values["phone"], COUNTRIES[values["phone_country"]].calling_code)
             except ValidationFailed:
                 errors["phone"] = "That doesn't look like a phone number; leave it empty if you prefer."
         if errors:

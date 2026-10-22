@@ -1,4 +1,4 @@
-"""Malaysia, Singapore and Australia: what a country settles, and how a business is set up with one (migration 0022)."""
+"""Every country, with Malaysia, Singapore and Australia in detail: what a country settles, and how a business is set up with one (migrations 0022, 0034)."""
 from __future__ import annotations
 
 from zoneinfo import ZoneInfo
@@ -9,16 +9,45 @@ from app.core import countries
 from app.core.countries import COUNTRIES, AddressProblem, check_address, find_state, format_address, normalise_postcode
 
 MY, SG, AU = COUNTRIES["MY"], COUNTRIES["SG"], COUNTRIES["AU"]
+US, GB, JP, DE, HK = COUNTRIES["US"], COUNTRIES["GB"], COUNTRIES["JP"], COUNTRIES["DE"], COUNTRIES["HK"]
 
 
 # --------------------------------------------------------------------- the table itself
-def test_the_three_countries_are_the_ones_the_service_is_built_for() -> None:
-    assert sorted(COUNTRIES) == ["AU", "MY", "SG"]
+def test_the_three_known_in_detail_keep_their_own_rules() -> None:
+    assert [c.code for c in countries.DETAILED] == ["MY", "SG", "AU"]
     assert [(c.calling_code, c.currency) for c in (MY, SG, AU)] == [("60", "MYR"), ("65", "SGD"), ("61", "AUD")]
-    assert countries.BY_CALLING_CODE == {"60": MY, "65": SG, "61": AU}
+    assert all(c.exact_address and c.privacy_law for c in (MY, SG, AU))
+    assert [z for z, _ in MY.timezones] == ["Asia/Kuala_Lumpur"]  # (the hand-made entry, not the world's, which lists Kuching too)
+    assert countries.BY_CALLING_CODE == {"60": MY, "65": SG, "61": AU}  # (only the three: 1 and 44 are more than one country)
     assert countries.get("SG") is SG
     with pytest.raises(KeyError):
-        countries.get("NZ")
+        countries.get("XX")
+
+
+def test_the_whole_world_is_there_with_its_phone_codes_and_currencies() -> None:
+    assert len(COUNTRIES) > 230
+    assert [(c.name, c.calling_code, c.currency) for c in (US, GB, JP, DE, HK)] == [
+        ("United States", "1", "USD"), ("United Kingdom", "44", "GBP"), ("Japan", "81", "JPY"), ("Germany", "49", "EUR"), ("Hong Kong", "852", "HKD"),
+    ]
+    assert COUNTRIES["CA"].calling_code == "1" and COUNTRIES["BT"].currency == "BTN"
+    assert "AQ" not in COUNTRIES and "BV" not in COUNTRIES  # (no phone code or no clock of its own: nobody runs a business there)
+    for country in COUNTRIES.values():
+        assert len(country.code) == 2 and country.code.isupper() and country.name
+        assert country.calling_code.isdigit() and 1 <= len(country.calling_code) <= 3  # (tenants.phone_country_code holds three)
+        assert len(country.currency) == 3 and country.currency.isupper()
+    assert not US.exact_address and US.states == () and US.privacy_law is None and US.postcode_pattern is None
+
+
+def test_the_default_zone_is_where_most_people_are() -> None:
+    assert [COUNTRIES[c].default_timezone for c in ("US", "CA", "BR", "RU", "ID", "GB")] == [
+        "America/New_York", "America/Toronto", "America/Sao_Paulo", "Europe/Moscow", "Asia/Jakarta", "Europe/London",
+    ]
+    assert len(US.timezones) > 20 and US.has_timezone("America/Los_Angeles") and not US.has_timezone("Asia/Kuala_Lumpur")
+    assert GB.timezones == (("Europe/London", "United Kingdom"),)  # (one zone: named after the country)
+
+
+def test_google_is_told_the_countrys_domain() -> None:
+    assert (MY.region, US.region, GB.region, JP.region) == ("my", "us", "uk", "jp")
 
 
 def test_every_listed_time_zone_exists_and_the_first_is_the_default() -> None:
@@ -62,6 +91,20 @@ def test_a_postcode_is_kept_without_its_spaces(country: countries.Country, typed
 def test_a_postcode_of_the_wrong_shape_is_refused(country: countries.Country, typed: str) -> None:
     with pytest.raises(AddressProblem, match="postcode"):
         normalise_postcode(country, typed)
+
+
+@pytest.mark.parametrize(("country", "typed", "stored"), [
+    (GB, "sw1a  1aa", "SW1A 1AA"), (US, "10001", "10001"), (US, "10001-1234", "10001-1234"), (JP, "100-0001", "100-0001"), (DE, " 10115 ", "10115"),
+    (COUNTRIES["CA"], "m5v 2t6", "M5V 2T6"),
+])
+def test_elsewhere_a_postcode_is_kept_in_capitals_with_single_spaces(country: countries.Country, typed: str, stored: str) -> None:
+    assert normalise_postcode(country, typed) == stored
+
+
+@pytest.mark.parametrize("typed", ["1", "12345678901", "SW1A_1AA", "-1234", "1234-", "١٢٣٤٥", ""])
+def test_elsewhere_a_postcode_must_still_look_like_one(typed: str) -> None:
+    with pytest.raises(AddressProblem, match="2 to 10 letters, digits, spaces or hyphens"):
+        normalise_postcode(GB, typed)
 
 
 def test_the_message_names_the_country_and_an_example() -> None:
@@ -115,6 +158,29 @@ def test_a_singapore_address_has_no_state_and_its_city_is_singapore() -> None:
     assert got == countries.BusinessAddress("1 Raffles Place", None, "Singapore", None, "048616")
     assert format_address(SG, got) == "1 Raffles Place, Singapore 048616"
     assert addr(SG, line1="1 Raffles Place", city="Singapore", postcode="048616") == got
+
+
+def test_elsewhere_the_street_and_city_are_enough() -> None:
+    got = addr(JP, line1="1-1 Marunouchi", city="Chiyoda, Tokyo")
+    assert got == countries.BusinessAddress("1-1 Marunouchi", None, "Chiyoda, Tokyo", None, None)
+    assert format_address(JP, got) == "1-1 Marunouchi, Chiyoda, Tokyo"
+
+
+def test_elsewhere_the_region_is_kept_as_written_and_goes_before_the_postcode() -> None:
+    got = addr(COUNTRIES["CA"], line1="290 Bremner Blvd", city="Toronto", state="  Ontario ", postcode="m5v 3l9")
+    assert got == countries.BusinessAddress("290 Bremner Blvd", None, "Toronto", "Ontario", "M5V 3L9")
+    assert format_address(COUNTRIES["CA"], got) == "290 Bremner Blvd, Toronto, Ontario M5V 3L9"
+    assert format_address(GB, addr(GB, line1="10 Downing St", city="London", postcode="SW1A 2AA")) == "10 Downing St, London, SW1A 2AA"
+
+
+@pytest.mark.parametrize(("parts", "message"), [
+    ({"city": "London", "postcode": "SW1A 2AA"}, "street"),
+    ({"line1": "10 Downing St", "postcode": "SW1A 2AA"}, "city or town is needed"),
+    ({"line1": "10 Downing St", "city": "London", "postcode": "SW1A_2AA"}, "2 to 10"),
+])
+def test_elsewhere_what_is_missing_is_said_plainly_too(parts: dict[str, str], message: str) -> None:
+    with pytest.raises(AddressProblem, match=message):
+        addr(GB, **parts)
 
 
 @pytest.mark.parametrize(("country", "parts", "message"), [

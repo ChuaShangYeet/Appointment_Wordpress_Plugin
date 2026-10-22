@@ -135,20 +135,8 @@ window.JS = window.JS || {};
   /** The free plan's numbers (backend: plans table, migration 0023 and 0028). */
   JS.FREE_PLAN = { resources: 3, services: 10, bookings_per_month: 50, whatsapp_per_month: 20, sms_per_month: 20, sites: 1, domains: 1, live_keys_per_kind: 2, domain_change_days: 30 };
 
-  /** The countries a business can sign up in (backend: app/core/countries.py). */
-  JS.COUNTRIES = {
-    MY: {
-      name: 'Malaysia', calling: '60', currency: 'MYR', postcode: 5, postcodeExample: '50450',
-      zones: [['Asia/Kuala_Lumpur', 'Malaysia (all states)']],
-      states: [['JHR', 'Johor'], ['KDH', 'Kedah'], ['KTN', 'Kelantan'], ['MLK', 'Melaka'], ['NSN', 'Negeri Sembilan'], ['PHG', 'Pahang'], ['PNG', 'Pulau Pinang'], ['PRK', 'Perak'], ['PLS', 'Perlis'], ['SGR', 'Selangor'], ['TRG', 'Terengganu'], ['SBH', 'Sabah'], ['SWK', 'Sarawak'], ['KUL', 'Kuala Lumpur'], ['LBN', 'Labuan'], ['PJY', 'Putrajaya']],
-    },
-    SG: { name: 'Singapore', calling: '65', currency: 'SGD', postcode: 6, postcodeExample: '018956', zones: [['Asia/Singapore', 'Singapore']], states: [] },
-    AU: {
-      name: 'Australia', calling: '61', currency: 'AUD', postcode: 4, postcodeExample: '2000',
-      zones: [['Australia/Sydney', 'New South Wales and ACT'], ['Australia/Melbourne', 'Victoria'], ['Australia/Brisbane', 'Queensland'], ['Australia/Adelaide', 'South Australia'], ['Australia/Perth', 'Western Australia'], ['Australia/Darwin', 'Northern Territory'], ['Australia/Hobart', 'Tasmania'], ['Australia/Broken_Hill', 'Broken Hill'], ['Australia/Eucla', 'Eucla'], ['Australia/Lord_Howe', 'Lord Howe Island']],
-      states: [['NSW', 'New South Wales'], ['VIC', 'Victoria'], ['QLD', 'Queensland'], ['SA', 'South Australia'], ['WA', 'Western Australia'], ['TAS', 'Tasmania'], ['NT', 'Northern Territory'], ['ACT', 'Australian Capital Territory']],
-    },
-  };
+  /** The countries a business can sign up in: every country, filled in from the backend when the site starts (api-live.js boot, GET /v1/countries). */
+  JS.COUNTRIES = {};
 
   /** A few throw-away mail services (the backend's list has about a hundred: app/core/disposable_emails.py). */
   JS.DISPOSABLE = ['mailinator.com', 'yopmail.com', '10minutemail.com', 'guerrillamail.com', 'tempmail.com', 'temp-mail.org', 'trashmail.com', 'maildrop.cc', 'getnada.com'];

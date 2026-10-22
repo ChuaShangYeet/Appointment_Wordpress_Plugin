@@ -8,7 +8,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 from app.core import countries, origins
-from app.core.countries import AddressProblem, CountryCode
+from app.core.countries import AddressProblem
 from app.schemas.business import AddressParts
 
 Role = Literal["owner", "manager", "staff"]
@@ -20,7 +20,8 @@ class BusinessSetup(AddressParts):
 
     name: str = Field(min_length=1, max_length=150)
     business_type: Literal["spa", "salon", "restaurant", "automotive", "professional"] = "spa"
-    country: CountryCode = "MY"
+    #: ISO 3166 code: any country ``GET /v1/countries`` lists.
+    country: str = Field(default="MY", min_length=2, max_length=2)
     timezone: str = "Asia/Kuala_Lumpur"
     #: Calling code (digits, no plus) that completes phone numbers customers type without one.
     phone_country_code: str = Field(default="60", pattern=r"^[1-9]\d{0,2}$")
@@ -36,6 +37,8 @@ class BusinessSetup(AddressParts):
             if found is None:
                 raise ValueError(f"phone_country_code {self.phone_country_code} is none of Malaysia (60), Singapore (65) and Australia (61)")
             self.country = found.code
+        if self.country not in countries.COUNTRIES:
+            raise ValueError(f"{self.country!r} is not a country code the service knows (two letters, ISO 3166, such as MY; see GET /v1/countries)")
         country = countries.get(self.country)
         if "phone_country_code" in given and self.phone_country_code != country.calling_code:
             raise ValueError(f"phone_country_code {self.phone_country_code} is not {country.name}'s ({country.calling_code})")

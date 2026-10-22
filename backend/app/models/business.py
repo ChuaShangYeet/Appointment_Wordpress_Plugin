@@ -35,8 +35,8 @@ class BusinessProfile(UUIDMixin, TimestampMixin, TenantMixin, Base):
     address_line1: Mapped[str | None] = mapped_column(String(200))
     address_line2: Mapped[str | None] = mapped_column(String(200))
     city: Mapped[str | None] = mapped_column(String(100))
-    #: The state's code (``SGR``, ``NSW``); ``NULL`` for Singapore, which has none.
-    state: Mapped[str | None] = mapped_column(String(3))
+    #: The state's code in Malaysia and Australia (``SGR``, ``NSW``); the state, province or region as typed elsewhere; ``NULL`` for none (Singapore).
+    state: Mapped[str | None] = mapped_column(String(100))
     postcode: Mapped[str | None] = mapped_column(String(10))
     google_maps_url: Mapped[str | None] = mapped_column(Text)
     #: The business's own review page, with ``{token}`` where the signed review token goes (completed-visit email).

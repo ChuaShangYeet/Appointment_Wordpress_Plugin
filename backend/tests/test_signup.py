@@ -266,7 +266,7 @@ async def test_nothing_can_be_chosen_that_is_not_asked_for(client: httpx.AsyncCl
     ({"state": None}, "state is needed"),
     ({"state": "NSW"}, "not a state"),
     ({"country": "AU"}, "not a state"),  # (Malaysian address parts under Australia)
-    ({"country": "NZ"}, "country"),
+    ({"country": "XX"}, "not a country code"),
     ({"timezone": "Australia/Sydney"}, "time zones"),
     ({"country": "MY", "phone_country_code": "65"}, "not Malaysia's"),
     ({"owner_email": "not-an-email"}, "email"),

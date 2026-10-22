@@ -32,13 +32,14 @@ DETAIL_KEYS: dict[str, frozenset[str]] = {
 
 class AddressParts(BaseModel):
     """A business address in parts. All of it or none: street, city and postcode (and the state, where the country has them) are needed once any is
-    given, and are checked against the business's country (``app.core.countries``). Singapore has no states."""
+    given, and are checked against the business's country (``app.core.countries``). Singapore has no states. Outside Malaysia, Singapore and
+    Australia only the street and city are needed, and the state and postcode are checked loosely."""
 
     address_line1: str | None = Field(default=None, max_length=200)
     address_line2: str | None = Field(default=None, max_length=200)
     city: str | None = Field(default=None, max_length=100)
-    #: A state's code or its name (``SGR`` or ``Selangor``); stored as the code.
-    state: str | None = Field(default=None, max_length=50)
+    #: A state's code or its name (``SGR`` or ``Selangor``), stored as the code; elsewhere than Malaysia and Australia, the state, province or region as written.
+    state: str | None = Field(default=None, max_length=100)
     postcode: str | None = Field(default=None, max_length=16)
 
     def address_for(self, country: Country) -> BusinessAddress | None:
@@ -95,7 +96,7 @@ class BusinessPublicOut(BusinessProfileOut):
 
     business_type: str
     timezone: str
-    #: ``MY``, ``SG`` or ``AU``, and the currency prices are in (``MYR``, ``SGD``, ``AUD``).
+    #: ISO 3166 code (``MY``), and the ISO 4217 currency prices are in (``MYR``).
     country: str
     currency: str
     location: BusinessLocationPublic | None = None

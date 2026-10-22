@@ -1,21 +1,27 @@
-"""The countries the service is built for: Malaysia, Singapore and Australia.
+"""The countries a business can be in: every country in the world, with Malaysia, Singapore and Australia known in detail.
 
 A business picks its country when it signs up, and the country settles the rest in one place: which time zones it may choose from, the code that
 completes a phone number typed without one, the shape of a postcode, the states of an address, the currency, and the bias given to address lookups
-(:mod:`app.services.geocoding`). Adding a country is adding an entry to :data:`COUNTRIES` (and a test); nothing else names one.
+(:mod:`app.services.geocoding`). Nothing else names a country.
 
-* **Time zones** are IANA names, checked against the country's own list. Malaysia and Singapore keep one clock all year; Australia has nine zones and
-  daylight saving in the south-east (Sydney, Melbourne, Hobart, Adelaide), none in Queensland, Western Australia or the Northern Territory.
-* **Postcodes** are checked by shape only (4, 5 or 6 digits), not against the post office's list of real ones.
+* **Two kinds of country.** Malaysia, Singapore and Australia are written out here by hand (``exact_address``): the exact postcode shape, the list
+  of states, the privacy law. Every other country comes from :mod:`app.core.world` (made by ``scripts/make_world.py`` from the IANA time-zone
+  database, libphonenumber and the Unicode CLDR) and gets the basic rules: the state, province or region is typed freely and optional, and the
+  postcode is optional and checked loosely (letters, digits, spaces and hyphens), since no list says how every country writes one.
+* **Time zones** are IANA names, checked against the country's own list (``zone.tab`` for the world). A business's clock is that zone, and
+  ``zoneinfo`` applies its daylight saving; nothing else about time depends on the country. Malaysia and Singapore keep one clock all year;
+  Australia has nine zones and daylight saving in the south-east (Sydney, Melbourne, Hobart, Adelaide), none in Queensland, Western Australia or
+  the Northern Territory.
+* **Postcodes** are checked by shape only, not against the post office's list of real ones.
 * **Phone numbers** stay the business of :mod:`app.core.phone`; this module only says which calling code a country has.
 """
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
-from typing import Literal
 
-CountryCode = Literal["MY", "SG", "AU"]
+from app.core.world import WORLD
 
 
 class AddressProblem(ValueError):
@@ -24,7 +30,8 @@ class AddressProblem(ValueError):
 
 @dataclass(frozen=True)
 class Country:
-    code: CountryCode
+    #: ISO 3166 (``MY``).
+    code: str
     name: str
     #: Digits, no plus: what completes a national phone number.
     calling_code: str
@@ -32,13 +39,17 @@ class Country:
     currency: str
     #: ``(IANA name, who it is for)``; the first is the default.
     timezones: tuple[tuple[str, str], ...]
-    postcode_pattern: re.Pattern[str]
-    postcode_example: str
-    #: ``(code, name)`` of the states and territories an address names; empty when the country has none (Singapore).
+    #: ``None`` for a country with the basic rules: any postcode of :data:`LOOSE_POSTCODE`'s shape, or none.
+    postcode_pattern: re.Pattern[str] | None
+    postcode_example: str | None
+    #: ``(code, name)`` of the states and territories an address names; empty when the country has none (Singapore) or has the basic rules.
     states: tuple[tuple[str, str], ...]
     #: The lookup bias for typed addresses (Google's ``region``: a country-code domain suffix).
     region: str
-    privacy_law: str
+    #: ``None`` where the service does not know it (every country but the three).
+    privacy_law: str | None = None
+    #: Known in detail (Malaysia, Singapore, Australia): the postcode's exact shape, the list of states. The rest have the basic rules (above).
+    exact_address: bool = False
 
     @property
     def default_timezone(self) -> str:
@@ -51,7 +62,7 @@ class Country:
         return dict(self.states)[code]
 
 
-COUNTRIES: dict[str, Country] = {c.code: c for c in (
+DETAILED = (
     Country(
         code="MY", name="Malaysia", calling_code="60", currency="MYR",
         timezones=(("Asia/Kuala_Lumpur", "Malaysia (all states)"),),
@@ -61,13 +72,13 @@ COUNTRIES: dict[str, Country] = {c.code: c for c in (
             ("PNG", "Pulau Pinang"), ("PRK", "Perak"), ("PLS", "Perlis"), ("SGR", "Selangor"), ("TRG", "Terengganu"), ("SBH", "Sabah"),
             ("SWK", "Sarawak"), ("KUL", "Kuala Lumpur"), ("LBN", "Labuan"), ("PJY", "Putrajaya"),
         ),
-        region="my", privacy_law="Personal Data Protection Act 2010 (PDPA)",
+        region="my", privacy_law="Personal Data Protection Act 2010 (PDPA)", exact_address=True,
     ),
     Country(
         code="SG", name="Singapore", calling_code="65", currency="SGD",
         timezones=(("Asia/Singapore", "Singapore"),),
         postcode_pattern=re.compile(r"\d{6}", re.ASCII), postcode_example="018956",
-        states=(), region="sg", privacy_law="Personal Data Protection Act 2012 (PDPA)",
+        states=(), region="sg", privacy_law="Personal Data Protection Act 2012 (PDPA)", exact_address=True,
     ),
     Country(
         code="AU", name="Australia", calling_code="61", currency="AUD",
@@ -88,24 +99,53 @@ COUNTRIES: dict[str, Country] = {c.code: c for c in (
             ("NSW", "New South Wales"), ("VIC", "Victoria"), ("QLD", "Queensland"), ("SA", "South Australia"), ("WA", "Western Australia"),
             ("TAS", "Tasmania"), ("NT", "Northern Territory"), ("ACT", "Australian Capital Territory"),
         ),
-        region="au", privacy_law="Privacy Act 1988 (Australian Privacy Principles)",
+        region="au", privacy_law="Privacy Act 1988 (Australian Privacy Principles)", exact_address=True,
     ),
-)}
+)
 
-#: Which country a calling code means (for a business set up with only a phone code, as before countries existed).
-BY_CALLING_CODE: dict[str, Country] = {c.calling_code: c for c in COUNTRIES.values()}
+
+def _region(code: str) -> str:
+    return "uk" if code == "GB" else code.lower()  # (Google's region is the country-code domain: the United Kingdom's is .uk, not .gb)
+
+
+#: Every country, by ISO code: the world with the basic rules, and the three known in detail over them.
+COUNTRIES: dict[str, Country] = {
+    code: Country(
+        code=code, name=name, calling_code=calling, currency=currency, timezones=zones,
+        postcode_pattern=None, postcode_example=None, states=(), region=_region(code),
+    )
+    for code, name, calling, currency, zones in WORLD
+} | {c.code: c for c in DETAILED}
+
+#: Every country in the order of its name, as a list to pick from shows them (accents aside: Åland Islands among the A's).
+IN_NAME_ORDER: tuple[Country, ...] = tuple(
+    sorted(COUNTRIES.values(), key=lambda c: unicodedata.normalize("NFKD", c.name).encode("ascii", "ignore").decode().casefold())
+)
+
+#: Which country a calling code means, for a business set up with only a phone code, as before countries existed. Only the three there were then
+#: (a code such as 1 or 44 is more than one country, so a business elsewhere names its country).
+BY_CALLING_CODE: dict[str, Country] = {c.calling_code: c for c in DETAILED}
+
+#: A postcode in a country with the basic rules: 2 to 10 letters, digits, spaces and hyphens (``SW1A 1AA``, ``10115``, ``100-0001``, ``H3Z 2Y7``).
+LOOSE_POSTCODE = re.compile(r"[A-Z0-9][A-Z0-9 -]{0,8}[A-Z0-9]", re.ASCII)
 
 
 def get(code: str) -> Country:
-    """The country with this code (``MY``, ``SG`` or ``AU``); ``KeyError`` for any other."""
+    """The country with this ISO code (``MY``); ``KeyError`` for a code that is not one."""
     return COUNTRIES[code]
 
 
 def normalise_postcode(country: Country, raw: str) -> str:
-    """``raw`` with its spaces taken out, if it is the right shape for the country."""
+    """``raw`` in its standard spelling, if it is the right shape for the country: without spaces for the three known in detail, in capitals with
+    single spaces for the rest (``sw1a  1aa`` -> ``SW1A 1AA``)."""
+    if country.postcode_pattern is None:
+        text = " ".join(raw.split()).upper()
+        if not LOOSE_POSTCODE.fullmatch(text):
+            raise AddressProblem("A postcode has 2 to 10 letters, digits, spaces or hyphens")
+        return text
     text = "".join(raw.split())
     if not country.postcode_pattern.fullmatch(text):
-        digits = len(country.postcode_example)
+        digits = len(country.postcode_example or "")
         raise AddressProblem(f"A {country.name} postcode has {digits} digits (for example {country.postcode_example})")
     return text
 
@@ -124,9 +164,10 @@ class BusinessAddress:
     line1: str
     line2: str | None
     city: str
-    #: The state's code; ``None`` where the country has no states.
+    #: The state's code in a country known in detail, else the state, province or region as typed; ``None`` where there is none.
     state: str | None
-    postcode: str
+    #: ``None`` only in a country with the basic rules, where it may be left out.
+    postcode: str | None
 
 
 def check_address(
@@ -136,6 +177,7 @@ def check_address(
 
     All or nothing: street (``line1``), ``city`` and ``postcode`` are required once any part is given, and ``state`` too wherever the country has
     states. Singapore has none (and the city, Singapore, may be left out). The postcode and state are put in their standard spelling.
+    A country with the basic rules needs the street and city; its state and postcode may be left out.
     """
     parts = [(line1 or "").strip(), (line2 or "").strip(), (city or "").strip(), (state or "").strip(), (postcode or "").strip()]
     if not any(parts):
@@ -143,6 +185,10 @@ def check_address(
     street, extra, town, region, code = parts
     if not street:
         raise AddressProblem("The street (address_line1) is needed")
+    if not country.exact_address:
+        if not town:
+            raise AddressProblem("The city or town is needed")
+        return BusinessAddress(street, extra or None, town, " ".join(region.split()) or None, normalise_postcode(country, code) if code else None)
     if not code:
         raise AddressProblem("The postcode is needed")
     if country.states:
@@ -171,6 +217,8 @@ def profile_columns(country: Country, address: BusinessAddress | None) -> dict[s
 def format_address(country: Country, address: BusinessAddress) -> str:
     """The address on one line, in the order the country writes it."""
     street = ", ".join(part for part in (address.line1, address.line2) if part)
+    if not country.exact_address:  # street, city, then the region and postcode together (Toronto's "ON M5V 2T6")
+        return ", ".join(part for part in (street, address.city, " ".join(p for p in (address.state, address.postcode) if p)) if part)
     if country.code == "AU":
         return f"{street}, {address.city} {address.state} {address.postcode}"
     if country.code == "SG":

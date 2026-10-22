@@ -140,6 +140,7 @@ window.JS = window.JS || {};
       who: c.who || { restaurant: 'table', automotive: 'mechanic', professional: 'technician', salon: 'stylist' }[c.type] || 'therapist',
       name: profile.business_name || c.name, address: profile.address || [profile.address_line1, profile.postcode, profile.city].filter(Boolean).join(', '),
       phone: profile.contact_no || '', email: profile.contact_email || '', description: profile.description || '', domain: c.domain,
+      country: profile.country || 'MY', currency: profile.currency || 'MYR',
       plan: plan.plan.code, rating: [rating.average ? Math.round(rating.average * 10) / 10 : 0, rating.count || 0],
       // BACKEND GAP: opening hours can be written (PUT /admin/operating-hours) but not read back; the local site keeps a copy
       hours: c.hours || null, closedDates,
@@ -233,6 +234,11 @@ window.JS = window.JS || {};
     allowedMoves,
     async boot() {
       CFG = await http('GET', '/dev/config');
+      // every country a business can sign up in, by name (GET /v1/countries); the sign-up page reads it as JS.COUNTRIES
+      JS.COUNTRIES = Object.fromEntries((await http('GET', '/v1/countries')).map((c) => [c.code, {
+        name: c.name, calling: c.calling_code, currency: c.currency, exact: c.exact_address, postcode: c.postcode_digits, postcodeExample: c.postcode_example,
+        zones: c.timezones.map((z) => [z.timezone, z.label]), states: c.states.map((x) => [x.code, x.name]),
+      }]));
       await Promise.all(CFG.businesses.map((c) => loadBusiness(c.id).catch((e) => console.error('could not load', c.id, e))));
       await pollInbox();
       setInterval(pollInbox, 2500);

@@ -22,8 +22,18 @@ window.JS = window.JS || {};
 
   /* ------------------------------------------------------------------ helpers */
   J.esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  J.money = (n) => (Number(n) === 0 ? 'Free' : 'RM ' + Number(n).toLocaleString('en-MY', { maximumFractionDigits: 2 }));
   J.biz = () => J.api.business(J.state.biz);
+  /** A price in the shown business's currency, as people there write it: RM 150 in Malaysia, $150 in Singapore or Australia, £150, ¥15,000. */
+  J.money = (n) => {
+    const v = Number(n);
+    if (v === 0) return 'Free';
+    let b = {};
+    try { b = J.biz(); } catch (e) { /* no business shown: ringgit */ }
+    const cur = b.currency || 'MYR';
+    if (cur === 'MYR') return 'RM ' + v.toLocaleString('en-MY', { maximumFractionDigits: 2 });
+    const whole = Number.isInteger(v) ? { minimumFractionDigits: 0 } : {};
+    try { return new Intl.NumberFormat('en-' + (b.country || 'US'), { style: 'currency', currency: cur, ...whole }).format(v); } catch (e) { return cur + ' ' + v.toLocaleString('en'); }
+  };
   /** A service's price as the customer reads it: 0 is free, unless the price is told after an inspection (then a price above 0 is where it starts). */
   J.price = (x) => (x.price_after_inspection ? (Number(x.price) > 0 ? 'From ' + J.money(x.price) : 'Price after inspection') : J.money(x.price));
   /** The total of several services, read the same way. */

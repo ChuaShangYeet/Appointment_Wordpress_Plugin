@@ -18,7 +18,7 @@ def country_of(tenant: Tenant) -> Country:
 
 
 def clean_postcode(tenant: Tenant, raw: str | None) -> str | None:
-    """A customer's postcode in the shape the business's country uses (without spaces); nothing typed stays nothing."""
+    """A customer's postcode in the shape the business's country uses (``app.core.countries.normalise_postcode``); nothing typed stays nothing."""
     if raw is None or not raw.strip():
         return None
     try:

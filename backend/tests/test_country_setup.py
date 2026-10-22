@@ -1,4 +1,5 @@
-"""Setting a business up in Malaysia, Singapore or Australia: country, time zone, phone code, address (migration 0022), and what follows from them."""
+"""Setting a business up in any country (Malaysia, Singapore and Australia in detail): country, time zone, phone code, address (migrations 0022,
+0034), and what follows from them."""
 from __future__ import annotations
 
 import datetime as dt
@@ -61,6 +62,7 @@ async def tenant_row(tenant_id: uuid.UUID) -> Tenant:
 # --------------------------------------------------------------------- the country settles the rest
 @pytest.mark.parametrize(("country", "zone", "code", "currency"), [
     ("MY", "Asia/Kuala_Lumpur", "60", "MYR"), ("SG", "Asia/Singapore", "65", "SGD"), ("AU", "Australia/Sydney", "61", "AUD"),
+    ("US", "America/New_York", "1", "USD"), ("GB", "Europe/London", "44", "GBP"), ("JP", "Asia/Tokyo", "81", "JPY"),
 ])
 async def test_a_country_brings_its_zone_phone_code_and_currency(client: httpx.AsyncClient, country: str, zone: str, code: str, currency: str) -> None:
     s = await business(client, country=country)
@@ -82,6 +84,13 @@ async def test_an_australian_business_may_pick_any_australian_zone(client: httpx
         assert (await tenant_row(s.tenant_id)).timezone == zone
 
 
+async def test_a_business_elsewhere_picks_from_its_own_countrys_zones(client: httpx.AsyncClient) -> None:
+    s = await business(client, country="US", timezone="America/Los_Angeles")
+    assert (await tenant_row(s.tenant_id)).timezone == "America/Los_Angeles"
+    r = await signup(client, country="US", timezone="Europe/London")
+    assert r.status_code == 422 and "not one of United States's time zones" in r.text, r.text
+
+
 @pytest.mark.parametrize(("body", "words"), [
     ({"country": "AU", "timezone": "Asia/Kuala_Lumpur"}, "not one of Australia's time zones"),
     ({"country": "SG", "timezone": "Asia/Kuala_Lumpur"}, "Asia/Singapore"),
@@ -96,8 +105,8 @@ async def test_a_time_zone_the_country_does_not_have_is_refused(client: httpx.As
     assert r.status_code == 422 and words in r.text, r.text
 
 
-@pytest.mark.parametrize("country", ["NZ", "my", "", "Malaysia", None])
-async def test_only_the_three_countries_are_offered(client: httpx.AsyncClient, country: str | None) -> None:
+@pytest.mark.parametrize("country", ["XX", "AQ", "my", "", "MYS", "Malaysia", None])
+async def test_only_a_countrys_two_letter_code_is_taken(client: httpx.AsyncClient, country: str | None) -> None:
     assert (await signup(client, country=country)).status_code == 422
 
 
@@ -113,6 +122,7 @@ async def test_a_phone_code_of_another_country_is_refused(client: httpx.AsyncCli
     clash = await signup(client, country="SG", phone_country_code="60")
     assert clash.status_code == 422 and "not Singapore's (65)" in clash.text
     assert (await signup(client, country="SG", phone_country_code="65")).status_code == 201  # the right one is fine
+    assert (await signup(client, country="GB", phone_country_code="44")).status_code == 201  # (44 alone is not enough: the country is named)
 
 
 async def test_numbers_typed_locally_get_the_country_code_of_the_business(client: httpx.AsyncClient, otp: Any) -> None:
@@ -125,11 +135,13 @@ async def test_numbers_typed_locally_get_the_country_code_of_the_business(client
     assert await customers_of(s) == [("+61412345678", None)]
 
 
-async def test_the_database_itself_refuses_a_country_that_is_not_offered(client: httpx.AsyncClient) -> None:
+async def test_the_database_itself_refuses_what_is_not_a_country_code(client: httpx.AsyncClient) -> None:
     s = await business(client)
     with pytest.raises(IntegrityError):
         async with tenant_session(None) as db:
-            await db.execute(update(Tenant).where(Tenant.id == s.tenant_id).values(country="NZ"))
+            await db.execute(update(Tenant).where(Tenant.id == s.tenant_id).values(country="nz"))
+    async with tenant_session(None) as db:  # (which two capitals are a country is the service's to say, not the database's)
+        await db.execute(update(Tenant).where(Tenant.id == s.tenant_id).values(country="NZ"))
 
 
 # --------------------------------------------------------------------- the address given at sign-up
@@ -150,6 +162,17 @@ async def test_an_australian_and_a_singaporean_address(client: httpx.AsyncClient
     sg = await business(client, country="SG", address_line1="1 Raffles Place", postcode="048616")
     shown = await page(sg)
     assert shown["address"] == "1 Raffles Place, Singapore 048616" and shown["state"] is None and shown["city"] == "Singapore"
+
+
+async def test_an_address_elsewhere_keeps_its_region_as_written_and_may_have_no_postcode(client: httpx.AsyncClient) -> None:
+    ca = await business(client, country="CA", timezone="America/Toronto", address_line1="290 Bremner Blvd", city="Toronto", state="Ontario", postcode="m5v 3l9")
+    shown = await page(ca)
+    assert (shown["address"], shown["state"], shown["postcode"]) == ("290 Bremner Blvd, Toronto, Ontario M5V 3L9", "Ontario", "M5V 3L9")
+    ae = await business(client, country="AE", address_line1="1 Sheikh Mohammed bin Rashid Blvd", city="Dubai")
+    shown = await page(ae)
+    assert (shown["address"], shown["state"], shown["postcode"], shown["currency"]) == ("1 Sheikh Mohammed bin Rashid Blvd, Dubai", None, None, "AED")
+    r = await signup(client, country="GB", address_line1="10 Downing St", postcode="SW1A 2AA")
+    assert r.status_code == 422 and "city or town is needed" in r.text, r.text
 
 
 async def test_without_an_address_there_is_no_profile_yet(client: httpx.AsyncClient) -> None:
@@ -182,21 +205,27 @@ async def test_an_address_that_does_not_fit_its_country_stops_the_sign_up(client
 async def test_the_sign_up_page_can_list_the_countries_without_a_key(client: httpx.AsyncClient) -> None:
     r = await client.get("/v1/countries")
     assert r.status_code == 200, r.text
+    names = [c["name"] for c in r.json()]
+    assert len(names) == len(countries.COUNTRIES) and names[:2] == ["Afghanistan", "Åland Islands"] and names[-1] == "Zimbabwe"  # (every country, by name, accents aside)
     body = {c["code"]: c for c in r.json()}
-    assert list(body) == ["MY", "SG", "AU"]
     assert len(body["MY"]["states"]) == 16 and body["SG"]["states"] == [] and len(body["AU"]["states"]) == 8
     assert [z["timezone"] for z in body["MY"]["timezones"]] == ["Asia/Kuala_Lumpur"] and len(body["AU"]["timezones"]) == 10
     for c in body.values():
         assert c["default_timezone"] == c["timezones"][0]["timezone"]
-        assert len(c["postcode_example"]) == c["postcode_digits"] and c["privacy_law"]
         assert all(ZoneInfo(z["timezone"]) and z["label"] for z in c["timezones"])
+        if c["exact_address"]:
+            assert len(c["postcode_example"]) == c["postcode_digits"] and c["privacy_law"]
+        else:
+            assert (c["postcode_digits"], c["postcode_example"], c["states"], c["privacy_law"]) == (None, None, [], None)
+    assert [code for code, c in body.items() if c["exact_address"]] == ["AU", "MY", "SG"]
     assert (body["AU"]["calling_code"], body["AU"]["currency"], body["AU"]["states"][0]) == ("61", "AUD", {"code": "NSW", "name": "New South Wales"})
+    assert (body["US"]["calling_code"], body["US"]["currency"], body["US"]["default_timezone"]) == ("1", "USD", "America/New_York")
     assert ratelimit.classify("GET", "/v1/countries") is None  # a fixed list, read from memory
 
 
 def test_the_listed_examples_are_valid_postcodes_and_every_state_can_be_found() -> None:
-    for c in countries.COUNTRIES.values():
-        assert countries.normalise_postcode(c, c.postcode_example) == c.postcode_example
+    for c in countries.DETAILED:
+        assert c.postcode_example and countries.normalise_postcode(c, c.postcode_example) == c.postcode_example
         for code, name in c.states:
             assert countries.find_state(c, code) == countries.find_state(c, name) == code
 
