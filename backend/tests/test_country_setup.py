@@ -137,9 +137,10 @@ async def test_numbers_typed_locally_get_the_country_code_of_the_business(client
 
 async def test_the_database_itself_refuses_what_is_not_a_country_code(client: httpx.AsyncClient) -> None:
     s = await business(client)
-    with pytest.raises(IntegrityError):
-        async with tenant_session(None) as db:
-            await db.execute(update(Tenant).where(Tenant.id == s.tenant_id).values(country="nz"))
+    for wrong in ("nz", "N"):  # (three letters do not fit the column at all)
+        with pytest.raises(IntegrityError):
+            async with tenant_session(None) as db:
+                await db.execute(update(Tenant).where(Tenant.id == s.tenant_id).values(country=wrong))
     async with tenant_session(None) as db:  # (which two capitals are a country is the service's to say, not the database's)
         await db.execute(update(Tenant).where(Tenant.id == s.tenant_id).values(country="NZ"))
 
@@ -171,6 +172,9 @@ async def test_an_address_elsewhere_keeps_its_region_as_written_and_may_have_no_
     ae = await business(client, country="AE", address_line1="1 Sheikh Mohammed bin Rashid Blvd", city="Dubai")
     shown = await page(ae)
     assert (shown["address"], shown["state"], shown["postcode"], shown["currency"]) == ("1 Sheikh Mohammed bin Rashid Blvd, Dubai", None, None, "AED")
+    long_region = "Île-de-France " + "x" * 86  # (the longest a region may be: 100 characters, kept in the database as written)
+    fr = await business(client, country="FR", timezone="Europe/Paris", address_line1="5 Avenue Anatole France", city="Paris", state=long_region)
+    assert (await page(fr))["state"] == long_region
     r = await signup(client, country="GB", address_line1="10 Downing St", postcode="SW1A 2AA")
     assert r.status_code == 422 and "city or town is needed" in r.text, r.text
 

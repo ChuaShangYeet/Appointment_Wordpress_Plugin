@@ -170,6 +170,7 @@ def test_elsewhere_the_region_is_kept_as_written_and_goes_before_the_postcode() 
     got = addr(COUNTRIES["CA"], line1="290 Bremner Blvd", city="Toronto", state="  Ontario ", postcode="m5v 3l9")
     assert got == countries.BusinessAddress("290 Bremner Blvd", None, "Toronto", "Ontario", "M5V 3L9")
     assert format_address(COUNTRIES["CA"], got) == "290 Bremner Blvd, Toronto, Ontario M5V 3L9"
+    assert addr(COUNTRIES["CA"], line1="1 Main St", city="Moncton", state="New   Brunswick").state == "New Brunswick"  # (spaces made single)
     assert format_address(GB, addr(GB, line1="10 Downing St", city="London", postcode="SW1A 2AA")) == "10 Downing St, London, SW1A 2AA"
 
 

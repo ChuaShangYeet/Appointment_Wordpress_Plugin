@@ -34,7 +34,7 @@ def downgrade() -> None:
     )).all()
     if stray:
         listing = "; ".join(f"{name} ({country}, state {state!r})" for name, country, state in stray)
-        raise RuntimeError(f"These businesses do not fit migration 0033's rules (Malaysia, Singapore or Australia, a state code of 3 letters): {listing}")
+        raise RuntimeError(f"These businesses do not fit the rules before migration 0034 (Malaysia, Singapore or Australia, a state code of 3 letters): {listing}")
     op.alter_column("business_profiles", "state", type_=sa.String(length=3), existing_type=sa.String(length=100), existing_nullable=True)
     op.drop_constraint(op.f("ck_tenants_country"), "tenants", type_="check")
     op.create_check_constraint(op.f("ck_tenants_country"), "tenants", "country IN ('MY','SG','AU')")
