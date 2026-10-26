@@ -10,7 +10,7 @@ use JustSimple\Booking\Engine\AvailabilityRequest;
 use JustSimple\Booking\Engine\Clock;
 use JustSimple\Booking\Engine\EngineError;
 use JustSimple\Booking\Engine\Policy;
-use JustSimple\Booking\Engine\StaffAllocator;
+use JustSimple\Booking\Engine\Allocators;
 use JustSimple\Booking\Engine\StatusFlow;
 
 defined( 'ABSPATH' ) || exit;
@@ -30,7 +30,7 @@ final class BookingService {
 	const LOCK_WAIT = 10;
 
 	/** Module types bookable in this release. */
-	const BOOKABLE_TYPES = array( 'staff' );
+	const BOOKABLE_TYPES = array( 'staff', 'salon' );
 
 	/**
 	 * Availability for one business day.
@@ -40,8 +40,9 @@ final class BookingService {
 	public static function availability( int $module_id, string $date, array $service_ids, ?int $staff_id, ?int $now = null ): array {
 		$now = $now ?? time();
 		HoldSweeper::run( $now );
-		$req   = self::request( Catalog::bookable_module( $module_id ), $service_ids, $staff_id, $date, $now );
-		$slots = ( new StaffAllocator() )->find_slots( new WpScheduleSource(), $req );
+		$module = Catalog::bookable_module( $module_id );
+		$req    = self::request( $module, $service_ids, $staff_id, $date, $now );
+		$slots  = Allocators::for_type( $module['type'] )->find_slots( new WpScheduleSource(), $req );
 		return array(
 			'date'  => $date,
 			'slots' => array_map( static function ( $s ) use ( $req ) {
@@ -64,7 +65,7 @@ final class BookingService {
 		$first_open = Clock::local_date( $earliest, $req->tz );
 		$last_open  = Clock::local_date( $latest, $req->tz );
 		$source     = new WpScheduleSource();
-		$allocator  = new StaffAllocator();
+		$allocator  = Allocators::for_type( $module['type'] );
 		$dates      = array();
 		$days       = (int) ( new \DateTimeImmutable( $month . '-01' ) )->format( 't' );
 		for ( $d = 1; $d <= $days; $d++ ) {
@@ -138,7 +139,7 @@ final class BookingService {
 						}
 					}
 
-					list( $assignments, $business_day ) = Availability::allocate_on_business_day( new StaffAllocator(), new WpScheduleSource(), $req, $start );
+					list( $assignments, $business_day ) = Availability::allocate_on_business_day( Allocators::for_type( $module['type'] ), new WpScheduleSource(), $req, $start );
 					self::assert_still_free( $assignments, $now );
 
 					$customer_id = Customers::upsert( $name, $phone, $email );
@@ -262,6 +263,9 @@ final class BookingService {
 					array( 'id' => $booking_id )
 				);
 				Db::check();
+				if ( 'completed' === $to && 'salon' === $row['module_type'] ) {
+					Inventory::finalise_completion( $booking_id ); // retail stock leaves the shelf; the real duration is locked in
+				}
 				self::history( $booking_id, $row['status'], $to, $user_id, $note, $now );
 				return $row['status'];
 			}
@@ -305,7 +309,7 @@ final class BookingService {
 		if ( ! $b ) {
 			throw new EngineError( EngineError::NOT_FOUND, 'Booking not found.' );
 		}
-		$services = $wpdb->get_results( $wpdb->prepare( 'SELECT s.id, s.name, i.duration_minutes FROM ' . Schema::table( 'booking_items' ) . ' i JOIN ' . Schema::table( 'services' ) . ' s ON s.id = i.service_id WHERE i.booking_id = %d ORDER BY i.seq', $booking_id ), ARRAY_A );
+		$services = $wpdb->get_results( $wpdb->prepare( 'SELECT s.id, s.name, i.duration_minutes, i.is_upsell FROM ' . Schema::table( 'booking_items' ) . ' i JOIN ' . Schema::table( 'services' ) . ' s ON s.id = i.service_id WHERE i.booking_id = %d ORDER BY i.seq', $booking_id ), ARRAY_A );
 		$staff    = $wpdb->get_results( $wpdb->prepare( 'SELECT DISTINCT r.id, r.name FROM ' . Schema::table( 'booking_allocations' ) . ' a JOIN ' . Schema::table( 'resources' ) . ' r ON r.id = a.resource_id WHERE a.booking_id = %d', $booking_id ), ARRAY_A );
 		$snapshot = json_decode( $b['policy_snapshot'], true );
 		$state    = array(
@@ -321,7 +325,7 @@ final class BookingService {
 			'start'           => Clock::format( Db::from_sql( $b['start_utc'] ), $tz ),
 			'end'             => Clock::format( Db::from_sql( $b['end_utc'] ), $tz ),
 			'services'        => array_map( static function ( $s ) {
-				return array( 'id' => (int) $s['id'], 'name' => $s['name'], 'duration_minutes' => (int) $s['duration_minutes'] );
+				return array( 'id' => (int) $s['id'], 'name' => $s['name'], 'duration_minutes' => (int) $s['duration_minutes'], 'is_upsell' => (bool) (int) $s['is_upsell'] );
 			}, $services ),
 			'staff'           => array_map( static function ( $s ) {
 				return array( 'id' => (int) $s['id'], 'name' => $s['name'] );
@@ -343,6 +347,11 @@ final class BookingService {
 			$out['contact_email'] = $b['contact_email'];
 			$out['source']        = $b['source'];
 			$out['created']       = Clock::format( Db::from_sql( $b['created_utc'] ), $tz );
+			$out['schedule_conflict'] = (bool) (int) $b['schedule_conflict'];
+			$out['actual_duration_minutes'] = null === $b['actual_duration_minutes'] ? null : (int) $b['actual_duration_minutes'];
+			$out['products'] = array_map( static function ( $p ) {
+				return array( 'product_id' => (int) $p['product_id'], 'name' => $p['name'], 'quantity' => (int) $p['quantity'], 'unit_price' => $p['unit_price'] );
+			}, $wpdb->get_results( $wpdb->prepare( 'SELECT l.product_id, p.name, l.quantity, l.unit_price FROM ' . Schema::table( 'booking_products' ) . ' l JOIN ' . Schema::table( 'products' ) . ' p ON p.id = l.product_id WHERE l.booking_id = %d ORDER BY p.name', $booking_id ), ARRAY_A ) );
 		}
 		return $out;
 	}
@@ -353,7 +362,7 @@ final class BookingService {
 		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) || ! checkdate( (int) substr( $date, 5, 2 ), (int) substr( $date, 8, 2 ), (int) substr( $date, 0, 4 ) ) ) {
 			throw new EngineError( EngineError::VALIDATION, 'Give the date as YYYY-MM-DD.', array( 'field' => 'date' ) );
 		}
-		$services = Catalog::services_for_booking( (int) $module['id'], $service_ids );
+		$services = Catalog::services_for_booking( (int) $module['id'], $service_ids, 'salon' === $module['type'] );
 		$policy   = Catalog::resolve_policy( $module, $services );
 		$req      = new AvailabilityRequest( (int) $module['id'], wp_timezone(), $services, $policy, $date, $staff_id ?: null, $now );
 		$req->step = 60 * max( 5, (int) $module['settings']['slot_step_minutes'] );

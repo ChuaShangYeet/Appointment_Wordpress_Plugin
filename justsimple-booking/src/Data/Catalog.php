@@ -40,12 +40,13 @@ final class Catalog {
 	}
 
 	/**
-	 * Active, bookable services of the module in the order asked for (duplicates dropped).
+	 * Active, bookable services of the module in the order asked for (duplicates dropped). Add-ons count only where
+	 * `$allow_addons` (salon modules); the cart rule itself (one base service) is the allocator's.
 	 *
 	 * @param int[] $ids
 	 * @throws EngineError validation | not_found
 	 */
-	public static function services_for_booking( int $module_id, array $ids ): array {
+	public static function services_for_booking( int $module_id, array $ids, bool $allow_addons = false ): array {
 		global $wpdb;
 		$ids = array_values( array_unique( array_map( 'intval', $ids ) ) );
 		if ( ! $ids ) {
@@ -53,8 +54,8 @@ final class Catalog {
 		}
 		$rows  = $wpdb->get_results(
 			$wpdb->prepare(
-				'SELECT id, name, duration_minutes, buffer_minutes, price, price_after_inspection, policy_id FROM ' . Schema::table( 'services' ) .
-				' WHERE module_id = %d AND active = 1 AND is_addon = 0 AND id IN (' . Db::ints( $ids ) . ')',
+				'SELECT id, name, duration_minutes, buffer_minutes, price, price_after_inspection, policy_id, is_addon FROM ' . Schema::table( 'services' ) .
+				' WHERE module_id = %d AND active = 1' . ( $allow_addons ? '' : ' AND is_addon = 0' ) . ' AND id IN (' . Db::ints( $ids ) . ')',
 				array_merge( array( $module_id ), $ids )
 			),
 			ARRAY_A
@@ -64,6 +65,7 @@ final class Catalog {
 			$r['id']               = (int) $r['id'];
 			$r['duration_minutes'] = (int) $r['duration_minutes'];
 			$r['buffer_minutes']   = (int) $r['buffer_minutes'];
+			$r['is_addon']         = (bool) (int) $r['is_addon'];
 			$r['policy_id']        = null === $r['policy_id'] ? null : (int) $r['policy_id'];
 			$by_id[ $r['id'] ]     = $r;
 		}

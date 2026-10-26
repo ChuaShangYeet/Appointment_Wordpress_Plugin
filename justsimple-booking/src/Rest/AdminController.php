@@ -2,7 +2,9 @@
 namespace JustSimple\Booking\Rest;
 
 use JustSimple\Booking\Activator;
+use JustSimple\Booking\Booking\Access;
 use JustSimple\Booking\Booking\BookingService;
+use JustSimple\Booking\Booking\Upsell;
 use JustSimple\Booking\Data\Catalog;
 use JustSimple\Booking\Data\Db;
 use JustSimple\Booking\Data\Schema;
@@ -33,6 +35,7 @@ final class AdminController {
 				'price_after_inspection' => array( 'type' => 'bool' ),
 				'policy_id'              => array( 'type' => 'int', 'nullable' => true ),
 				'active'                 => array( 'type' => 'bool' ),
+				'is_addon'               => array( 'type' => 'bool' ),
 				'sort_order'             => array( 'type' => 'int' ),
 			),
 		),
@@ -61,14 +64,30 @@ final class AdminController {
 			),
 		),
 		'days-off' => array(
-			'table'  => 'days_off',
-			'path'   => 'days-off',
+			'table'      => 'days_off',
+			'path'       => 'days-off',
+			'timestamps' => false,
 			'fields' => array(
 				'name'          => array( 'type' => 'str', 'required' => true ),
 				'start_date'    => array( 'type' => 'date', 'required' => true ),
 				'end_date'      => array( 'type' => 'date', 'required' => true ),
 				'resource_id'   => array( 'type' => 'int', 'nullable' => true ),
 				'repeat_yearly' => array( 'type' => 'bool' ),
+			),
+		),
+		// Salon retail products (workshop parts later).
+		'products' => array(
+			'table'      => 'products',
+			'path'       => 'products',
+			'timestamps' => false,
+			'fields'     => array(
+				'name'                     => array( 'type' => 'str', 'required' => true ),
+				'category'                 => array( 'type' => 'str', 'nullable' => true, 'max' => 80 ),
+				'stock_status'             => array( 'type' => 'enum', 'values' => array( 'in_stock', 'out_of_stock', 'available_on_order' ) ),
+				'estimated_lead_time_days' => array( 'type' => 'int', 'nullable' => true, 'min' => 0, 'max' => 365 ),
+				'sku'                      => array( 'type' => 'str', 'nullable' => true, 'max' => 64 ),
+				'price'                    => array( 'type' => 'decimal' ),
+				'stock_qty'                => array( 'type' => 'int', 'min' => 0, 'max' => 1000000 ),
 			),
 		),
 	);
@@ -135,6 +154,10 @@ final class AdminController {
 		) );
 		self::route( '/admin/bookings/(?P<id>\d+)', array(
 			array( 'GET', array( __CLASS__, 'get_booking' ), $work ),
+			array( 'PATCH', array( __CLASS__, 'update_booking' ), $work ),
+		) );
+		self::route( '/admin/bookings/(?P<id>\d+)/items', array(
+			array( 'POST', array( __CLASS__, 'add_items' ), $work ),
 		) );
 		self::route( '/admin/bookings/(?P<id>\d+)/status', array(
 			array( 'PATCH', array( __CLASS__, 'set_status' ), $work ),
@@ -177,7 +200,7 @@ final class AdminController {
 			$in = Fields::clean( self::MODULE_FIELDS, $r->get_json_params() ?: array(), false );
 			unset( $in['default_policy_id'] );
 			if ( ! in_array( $in['type'], BookingService::BOOKABLE_TYPES, true ) ) {
-				throw new EngineError( EngineError::VALIDATION, 'This release takes staff appointments only; the other module types arrive in later releases.', array( 'field' => 'type' ) );
+				throw new EngineError( EngineError::VALIDATION, 'This release takes ' . implode( ' and ', BookingService::BOOKABLE_TYPES ) . ' modules; the other module types arrive in later releases.', array( 'field' => 'type' ) );
 			}
 			$settings = self::clean_settings( (array) ( $r->get_json_params()['settings'] ?? array() ), Catalog::SETTINGS_DEFAULTS );
 			$now      = Db::now_sql();
@@ -264,7 +287,7 @@ final class AdminController {
 			$spec  = self::SPECS[ $key ];
 			$m     = self::module_or_404( (int) $r['id'] );
 			$where = 'staff' === $key ? " AND type = 'staff'" : '';
-			$order = in_array( $key, array( 'services', 'staff' ), true ) ? 'sort_order, id' : ( 'days-off' === $key ? 'start_date, id' : 'id' );
+			$order = in_array( $key, array( 'services', 'staff' ), true ) ? 'sort_order, id' : ( 'days-off' === $key ? 'start_date, id' : ( 'products' === $key ? 'name, id' : 'id' ) );
 			$rows  = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . Schema::table( $spec['table'] ) . " WHERE module_id = %d$where ORDER BY $order", $m['id'] ), ARRAY_A );
 			return array_map( static function ( $row ) use ( $spec ) {
 				return Fields::row( $spec['fields'], $row );
@@ -283,7 +306,7 @@ final class AdminController {
 			if ( 'staff' === $key ) {
 				$in += array( 'type' => 'staff', 'attributes' => '{}' );
 			}
-			if ( 'days-off' !== $key ) {
+			if ( $spec['timestamps'] ?? true ) {
 				$in['created_utc'] = Db::now_sql();
 				$in['updated_utc'] = $in['created_utc'];
 			}
@@ -300,7 +323,7 @@ final class AdminController {
 			$row  = self::child_or_404( $key, (int) $r['id'] );
 			$in   = Fields::clean( $spec['fields'], $r->get_json_params() ?: array(), true );
 			self::check_refs( $key, $in + $row, (int) $row['module_id'] );
-			if ( 'days-off' !== $key ) {
+			if ( $spec['timestamps'] ?? true ) {
 				$in['updated_utc'] = Db::now_sql();
 			}
 			if ( $in ) {
@@ -330,6 +353,9 @@ final class AdminController {
 					Db::check();
 					return array( 'deleted' => false, 'deactivated' => true, 'id' => $id );
 				}
+			}
+			if ( 'products' === $key && $wpdb->get_var( $wpdb->prepare( 'SELECT 1 FROM ' . Schema::table( 'booking_products' ) . ' WHERE product_id = %d LIMIT 1', $id ) ) ) {
+				throw new EngineError( EngineError::VALIDATION, 'This product is on a ticket. Set it to out of stock instead.' );
 			}
 			if ( 'policies' === $key ) {
 				$m = Catalog::module( (int) $row['module_id'] );
@@ -463,6 +489,9 @@ final class AdminController {
 			if ( $st ) {
 				$sql .= $wpdb->prepare( ' AND status IN (' . implode( ',', array_fill( 0, count( $st ), '%s' ) ) . ')', $st );
 			}
+			if ( $r['schedule_conflict'] ) {
+				$sql .= ' AND schedule_conflict = 1';
+			}
 			$ids = $wpdb->get_col( $sql . ' ORDER BY start_utc, id LIMIT 500' );
 			return array_map( static function ( $id ) {
 				return BookingService::view( (int) $id, true );
@@ -481,7 +510,34 @@ final class AdminController {
 		return Rest::run( static function () use ( $r ) {
 			$body = $r->get_json_params() ?: array();
 			$note = isset( $body['note'] ) ? sanitize_textarea_field( (string) $body['note'] ) : null;
+			Access::assert_can_work( get_current_user_id(), (int) $r['id'] );
 			return BookingService::transition( (int) $r['id'], (string) ( $body['status'] ?? '' ), 'staff', get_current_user_id(), $note );
+		} );
+	}
+
+	/**
+	 * Add add-ons and/or products to an in-progress salon appointment.
+	 * Body: { "service_ids": [..], "products": [ { "product_id": 1, "quantity": 2 } ] }
+	 */
+	public static function add_items( \WP_REST_Request $r ) {
+		return Rest::run( static function () use ( $r ) {
+			$body = $r->get_json_params() ?: array();
+			Access::assert_can_work( get_current_user_id(), (int) $r['id'] );
+			return Upsell::add_to_ticket( (int) $r['id'], Rest::ids( $body['service_ids'] ?? array() ), array_values( array_filter( (array) ( $body['products'] ?? array() ), 'is_array' ) ) );
+		} );
+	}
+
+	/** Body: { "schedule_conflict": false } clears the flag once someone has sorted the clash out. */
+	public static function update_booking( \WP_REST_Request $r ) {
+		return Rest::run( static function () use ( $r ) {
+			global $wpdb;
+			$id = (int) $r['id'];
+			BookingService::view( $id, true ); // 404 when missing
+			Access::assert_can_work( get_current_user_id(), $id );
+			$in = Fields::clean( array( 'schedule_conflict' => array( 'type' => 'bool', 'required' => true ) ), $r->get_json_params() ?: array(), false );
+			$wpdb->update( Schema::table( 'bookings' ), array( 'schedule_conflict' => $in['schedule_conflict'], 'updated_utc' => Db::now_sql() ), array( 'id' => $id ) );
+			Db::check();
+			return BookingService::view( $id, true );
 		} );
 	}
 
@@ -572,6 +628,9 @@ final class AdminController {
 
 	/** References inside a row must point at things of the same module. */
 	private static function check_refs( string $key, array $in, int $module_id ): void {
+		if ( 'services' === $key && ! empty( $in['is_addon'] ) && 'salon' !== Catalog::module( $module_id )['type'] ) {
+			Fields::fail( 'is_addon', 'is only for salon modules' );
+		}
 		if ( 'services' === $key && ! empty( $in['policy_id'] ) ) {
 			self::owned_or_fail( 'policies', (int) $in['policy_id'], $module_id, 'policy_id' );
 		}

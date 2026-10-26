@@ -37,6 +37,11 @@ final class PublicController {
 			'callback'            => self::limited( 'write', 'book' ),
 			'permission_callback' => '__return_true',
 		) );
+		register_rest_route( Rest::NS, '/modules/(?P<id>\d+)/products', array(
+			'methods'             => 'GET',
+			'callback'            => self::limited( 'read', 'products' ),
+			'permission_callback' => '__return_true',
+		) );
 		register_rest_route( Rest::NS, '/bookings/(?P<code>[A-Za-z0-9]{12})', array(
 			'methods'             => 'GET',
 			'callback'            => self::limited( 'read', 'show' ),
@@ -67,7 +72,7 @@ final class PublicController {
 		return Rest::run( static function () use ( $r ) {
 			global $wpdb;
 			$m        = Catalog::bookable_module( (int) $r['id'] );
-			$services = $wpdb->get_results( $wpdb->prepare( 'SELECT id, name, description, duration_minutes, price, price_after_inspection FROM ' . Schema::table( 'services' ) . ' WHERE module_id = %d AND active = 1 AND is_addon = 0 ORDER BY sort_order, id', $m['id'] ), ARRAY_A );
+			$services = $wpdb->get_results( $wpdb->prepare( 'SELECT id, name, description, duration_minutes, price, price_after_inspection, is_addon FROM ' . Schema::table( 'services' ) . ' WHERE module_id = %d AND active = 1 ORDER BY is_addon, sort_order, id', $m['id'] ), ARRAY_A );
 			$staff    = $wpdb->get_results( $wpdb->prepare( 'SELECT id, name FROM ' . Schema::table( 'resources' ) . " WHERE module_id = %d AND type = 'staff' AND status = 'active' ORDER BY sort_order, id", $m['id'] ), ARRAY_A );
 			$policy   = $m['default_policy_id'] ? $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . Schema::table( 'policies' ) . ' WHERE id = %d', $m['default_policy_id'] ), ARRAY_A ) : null;
 			return array(
@@ -83,6 +88,7 @@ final class PublicController {
 						'duration_minutes'       => (int) $s['duration_minutes'],
 						'price'                  => $s['price'],
 						'price_after_inspection' => (bool) (int) $s['price_after_inspection'],
+						'is_addon'               => (bool) (int) $s['is_addon'],
 					);
 				}, $services ),
 				'staff'    => array_map( static function ( $s ) {
@@ -95,6 +101,23 @@ final class PublicController {
 					'booking_window_days'       => (int) $policy['booking_window_days'],
 				) : null,
 			);
+		} );
+	}
+
+	/** Retail products: name, price and stock status only, never the count or SKU. */
+	public static function products( \WP_REST_Request $r ) {
+		return Rest::run( static function () use ( $r ) {
+			global $wpdb;
+			$m = Catalog::bookable_module( (int) $r['id'] );
+			return array_map( static function ( $p ) {
+				return array(
+					'id'           => (int) $p['id'],
+					'name'         => $p['name'],
+					'category'     => $p['category'],
+					'price'        => $p['price'],
+					'stock_status' => $p['stock_status'],
+				);
+			}, $wpdb->get_results( $wpdb->prepare( 'SELECT id, name, category, price, stock_status FROM ' . Schema::table( 'products' ) . ' WHERE module_id = %d ORDER BY name, id', $m['id'] ), ARRAY_A ) );
 		} );
 	}
 

@@ -18,8 +18,10 @@ spl_autoload_register(
 	}
 );
 
+use JustSimple\Booking\Engine\Allocators;
 use JustSimple\Booking\Engine\Availability;
 use JustSimple\Booking\Engine\AvailabilityRequest;
+use JustSimple\Booking\Engine\SalonAllocator;
 use JustSimple\Booking\Engine\Clock;
 use JustSimple\Booking\Engine\EngineError;
 use JustSimple\Booking\Engine\Interval;
@@ -571,6 +573,63 @@ test( 'no-show and completed wait for their time', function () {
 		StatusFlow::check( booking( 'confirmed', $start ), 'completed', 'staff', 'staff', $start - HOUR - 1 );
 	} );
 	StatusFlow::check( booking( 'confirmed', $start ), 'completed', 'staff', 'staff', $start - HOUR );
+} );
+
+// ------------------------------------------------------------------ salon (test_salon.py)
+
+const CUT   = array( 'id' => 11, 'duration_minutes' => 45, 'buffer_minutes' => 0, 'is_addon' => false );
+const COLOR = array( 'id' => 12, 'duration_minutes' => 90, 'buffer_minutes' => 0, 'is_addon' => false );
+const GEL   = array( 'id' => 13, 'duration_minutes' => 30, 'buffer_minutes' => 0, 'is_addon' => true );
+const TREAT = array( 'id' => 14, 'duration_minutes' => 20, 'buffer_minutes' => 5, 'is_addon' => true );
+
+test( 'a cart has exactly one base service', function () {
+	list( $base, $addons ) = SalonAllocator::split_cart( array( GEL, CUT, TREAT ) );
+	eq( 11, $base['id'] );
+	eq( array( 13, 14 ), array_column( $addons, 'id' ) );
+	foreach ( array( array( GEL ), array( CUT, COLOR ), array() ) as $cart ) {
+		$e = throws( EngineError::VALIDATION, function () use ( $cart ) {
+			SalonAllocator::split_cart( $cart );
+		} );
+		ok( false !== strpos( $e->getMessage(), 'base service' ), 'message names the rule' );
+	}
+	throws( EngineError::VALIDATION, function () {
+		( new SalonAllocator() )->find_slots( new MemSource(), req( D, null, null, null, null, array( GEL ) ) );
+	} );
+} );
+test( 'add-ons extend the appointment', function () {
+	$src = new MemSource();
+	$src->add_staff( 1 );
+	$slots = ( new SalonAllocator() )->find_slots( $src, req( D, null, null, null, null, array( CUT, GEL ) ) );
+	eq( 75 * 60, $slots[0]->end - $slots[0]->start, '45 + 30 minutes' );
+	eq( '16:45', hhmm( end( $slots )->start ), '45 + 30 minutes must still end by 18:00' );
+	$a = ( new SalonAllocator() )->allocate( $src, req( D, 1, null, null, null, array( CUT, GEL, TREAT ) ), at( D, 10 ) );
+	eq( array( '10:00', '11:40' ), array( hhmm( $a[0]->start ), hhmm( $a[0]->end ) ), '45 + 30 + (20 + 5 buffer)' );
+} );
+test( 'stylist qualification follows the base service only', function () {
+	$src = new MemSource();
+	$src->add_staff( 1 );
+	$src->add_staff( 2 );
+	$src->links[ CUT['id'] ] = array( 1 ); // Mei cuts
+	$src->links[ GEL['id'] ] = array( 2 ); // only Lin is linked to the add-on: that must not narrow the choice
+	$slots = ( new SalonAllocator() )->find_slots( $src, req( D, null, null, null, null, array( CUT, GEL ) ) );
+	ok( $slots && array_reduce( $slots, static function ( $c, $s ) {
+		return $c && array( 1 ) === $s->resource_ids;
+	}, true ), 'every slot is Mei only' );
+	eq( 1, ( new SalonAllocator() )->allocate( $src, req( D, null, null, null, null, array( CUT, GEL ) ), at( D, 10 ) )[0]->resource_id );
+} );
+test( 'with no stylist chosen the least loaded one is assigned', function () {
+	$src = new MemSource();
+	$src->add_staff( 1 );
+	$src->add_staff( 2 );
+	$src->book( 1, at( D, 10 ), at( D, 10, 45 ) );
+	eq( 2, ( new SalonAllocator() )->allocate( $src, req( D, null, null, null, null, array( CUT, GEL ) ), at( D, 15 ) )[0]->resource_id );
+} );
+test( 'the allocator factory knows staff and salon only', function () {
+	ok( Allocators::for_type( 'salon' ) instanceof SalonAllocator, 'salon' );
+	ok( Allocators::for_type( 'staff' ) instanceof StaffAllocator, 'staff' );
+	throws( EngineError::VALIDATION, function () {
+		Allocators::for_type( 'restaurant' );
+	} );
 } );
 
 // ------------------------------------------------------------------ run

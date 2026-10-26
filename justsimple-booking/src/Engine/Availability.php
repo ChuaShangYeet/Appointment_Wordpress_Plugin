@@ -39,7 +39,7 @@ final class Availability {
 			}
 		}
 		$ids = array_values( array_filter(
-			$source->qualified_resource_ids( $req->module_id, $resource_type, $req->service_ids(), $req->resource_id ),
+			$source->qualified_resource_ids( $req->module_id, $resource_type, $req->qualifying_ids(), $req->resource_id ),
 			static function ( $id ) use ( $on_leave ) {
 				return ! isset( $on_leave[ $id ] );
 			}

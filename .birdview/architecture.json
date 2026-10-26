@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "mapId": "justsimple-wp-plugin",
-  "revision": 2,
+  "revision": 3,
   "language": "en",
   "project": {
     "id": "justsimple-booking-wp",
     "name": "JustSimple Booking: standalone WordPress plugin"
   },
   "constraintDiscovery": {
-    "checkedAt": "2026-10-26T11:30:00Z",
+    "checkedAt": "2026-10-26T13:50:00Z",
     "checkedPaths": [
       "WP_PLUGIN_PLAN.md",
       "PRODUCT.md",
@@ -259,7 +259,7 @@
       "role": "backend",
       "name": "REST routes",
       "kind": "local",
-      "responsibility": "justsimple/v1: six public routes (module, day and month availability, book, view and cancel by code) with per-IP rate limits and a honeypot; admin routes for modules, services, staff, shifts, qualifications, policies, hours, days off and the booking desk, behind capabilities.",
+      "responsibility": "justsimple/v1: six public routes (module, day and month availability, book, view and cancel by code) with per-IP rate limits and a honeypot; admin routes for modules, services, staff, shifts, qualifications, policies, hours, days off and the booking desk, behind capabilities. Phase 3 adds products (admin CRUD, public status-only list), POST /admin/bookings/{id}/items, PATCH /admin/bookings/{id} to clear schedule_conflict, and the add-on flag on services.",
       "ownership": [
         {
           "kind": "directory",
@@ -280,6 +280,10 @@
         {
           "path": "justsimple-booking/tests/integration.php",
           "note": "54 end-to-end checks."
+        },
+        {
+          "path": "justsimple-booking/tests/concurrency.php",
+          "note": "Single actions for parallel-process race checks."
         }
       ],
       "status": "supported",
@@ -294,7 +298,7 @@
       "role": "backend",
       "name": "Scheduling engine",
       "kind": "local",
-      "responsibility": "Pure PHP availability and allocation: UTC-second intervals, wall clock to real time across daylight saving, strictest-policy merge, the 5-step availability pipeline, the staff allocator and the booking state machine. The other module types arrive in phases 3 to 6.",
+      "responsibility": "Pure PHP availability and allocation: UTC-second intervals, wall clock to real time across daylight saving, strictest-policy merge, the 5-step availability pipeline, the staff and salon allocators (one base service plus add-ons, qualification by the base) and the booking state machine. Restaurant, workshop and field arrive in phases 4 to 6.",
       "ownership": [
         {
           "kind": "directory",
@@ -324,6 +328,16 @@
         {
           "path": "justsimple-booking/tests/run.php",
           "note": "56 ported engine tests."
+        },
+        {
+          "path": "justsimple-booking/src/Engine/SalonAllocator.php",
+          "symbol": "SalonAllocator::split_cart",
+          "note": "Exactly one base service per cart."
+        },
+        {
+          "path": "justsimple-booking/src/Engine/Allocators.php",
+          "symbol": "Allocators::for_type",
+          "note": "Module type to allocator."
         }
       ],
       "status": "supported",
@@ -469,7 +483,7 @@
       "role": "backend",
       "name": "Booking service",
       "kind": "local",
-      "responsibility": "Creates bookings under a per-module GET_LOCK in one transaction, replays idempotent requests, changes statuses under row locks, sweeps expired holds before every read and from WP-Cron, keeps customers by phone without overwriting their email, and sends plain-text email through wp_mail.",
+      "responsibility": "Creates bookings under a per-module GET_LOCK in one transaction, replays idempotent requests, changes statuses under row locks, sweeps expired holds before every read and from WP-Cron, keeps customers by phone without overwriting their email, and sends plain-text email through wp_mail. Salon: on-the-spot upsell under the same module lock (extend, or flag both appointments and report the clash), retail stock deducted atomically on completion, and own-appointments-only for staff linked to a WordPress user.",
       "ownership": [
         {
           "kind": "directory",
@@ -491,6 +505,21 @@
           "path": "justsimple-booking/src/Booking/Mailer.php",
           "symbol": "Mailer::register",
           "note": "Listens to jsb_booking_created and jsb_booking_status_changed."
+        },
+        {
+          "path": "justsimple-booking/src/Booking/Upsell.php",
+          "symbol": "Upsell::add_to_ticket",
+          "note": "Lock, row lock, validate, write, extend or flag."
+        },
+        {
+          "path": "justsimple-booking/src/Booking/Inventory.php",
+          "symbol": "Inventory::deduct_stock",
+          "note": "Status set before quantity: MySQL applies SET left to right."
+        },
+        {
+          "path": "justsimple-booking/src/Booking/Access.php",
+          "symbol": "Access::assert_can_work",
+          "note": "Own appointments only for linked staff users."
         }
       ],
       "status": "supported",

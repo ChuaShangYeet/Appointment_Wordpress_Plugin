@@ -24,6 +24,8 @@ final class AvailabilityRequest {
 	public $ignore_notice = false;
 	/** @var int seconds between offered starts */
 	public $step = 900;
+	/** @var array|null services that decide who qualifies; null = all of `services` (salon: the base service only) */
+	public $qualifying_services = null;
 
 	public function __construct( int $module_id, \DateTimeZone $tz, array $services, Policy $policy, string $day, ?int $resource_id, int $now ) {
 		$this->module_id   = $module_id;
@@ -58,6 +60,12 @@ final class AvailabilityRequest {
 		return array_map( static function ( $s ) {
 			return (int) $s['id'];
 		}, $this->services );
+	}
+
+	public function qualifying_ids(): array {
+		return array_map( static function ( $s ) {
+			return (int) $s['id'];
+		}, $this->qualifying_services ?? $this->services );
 	}
 
 	public function with_day( string $day ): self {

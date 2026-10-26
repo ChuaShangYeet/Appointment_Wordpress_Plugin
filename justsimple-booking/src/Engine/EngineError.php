@@ -17,8 +17,12 @@ class EngineError extends \RuntimeException {
 	const NOT_FOUND          = 'not_found';          // 404
 	const IDEMPOTENCY_REUSED = 'idempotency_reused'; // 409
 	const BUSY               = 'busy';               // 503
+	const INSUFFICIENT_STOCK = 'insufficient_stock'; // 409
+	const FORBIDDEN          = 'forbidden';          // 403
 
 	const STATUS = array(
+		self::INSUFFICIENT_STOCK => 409,
+		self::FORBIDDEN          => 403,
 		self::SLOT_UNAVAILABLE   => 409,
 		self::OUTSIDE_WINDOW     => 422,
 		self::INVALID_TRANSITION => 409,
