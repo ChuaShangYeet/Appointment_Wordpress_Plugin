@@ -1,0 +1,825 @@
+{
+  "schemaVersion": 1,
+  "mapId": "justsimple-wp-plugin",
+  "revision": 2,
+  "language": "en",
+  "project": {
+    "id": "justsimple-booking-wp",
+    "name": "JustSimple Booking: standalone WordPress plugin"
+  },
+  "constraintDiscovery": {
+    "checkedAt": "2026-10-26T11:30:00Z",
+    "checkedPaths": [
+      "WP_PLUGIN_PLAN.md",
+      "PRODUCT.md",
+      "booking_plan.md",
+      "justsimple-booking",
+      "backend/app/models",
+      "backend/app/services/allocators"
+    ],
+    "uninspectedPaths": [
+      "DESIGN.md",
+      "SESSION_SUMMARY.md",
+      "demo",
+      "localsite",
+      "prototype",
+      "backend/tests",
+      "backend/app/api",
+      "BookingWebsiteBackendBlueprint_8th_Version.docx"
+    ]
+  },
+  "constraints": [
+    {
+      "id": "no-double-booking",
+      "name": "Two held or active allocations for the same resource must never overlap.",
+      "note": "MySQL has no exclusion constraint, so the guarantee moves from the database schema to BookingService: GET_LOCK per module and day, then an overlap re-check and the insert inside one InnoDB transaction. This mirrors the engine's lock_day().",
+      "origin": "local",
+      "strength": "required",
+      "applicability": "applicable",
+      "scope": "modules",
+      "modules": [
+        "booking-service",
+        "data-layer"
+      ],
+      "relationships": [],
+      "evidence": [
+        {
+          "path": "justsimple-booking/src/Data/Schema.php",
+          "symbol": "Schema",
+          "note": "Class comment states the replacement for the exclusion constraint."
+        },
+        {
+          "path": "backend/app/models/scheduling.py",
+          "symbol": "BookingAllocation",
+          "note": "The engine's exclusion constraint booking_allocations_no_overlap, the rule being ported."
+        },
+        {
+          "path": "backend/app/services/allocators/base.py",
+          "symbol": "lock_day",
+          "note": "The engine already serialises bookings per day; the plugin uses the same unit."
+        }
+      ],
+      "verification": "A test that fires parallel booking requests for one slot against real MySQL/MariaDB and asserts exactly one succeeds."
+    },
+    {
+      "id": "free-hosting",
+      "name": "Runs on free self-hosted WordPress: PHP 7.4+, WordPress 6.2+, MySQL 5.7 / MariaDB 10.3, no build step, no Composer at runtime, no outside service.",
+      "note": "The user chose WordPress only because of free-tier hosting. WordPress.com's free plan cannot run plugins at all.",
+      "origin": "user",
+      "strength": "required",
+      "applicability": "applicable",
+      "scope": "project",
+      "modules": [],
+      "relationships": [],
+      "evidence": [
+        {
+          "path": "WP_PLUGIN_PLAN.md",
+          "note": "Section 1, hosting warning and minimum versions."
+        },
+        {
+          "path": "justsimple-booking/justsimple-booking.php",
+          "note": "Plugin header declares Requires PHP 7.4 and Requires at least 6.2; the autoloader needs no Composer."
+        }
+      ],
+      "verification": "Install the plugin zip into a clean local WordPress on MariaDB; lint with PHP 7.4 compatibility before release."
+    },
+    {
+      "id": "dbdelta-format",
+      "name": "Every CREATE TABLE follows dbDelta's rules: one column per line, two spaces after PRIMARY KEY, KEY not INDEX, no foreign keys.",
+      "note": "dbDelta parses the statements to diff schemas on upgrade; a format slip silently skips a column or index.",
+      "origin": "local",
+      "strength": "required",
+      "applicability": "applicable",
+      "scope": "modules",
+      "modules": [
+        "data-layer"
+      ],
+      "relationships": [],
+      "evidence": [
+        {
+          "path": "justsimple-booking/src/Data/Schema.php",
+          "symbol": "Schema::statements",
+          "note": "Header comment records the rule."
+        }
+      ],
+      "verification": "Activate twice on the same database and compare SHOW CREATE TABLE output: the second run must change nothing."
+    },
+    {
+      "id": "utc-storage",
+      "name": "Instants are stored in UTC (*_utc columns); shift and opening times are wall-clock in the site time zone.",
+      "note": "Converting at the edges keeps daylight-saving and site time zone changes from moving stored bookings.",
+      "origin": "local",
+      "strength": "required",
+      "applicability": "applicable",
+      "scope": "modules",
+      "modules": [
+        "data-layer",
+        "engine",
+        "booking-service"
+      ],
+      "relationships": [],
+      "evidence": [
+        {
+          "path": "justsimple-booking/src/Data/Schema.php",
+          "symbol": "Schema",
+          "note": "Class comment states the storage rule."
+        }
+      ],
+      "verification": "Engine tests with a site time zone that has daylight saving."
+    },
+    {
+      "id": "uninstall-keeps-data",
+      "name": "Deactivating never deletes data; deleting the plugin drops tables only when the owner ticked the delete-data setting.",
+      "note": "Owners on free hosts often delete and reinstall plugins to fix problems; losing every booking that way would be unrecoverable.",
+      "origin": "local",
+      "strength": "required",
+      "applicability": "applicable",
+      "scope": "modules",
+      "modules": [
+        "lifecycle"
+      ],
+      "relationships": [],
+      "evidence": [
+        {
+          "path": "justsimple-booking/uninstall.php",
+          "note": "Drops tables only when jsb_delete_data_on_uninstall is '1'."
+        },
+        {
+          "path": "justsimple-booking/src/Activator.php",
+          "symbol": "Activator::deactivate",
+          "note": "Clears only the cron hook."
+        }
+      ],
+      "verification": "Deactivate, reactivate and check row counts; delete with the setting off and on."
+    },
+    {
+      "id": "engine-pure-php",
+      "name": "src/Engine holds no WordPress calls, so its rules are unit-tested without WordPress.",
+      "note": "Planned boundary from the confirmed plan; it keeps the ported allocation rules testable like the Python originals.",
+      "origin": "user",
+      "strength": "preferred",
+      "applicability": "applicable",
+      "scope": "modules",
+      "modules": [
+        "engine"
+      ],
+      "relationships": [],
+      "evidence": [
+        {
+          "path": "WP_PLUGIN_PLAN.md",
+          "note": "Section 2, plugin layout: src/Engine is pure PHP."
+        }
+      ],
+      "verification": "PHPUnit runs the engine suite without loading WordPress."
+    },
+    {
+      "id": "design-before-frontend",
+      "name": "No frontend code before a named visual thesis and an interaction thesis; no generic AI defaults (purple gradients, three icon cards, transition: all).",
+      "note": "User directive adopting anti-slop-design and an interaction thesis for every transition.",
+      "origin": "user",
+      "strength": "required",
+      "applicability": "applicable",
+      "scope": "modules",
+      "modules": [
+        "front-widget",
+        "admin-pages"
+      ],
+      "relationships": [],
+      "evidence": [
+        {
+          "path": "WP_PLUGIN_PLAN.md",
+          "note": "Section 4, design and motion."
+        }
+      ],
+      "verification": "Review of the design thesis document before the first frontend commit."
+    },
+    {
+      "id": "systematic-debugging",
+      "name": "Backend errors are handled by reproduce, isolate, hypothesise, verify; no fix without a root cause, and stop after three failed fixes.",
+      "note": "User directive adopting obra/systematic-debugging.",
+      "origin": "user",
+      "strength": "required",
+      "applicability": "applicable",
+      "scope": "project",
+      "modules": [],
+      "relationships": [],
+      "evidence": [],
+      "verification": "Each bug fix records its reproduction and a failing test before the fix."
+    }
+  ],
+  "modules": [
+    {
+      "id": "visitor",
+      "role": "frontend",
+      "name": "Visitor's browser",
+      "kind": "external",
+      "responsibility": "A customer on the owner's site choosing a service, a time and confirming a booking.",
+      "ownership": [],
+      "evidence": [],
+      "status": "supported",
+      "openQuestions": [],
+      "layout": {
+        "row": 0,
+        "column": 0
+      }
+    },
+    {
+      "id": "front-widget",
+      "role": "frontend",
+      "name": "Booking widget",
+      "kind": "local",
+      "responsibility": "Shortcode and block that render a module's booking flow inside any theme, scoped so the theme's CSS cannot break it. Planned for phase 7.",
+      "ownership": [
+        {
+          "kind": "directory",
+          "path": "justsimple-booking/src/Front"
+        },
+        {
+          "kind": "directory",
+          "path": "justsimple-booking/assets/front"
+        }
+      ],
+      "evidence": [
+        {
+          "path": "WP_PLUGIN_PLAN.md",
+          "note": "Section 2, public layer: shortcode, Gutenberg block, web component."
+        }
+      ],
+      "status": "uncertain",
+      "openQuestions": [
+        "Not built yet: the visual and interaction thesis come first."
+      ],
+      "layout": {
+        "row": 0,
+        "column": 1
+      }
+    },
+    {
+      "id": "rest-api",
+      "role": "backend",
+      "name": "REST routes",
+      "kind": "local",
+      "responsibility": "justsimple/v1: six public routes (module, day and month availability, book, view and cancel by code) with per-IP rate limits and a honeypot; admin routes for modules, services, staff, shifts, qualifications, policies, hours, days off and the booking desk, behind capabilities.",
+      "ownership": [
+        {
+          "kind": "directory",
+          "path": "justsimple-booking/src/Rest"
+        }
+      ],
+      "evidence": [
+        {
+          "path": "justsimple-booking/src/Rest/PublicController.php",
+          "symbol": "PublicController::register",
+          "note": "Rate limit counted in the handler, not in permission_callback."
+        },
+        {
+          "path": "justsimple-booking/src/Rest/AdminController.php",
+          "symbol": "AdminController::register",
+          "note": "jsb_manage for setup, jsb_work_bookings for bookings."
+        },
+        {
+          "path": "justsimple-booking/tests/integration.php",
+          "note": "54 end-to-end checks."
+        }
+      ],
+      "status": "supported",
+      "openQuestions": [],
+      "layout": {
+        "row": 0,
+        "column": 2
+      }
+    },
+    {
+      "id": "engine",
+      "role": "backend",
+      "name": "Scheduling engine",
+      "kind": "local",
+      "responsibility": "Pure PHP availability and allocation: UTC-second intervals, wall clock to real time across daylight saving, strictest-policy merge, the 5-step availability pipeline, the staff allocator and the booking state machine. The other module types arrive in phases 3 to 6.",
+      "ownership": [
+        {
+          "kind": "directory",
+          "path": "justsimple-booking/src/Engine"
+        },
+        {
+          "kind": "directory",
+          "path": "justsimple-booking/tests"
+        }
+      ],
+      "evidence": [
+        {
+          "path": "justsimple-booking/src/Engine/Availability.php",
+          "symbol": "Availability::compute",
+          "note": "Pipeline ported from compute_availability."
+        },
+        {
+          "path": "justsimple-booking/src/Engine/StaffAllocator.php",
+          "symbol": "StaffAllocator::allocate",
+          "note": "Named staff, or least-loaded for any available."
+        },
+        {
+          "path": "justsimple-booking/src/Engine/Clock.php",
+          "symbol": "Clock::clock_on",
+          "note": "First pass of a repeated hour, as in the Python engine."
+        },
+        {
+          "path": "justsimple-booking/tests/run.php",
+          "note": "56 ported engine tests."
+        }
+      ],
+      "status": "supported",
+      "openQuestions": [],
+      "layout": {
+        "row": 0,
+        "column": 3
+      }
+    },
+    {
+      "id": "lifecycle",
+      "role": "backend",
+      "name": "Plugin lifecycle",
+      "kind": "local",
+      "responsibility": "Boots the plugin, autoloads classes, installs and upgrades the schema, grants capabilities, schedules the hourly sweep, and uninstalls without losing data unless asked.",
+      "ownership": [
+        {
+          "kind": "file",
+          "path": "justsimple-booking/justsimple-booking.php"
+        },
+        {
+          "kind": "file",
+          "path": "justsimple-booking/src/Plugin.php"
+        },
+        {
+          "kind": "file",
+          "path": "justsimple-booking/src/Activator.php"
+        },
+        {
+          "kind": "file",
+          "path": "justsimple-booking/uninstall.php"
+        },
+        {
+          "kind": "file",
+          "path": "justsimple-booking/readme.txt"
+        }
+      ],
+      "evidence": [
+        {
+          "path": "justsimple-booking/justsimple-booking.php",
+          "note": "Autoloader and activation, deactivation and plugins_loaded hooks."
+        },
+        {
+          "path": "justsimple-booking/src/Plugin.php",
+          "symbol": "Plugin::boot",
+          "note": "Runs Schema::maybe_upgrade and loads admin pages."
+        },
+        {
+          "path": "justsimple-booking/src/Activator.php",
+          "symbol": "Activator::activate",
+          "note": "Installs schema, grants jsb_manage and jsb_work_bookings, schedules jsb_sweep."
+        },
+        {
+          "path": "justsimple-booking/uninstall.php",
+          "note": "Revokes capabilities; drops tables only on request."
+        }
+      ],
+      "status": "supported",
+      "openQuestions": [],
+      "layout": {
+        "row": 1,
+        "column": 0
+      }
+    },
+    {
+      "id": "admin-pages",
+      "role": "frontend",
+      "name": "Admin pages",
+      "kind": "local",
+      "responsibility": "wp-admin Booking menu: Modules (placeholder until phase 2), Settings (delete data on uninstall) and System status.",
+      "ownership": [
+        {
+          "kind": "directory",
+          "path": "justsimple-booking/src/Admin"
+        },
+        {
+          "kind": "directory",
+          "path": "justsimple-booking/assets/admin"
+        }
+      ],
+      "evidence": [
+        {
+          "path": "justsimple-booking/src/Admin/Menu.php",
+          "symbol": "Menu::add_pages",
+          "note": "Registers the three pages with capability checks."
+        },
+        {
+          "path": "justsimple-booking/src/Admin/Menu.php",
+          "symbol": "Menu::render_status",
+          "note": "Renders Health::checks()."
+        }
+      ],
+      "status": "supported",
+      "openQuestions": [],
+      "layout": {
+        "row": 1,
+        "column": 1
+      }
+    },
+    {
+      "id": "data-layer",
+      "role": "database",
+      "name": "Schema and health",
+      "kind": "local",
+      "responsibility": "Defines the 21 jsb_ tables for all five module types, runs dbDelta installs and upgrades, and checks what bookings need from the host: tables, InnoDB, GET_LOCK, time zone and WP-Cron.",
+      "ownership": [
+        {
+          "kind": "directory",
+          "path": "justsimple-booking/src/Data"
+        }
+      ],
+      "evidence": [
+        {
+          "path": "justsimple-booking/src/Data/Schema.php",
+          "symbol": "Schema::statements",
+          "note": "CREATE TABLE statements ported from backend/app/models."
+        },
+        {
+          "path": "justsimple-booking/src/Data/Health.php",
+          "symbol": "Health::checks",
+          "note": "Five host checks."
+        },
+        {
+          "path": "justsimple-booking/src/Data/WpScheduleSource.php",
+          "symbol": "WpScheduleSource",
+          "note": "The engine's view of the jsb_ tables."
+        },
+        {
+          "path": "justsimple-booking/src/Data/Catalog.php",
+          "symbol": "Catalog",
+          "note": "Modules, bookable services and policy resolution."
+        }
+      ],
+      "status": "supported",
+      "openQuestions": [],
+      "layout": {
+        "row": 1,
+        "column": 2
+      }
+    },
+    {
+      "id": "booking-service",
+      "role": "backend",
+      "name": "Booking service",
+      "kind": "local",
+      "responsibility": "Creates bookings under a per-module GET_LOCK in one transaction, replays idempotent requests, changes statuses under row locks, sweeps expired holds before every read and from WP-Cron, keeps customers by phone without overwriting their email, and sends plain-text email through wp_mail.",
+      "ownership": [
+        {
+          "kind": "directory",
+          "path": "justsimple-booking/src/Booking"
+        }
+      ],
+      "evidence": [
+        {
+          "path": "justsimple-booking/src/Booking/BookingService.php",
+          "symbol": "BookingService::create",
+          "note": "Lock, decide again, defensive overlap check, insert."
+        },
+        {
+          "path": "justsimple-booking/src/Booking/HoldSweeper.php",
+          "symbol": "HoldSweeper::run",
+          "note": "Expired pending bookings rejected, allocations released."
+        },
+        {
+          "path": "justsimple-booking/src/Booking/Mailer.php",
+          "symbol": "Mailer::register",
+          "note": "Listens to jsb_booking_created and jsb_booking_status_changed."
+        }
+      ],
+      "status": "supported",
+      "openQuestions": [],
+      "layout": {
+        "row": 1,
+        "column": 3
+      }
+    },
+    {
+      "id": "wordpress-core",
+      "role": "generic",
+      "roleAssessment": {
+        "basis": "out-of-taxonomy",
+        "note": "WordPress core is the host application: it supplies hooks, wp-admin, dbDelta, options and WP-Cron, which spans several listed roles at once."
+      },
+      "name": "WordPress core",
+      "kind": "external",
+      "responsibility": "Calls the plugin's hooks, renders wp-admin, stores options and runs WP-Cron when the site gets visits.",
+      "ownership": [],
+      "evidence": [],
+      "status": "supported",
+      "openQuestions": [],
+      "layout": {
+        "row": 2,
+        "column": 0
+      }
+    },
+    {
+      "id": "mysql",
+      "role": "database",
+      "name": "MySQL / MariaDB",
+      "kind": "external",
+      "responsibility": "The site's database: stores the jsb_ tables and grants named locks.",
+      "ownership": [],
+      "evidence": [],
+      "status": "supported",
+      "openQuestions": [],
+      "layout": {
+        "row": 2,
+        "column": 2
+      }
+    },
+    {
+      "id": "reference-engine",
+      "role": "backend",
+      "name": "Python reference engine",
+      "kind": "local",
+      "responsibility": "The earlier FastAPI engine whose models and allocator rules are being ported. It is not shipped or called by the plugin.",
+      "ownership": [
+        {
+          "kind": "directory",
+          "path": "backend"
+        }
+      ],
+      "evidence": [
+        {
+          "path": "backend/app/models/scheduling.py",
+          "note": "Resources, shifts, days off, bookings, allocations."
+        },
+        {
+          "path": "backend/app/services/allocators/__init__.py",
+          "symbol": "get_allocator",
+          "note": "One allocator per business type."
+        }
+      ],
+      "status": "supported",
+      "openQuestions": [],
+      "layout": {
+        "row": 2,
+        "column": 3
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "id": "visitor-widget",
+      "from": "visitor",
+      "to": "front-widget",
+      "label": "opens a module's booking page",
+      "evidence": [
+        {
+          "path": "WP_PLUGIN_PLAN.md",
+          "note": "Section 2 diagram."
+        }
+      ],
+      "kind": "request",
+      "visibility": "overview",
+      "status": "uncertain",
+      "openQuestions": [
+        "Planned; no widget code yet."
+      ]
+    },
+    {
+      "id": "widget-rest",
+      "from": "front-widget",
+      "to": "rest-api",
+      "label": "fetches free times, submits the booking",
+      "evidence": [
+        {
+          "path": "WP_PLUGIN_PLAN.md",
+          "note": "Section 2 diagram: fetch with nonce."
+        }
+      ],
+      "kind": "request",
+      "visibility": "overview",
+      "status": "uncertain",
+      "openQuestions": [
+        "Planned; route shapes not fixed."
+      ]
+    },
+    {
+      "id": "rest-engine",
+      "from": "rest-api",
+      "to": "engine",
+      "label": "asks for available slots",
+      "evidence": [
+        {
+          "path": "justsimple-booking/src/Booking/BookingService.php",
+          "symbol": "BookingService::availability",
+          "note": "Availability requests go through the service to StaffAllocator::find_slots."
+        }
+      ],
+      "kind": "request",
+      "visibility": "overview",
+      "status": "supported",
+      "openQuestions": []
+    },
+    {
+      "id": "rest-booking",
+      "from": "rest-api",
+      "to": "booking-service",
+      "label": "creates, cancels, changes bookings",
+      "evidence": [
+        {
+          "path": "justsimple-booking/src/Rest/PublicController.php",
+          "symbol": "PublicController::book",
+          "note": "Calls BookingService::create."
+        }
+      ],
+      "kind": "request",
+      "visibility": "overview",
+      "status": "supported",
+      "openQuestions": []
+    },
+    {
+      "id": "booking-engine",
+      "from": "booking-service",
+      "to": "engine",
+      "label": "re-checks the slot inside the lock",
+      "evidence": [
+        {
+          "path": "justsimple-booking/src/Booking/BookingService.php",
+          "symbol": "BookingService::create",
+          "note": "Availability::allocate_on_business_day inside the lock."
+        }
+      ],
+      "kind": "dependency",
+      "visibility": "overview",
+      "status": "supported",
+      "openQuestions": []
+    },
+    {
+      "id": "booking-mysql",
+      "from": "booking-service",
+      "to": "mysql",
+      "label": "GET_LOCK, then writes booking and allocations in one transaction",
+      "evidence": [
+        {
+          "path": "justsimple-booking/src/Booking/BookingService.php",
+          "symbol": "BookingService::create",
+          "note": "GET_LOCK jsb:module:<id>, Db::transaction, RELEASE_LOCK."
+        }
+      ],
+      "kind": "request",
+      "visibility": "overview",
+      "status": "supported",
+      "openQuestions": []
+    },
+    {
+      "id": "admin-rest",
+      "from": "admin-pages",
+      "to": "rest-api",
+      "label": "sets up modules, services, staff and works bookings",
+      "evidence": [
+        {
+          "path": "WP_PLUGIN_PLAN.md",
+          "note": "Section 2: admin screens use the same REST admin routes."
+        }
+      ],
+      "kind": "request",
+      "visibility": "detail",
+      "status": "uncertain",
+      "openQuestions": [
+        "The admin screens that will call these routes are phase 7; today tests/integration.php exercises them."
+      ]
+    },
+    {
+      "id": "admin-data",
+      "from": "admin-pages",
+      "to": "data-layer",
+      "label": "shows host health checks",
+      "evidence": [
+        {
+          "path": "justsimple-booking/src/Admin/Menu.php",
+          "symbol": "Menu::render_status",
+          "note": "Calls Health::checks()."
+        }
+      ],
+      "kind": "request",
+      "visibility": "overview",
+      "status": "supported",
+      "openQuestions": []
+    },
+    {
+      "id": "lifecycle-data",
+      "from": "lifecycle",
+      "to": "data-layer",
+      "label": "installs, upgrades and (on request) drops the schema",
+      "evidence": [
+        {
+          "path": "justsimple-booking/src/Activator.php",
+          "symbol": "Activator::activate",
+          "note": "Schema::install()."
+        },
+        {
+          "path": "justsimple-booking/src/Plugin.php",
+          "symbol": "Plugin::boot",
+          "note": "Schema::maybe_upgrade()."
+        },
+        {
+          "path": "justsimple-booking/uninstall.php",
+          "note": "Schema::drop_all() behind the setting."
+        }
+      ],
+      "kind": "control",
+      "visibility": "overview",
+      "status": "supported",
+      "openQuestions": []
+    },
+    {
+      "id": "lifecycle-admin",
+      "from": "lifecycle",
+      "to": "admin-pages",
+      "label": "registers the Booking menu in wp-admin",
+      "evidence": [
+        {
+          "path": "justsimple-booking/src/Plugin.php",
+          "symbol": "Plugin::boot",
+          "note": "Menu::register() when is_admin()."
+        }
+      ],
+      "kind": "control",
+      "visibility": "overview",
+      "status": "supported",
+      "openQuestions": []
+    },
+    {
+      "id": "lifecycle-wp",
+      "from": "lifecycle",
+      "to": "wordpress-core",
+      "label": "hooks in, grants capabilities, schedules hourly jsb_sweep",
+      "evidence": [
+        {
+          "path": "justsimple-booking/src/Activator.php",
+          "symbol": "Activator::activate",
+          "note": "add_cap and wp_schedule_event."
+        }
+      ],
+      "kind": "dependency",
+      "visibility": "overview",
+      "status": "supported",
+      "openQuestions": []
+    },
+    {
+      "id": "wp-sweep",
+      "from": "wordpress-core",
+      "to": "booking-service",
+      "label": "runs the hourly sweep: expire holds, send reminders",
+      "evidence": [
+        {
+          "path": "justsimple-booking/src/Plugin.php",
+          "symbol": "Plugin::boot",
+          "note": "jsb_sweep runs HoldSweeper::cron."
+        }
+      ],
+      "kind": "control",
+      "visibility": "detail",
+      "status": "supported",
+      "openQuestions": []
+    },
+    {
+      "id": "data-mysql",
+      "from": "data-layer",
+      "to": "mysql",
+      "label": "dbDelta, table and engine checks, GET_LOCK probe",
+      "evidence": [
+        {
+          "path": "justsimple-booking/src/Data/Schema.php",
+          "symbol": "Schema::install",
+          "note": "dbDelta per table."
+        },
+        {
+          "path": "justsimple-booking/src/Data/Health.php",
+          "symbol": "Health::named_locks",
+          "note": "GET_LOCK / RELEASE_LOCK probe."
+        }
+      ],
+      "kind": "request",
+      "visibility": "overview",
+      "status": "supported",
+      "openQuestions": []
+    },
+    {
+      "id": "engine-reference",
+      "from": "engine",
+      "to": "reference-engine",
+      "label": "rules ported from",
+      "evidence": [
+        {
+          "path": "backend/app/services/availability.py",
+          "symbol": "compute_availability",
+          "note": "The availability algorithm to port."
+        }
+      ],
+      "kind": "dependency",
+      "visibility": "detail",
+      "status": "supported",
+      "openQuestions": []
+    }
+  ]
+}
