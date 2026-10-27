@@ -4,6 +4,7 @@ namespace JustSimple\Booking\Rest;
 use JustSimple\Booking\Activator;
 use JustSimple\Booking\Booking\Access;
 use JustSimple\Booking\Booking\BookingService;
+use JustSimple\Booking\Booking\FieldService;
 use JustSimple\Booking\Booking\Parts;
 use JustSimple\Booking\Booking\Upsell;
 use JustSimple\Booking\Data\Catalog;
@@ -38,6 +39,9 @@ final class AdminController {
 				'policy_id'              => array( 'type' => 'int', 'nullable' => true ),
 				'active'                 => array( 'type' => 'bool' ),
 				'is_addon'               => array( 'type' => 'bool' ),
+				'location_type'          => array( 'type' => 'enum', 'values' => array( 'in_office', 'virtual', 'on_site' ) ),
+				'service_category'       => array( 'type' => 'enum', 'nullable' => true, 'values' => array( 'inspection', 'standard' ) ),
+				'travel_buffer_minutes'  => array( 'type' => 'int', 'min' => 0, 'max' => 240 ),
 				'sort_order'             => array( 'type' => 'int' ),
 			),
 		),
@@ -51,6 +55,7 @@ final class AdminController {
 				'contact_email' => array( 'type' => 'email', 'nullable' => true ),
 				'contact_phone' => array( 'type' => 'str', 'nullable' => true, 'max' => 32 ),
 				'wp_user_id'    => array( 'type' => 'int', 'nullable' => true ),
+				'meeting_link'  => array( 'type' => 'url', 'nullable' => true ),
 				'sort_order'    => array( 'type' => 'int' ),
 			),
 		),
@@ -206,6 +211,15 @@ final class AdminController {
 		) );
 		self::route( '/admin/bookings/(?P<id>\d+)/resume', array(
 			array( 'POST', array( __CLASS__, 'resume' ), $work ),
+		) );
+		self::route( '/admin/bookings/(?P<id>\d+)/meeting-link', array(
+			array( 'PATCH', array( __CLASS__, 'meeting_link' ), $work ),
+		) );
+		self::route( '/admin/bookings/(?P<id>\d+)/follow-up', array(
+			array( 'POST', array( __CLASS__, 'follow_up' ), $work ),
+		) );
+		self::route( '/admin/bookings/(?P<id>\d+)/actual-duration', array(
+			array( 'PATCH', array( __CLASS__, 'actual_duration' ), $work ),
 		) );
 		self::route( '/admin/modules/(?P<id>\d+)/hours', array(
 			array( 'GET', array( __CLASS__, 'get_hours' ), $manage ),
@@ -791,6 +805,33 @@ final class AdminController {
 		} );
 	}
 
+	// ------------------------------------------------------------------ field service
+
+	/** Body: { "url": "https://..." }. Replaces the professional's room for this booking; emailed when the booking is confirmed. */
+	public static function meeting_link( \WP_REST_Request $r ) {
+		return Rest::run( static function () use ( $r ) {
+			Access::assert_can_work( get_current_user_id(), (int) $r['id'] );
+			return FieldService::set_meeting_link( (int) $r['id'], ( $r->get_json_params() ?: array() )['url'] ?? null );
+		} );
+	}
+
+	/** Books a standard service after an inspection. Body: { "service_id": int, "start": ISO 8601, "staff_id"?: int } */
+	public static function follow_up( \WP_REST_Request $r ) {
+		return Rest::run( static function () use ( $r ) {
+			$body = $r->get_json_params() ?: array();
+			Access::assert_can_work( get_current_user_id(), (int) $r['id'] );
+			return FieldService::follow_up( (int) $r['id'], (int) ( $body['service_id'] ?? 0 ), (string) ( $body['start'] ?? '' ), empty( $body['staff_id'] ) ? null : (int) $body['staff_id'], get_current_user_id() );
+		}, 201 );
+	}
+
+	/** How long a running job really took. Body: { "minutes": int } */
+	public static function actual_duration( \WP_REST_Request $r ) {
+		return Rest::run( static function () use ( $r ) {
+			Access::assert_can_work( get_current_user_id(), (int) $r['id'] );
+			return FieldService::record_actual_duration( (int) $r['id'], ( $r->get_json_params() ?: array() )['minutes'] ?? null );
+		} );
+	}
+
 	/** Reschedules a job that is waiting for parts. Body: { "start": ISO 8601, "staff_id"?: int, "service_ids"?: [..] } */
 	public static function resume( \WP_REST_Request $r ) {
 		return Rest::run( static function () use ( $r ) {
@@ -867,6 +908,22 @@ final class AdminController {
 		if ( array_key_exists( 'notify_email', $in ) ) {
 			$out['notify_email'] = '' === $in['notify_email'] ? '' : Fields::clean( array( 'notify_email' => array( 'type' => 'email' ) ), $in, true )['notify_email'];
 		}
+		// field: the business location and how far it travels; null clears a value
+		foreach ( array( 'latitude' => array( -90, 90 ), 'longitude' => array( -180, 180 ), 'service_radius_km' => array( 0, 500 ) ) as $k => $range ) {
+			if ( ! array_key_exists( $k, $in ) ) {
+				continue;
+			}
+			$v = $in[ $k ];
+			if ( null === $v || '' === $v ) {
+				$out[ $k ] = null;
+				continue;
+			}
+			$bad = ! is_numeric( $v ) || is_bool( $v ) || $v < $range[0] || $v > $range[1] || ( 'service_radius_km' === $k && $v <= 0 );
+			if ( $bad ) {
+				Fields::fail( "settings.$k", 'service_radius_km' === $k ? 'must be more than 0 and at most 500 km' : sprintf( 'must be between %d and %d', $range[0], $range[1] ) );
+			}
+			$out[ $k ] = (float) $v;
+		}
 		return $out;
 	}
 
@@ -918,6 +975,17 @@ final class AdminController {
 	private static function check_refs( string $key, array $in, int $module_id ): void {
 		if ( 'services' === $key && ! empty( $in['is_addon'] ) && 'salon' !== Catalog::module( $module_id )['type'] ) {
 			Fields::fail( 'is_addon', 'is only for salon modules' );
+		}
+		if ( 'services' === $key && 'field' !== Catalog::module( $module_id )['type'] ) { // where and how a service happens is a field-service matter
+			if ( 'in_office' !== ( $in['location_type'] ?? 'in_office' ) ) {
+				Fields::fail( 'location_type', 'is only for field-service modules' );
+			}
+			if ( null !== ( $in['service_category'] ?? null ) ) {
+				Fields::fail( 'service_category', 'is only for field-service modules' );
+			}
+			if ( (int) ( $in['travel_buffer_minutes'] ?? 0 ) > 0 ) {
+				Fields::fail( 'travel_buffer_minutes', 'is only for field-service modules' );
+			}
 		}
 		if ( 'services' === $key && ! empty( $in['policy_id'] ) ) {
 			self::owned_or_fail( 'policies', (int) $in['policy_id'], $module_id, 'policy_id' );

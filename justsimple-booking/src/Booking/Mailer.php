@@ -14,6 +14,7 @@ final class Mailer {
 	public static function register() {
 		add_action( 'jsb_booking_created', array( __CLASS__, 'created' ), 10, 2 );
 		add_action( 'jsb_booking_status_changed', array( __CLASS__, 'status_changed' ), 10, 4 );
+		add_action( 'jsb_meeting_link_ready', array( __CLASS__, 'meeting_link' ) );
 	}
 
 	public static function created( int $booking_id, string $token ) {
@@ -36,6 +37,7 @@ final class Mailer {
 				$when,
 				self::who( $b ),
 				self::vehicle( $b ),
+				self::where( $b ),
 				/* translators: %s: booking code */
 				sprintf( __( 'Booking code: %s', 'justsimple-booking' ), $b['code'] ),
 				$link ? sprintf( __( 'View or cancel: %s', 'justsimple-booking' ), $link ) : null,
@@ -96,6 +98,7 @@ final class Mailer {
 				'',
 				self::what( $b ),
 				self::when( $b ),
+				'confirmed' === $to ? self::where( $b ) : null,
 				/* translators: %s: booking code */
 				sprintf( __( 'Booking code: %s', 'justsimple-booking' ), $b['code'] ),
 			),
@@ -110,7 +113,8 @@ final class Mailer {
 			/* translators: %d: number of people */
 			return sprintf( _n( 'Table for %d', 'Table for %d', $b['party_size'], 'justsimple-booking' ), $b['party_size'] );
 		}
-		return implode( ', ', wp_list_pluck( $b['services'], 'name' ) );
+		$names = implode( ', ', wp_list_pluck( $b['services'], 'name' ) );
+		return in_array( true, array_column( $b['services'], 'price_after_inspection' ), true ) ? $names . ' ' . __( '(price given after inspection)', 'justsimple-booking' ) : $names;
 	}
 
 	/** Who serves it: the staff, or the tables a party is seated at. */
@@ -121,6 +125,44 @@ final class Mailer {
 		}
 		/* translators: %s: staff names */
 		return empty( $b['staff'] ) ? null : sprintf( __( 'With: %s', 'justsimple-booking' ), implode( ', ', wp_list_pluck( $b['staff'], 'name' ) ) );
+	}
+
+	/** A meeting link set by hand on a confirmed online appointment goes to the customer once. */
+	public static function meeting_link( int $booking_id ) {
+		$b = BookingService::view( $booking_id, true );
+		if ( ! $b['contact_email'] || ! $b['meeting_link'] ) {
+			return;
+		}
+		self::send(
+			$b['contact_email'],
+			/* translators: %s: site name */
+			sprintf( __( '[%s] Your meeting link', 'justsimple-booking' ), wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ) ),
+			array(
+				/* translators: %s: customer name */
+				sprintf( __( 'Hello %s,', 'justsimple-booking' ), $b['customer']['name'] ),
+				'',
+				self::what( $b ),
+				self::when( $b ),
+				self::where( $b ),
+				/* translators: %s: booking code */
+				sprintf( __( 'Booking code: %s', 'justsimple-booking' ), $b['code'] ),
+			),
+			'meeting_link',
+			$b
+		);
+	}
+
+	/** Where it happens: the visit address, or the link to join online. */
+	private static function where( array $b ): ?string {
+		if ( ! empty( $b['meeting_link'] ) ) {
+			/* translators: %s: meeting link */
+			return sprintf( __( 'Join online: %s', 'justsimple-booking' ), $b['meeting_link'] );
+		}
+		if ( ! empty( $b['address'] ) ) {
+			/* translators: %s: street address */
+			return sprintf( __( 'Visit at: %s', 'justsimple-booking' ), implode( ', ', array_filter( array( $b['address']['line1'], $b['address']['postcode'], $b['address']['city'] ) ) ) );
+		}
+		return null;
 	}
 
 	/** The car on a workshop job. */

@@ -80,7 +80,7 @@ final class PublicController {
 		return Rest::run( static function () use ( $r ) {
 			global $wpdb;
 			$m        = Catalog::bookable_module( (int) $r['id'] );
-			$services = $wpdb->get_results( $wpdb->prepare( 'SELECT id, name, description, duration_minutes, price, price_after_inspection, is_addon FROM ' . Schema::table( 'services' ) . ' WHERE module_id = %d AND active = 1 ORDER BY is_addon, sort_order, id', $m['id'] ), ARRAY_A );
+			$services = $wpdb->get_results( $wpdb->prepare( 'SELECT id, name, description, duration_minutes, price, price_after_inspection, is_addon, location_type, service_category, travel_buffer_minutes FROM ' . Schema::table( 'services' ) . ' WHERE module_id = %d AND active = 1 ORDER BY is_addon, sort_order, id', $m['id'] ), ARRAY_A );
 			$staff    = $wpdb->get_results( $wpdb->prepare( 'SELECT id, name FROM ' . Schema::table( 'resources' ) . " WHERE module_id = %d AND type = 'staff' AND status = 'active' ORDER BY sort_order, id", $m['id'] ), ARRAY_A );
 			$policy   = $m['default_policy_id'] ? $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . Schema::table( 'policies' ) . ' WHERE id = %d', $m['default_policy_id'] ), ARRAY_A ) : null;
 			return array(
@@ -97,6 +97,9 @@ final class PublicController {
 						'price'                  => $s['price'],
 						'price_after_inspection' => (bool) (int) $s['price_after_inspection'],
 						'is_addon'               => (bool) (int) $s['is_addon'],
+						'location_type'          => $s['location_type'],
+						'service_category'       => $s['service_category'],
+						'travel_buffer_minutes'  => (int) $s['travel_buffer_minutes'],
 					);
 				}, $services ),
 				'staff'    => array_map( static function ( $s ) {
@@ -155,6 +158,9 @@ final class PublicController {
 			'party_size'             => null === $r['party_size'] || '' === $r['party_size'] ? null : (int) $r['party_size'],
 			'table_type'             => $r['table_type'] ? (string) $r['table_type'] : 'normal',
 			'allow_separate_seating' => in_array( $r['separate'], array( true, 1, '1', 'true' ), true ),
+			// field: the customer's map pin for an on-site visit
+			'latitude'               => $r['latitude'],
+			'longitude'              => $r['longitude'],
 		);
 	}
 
@@ -239,6 +245,9 @@ final class PublicController {
 			'vehicle'                => $r['vehicle'],
 			'vehicle_id'             => $r['vehicle_id'],
 			'acknowledge_lead_time'  => $r['acknowledge_lead_time'],
+			// field
+			'address'                => $r['address'],
+			'address_id'             => $r['address_id'],
 		);
 		$created = null;
 		$resp    = Rest::run( static function () use ( $r, $in, &$created ) {

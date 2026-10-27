@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "mapId": "justsimple-wp-plugin",
-  "revision": 5,
+  "revision": 6,
   "language": "en",
   "project": {
     "id": "justsimple-booking-wp",
     "name": "JustSimple Booking: standalone WordPress plugin"
   },
   "constraintDiscovery": {
-    "checkedAt": "2026-10-27T06:50:00Z",
+    "checkedAt": "2026-10-27T09:10:00Z",
     "checkedPaths": [
       "WP_PLUGIN_PLAN.md",
       "PRODUCT.md",
@@ -259,7 +259,7 @@
       "role": "backend",
       "name": "REST routes",
       "kind": "local",
-      "responsibility": "justsimple/v1: six public routes (module, day and month availability, book, view and cancel by code) with per-IP rate limits and a honeypot; admin routes for modules, services, staff, shifts, qualifications, policies, hours, days off and the booking desk, behind capabilities. Phase 3 adds products (admin CRUD, public status-only list), POST /admin/bookings/{id}/items, PATCH /admin/bookings/{id} to clear schedule_conflict, and the add-on flag on services. Phase 4 adds restaurant tables, seating times and open-table rules for admins, and party size, table class, separate seating, a chosen table and minimum-spend acceptance for the public. Phase 5 adds bays, supported vehicles, parts per service and per job, and resume for admins, and the vehicle, the supported-model list and the lead-time notice for the public.",
+      "responsibility": "justsimple/v1: six public routes (module, day and month availability, book, view and cancel by code) with per-IP rate limits and a honeypot; admin routes for modules, services, staff, shifts, qualifications, policies, hours, days off and the booking desk, behind capabilities. Phase 3 adds products (admin CRUD, public status-only list), POST /admin/bookings/{id}/items, PATCH /admin/bookings/{id} to clear schedule_conflict, and the add-on flag on services. Phase 4 adds restaurant tables, seating times and open-table rules for admins, and party size, table class, separate seating, a chosen table and minimum-spend acceptance for the public. Phase 5 adds bays, supported vehicles, parts per service and per job, and resume for admins, and the vehicle, the supported-model list and the lead-time notice for the public. Phase 6 adds service location, category and travel time, the business location, meeting rooms and links, follow-ups and actual duration for admins, and coordinates and the visit address for the public.",
       "ownership": [
         {
           "kind": "directory",
@@ -298,7 +298,7 @@
       "role": "backend",
       "name": "Scheduling engine",
       "kind": "local",
-      "responsibility": "Pure PHP availability and allocation: UTC-second intervals, wall clock to real time across daylight saving, strictest-policy merge, the availability pipeline, and allocators for staff, salon, restaurant and workshop (a mechanic and a bay per stacked service segment, continuity, a named mechanic), plus the booking state machine. Field service arrives in phase 6.",
+      "responsibility": "Pure PHP availability and allocation for all five module types: staff, salon (base service plus add-ons), restaurant (tables, VIP, open-table caps), workshop (mechanic and bay per segment) and field service (one professional, travel padding, a WGS-84 service radius), plus UTC intervals across daylight saving, strictest-policy merge and the booking state machine.",
       "ownership": [
         {
           "kind": "directory",
@@ -353,6 +353,16 @@
           "path": "justsimple-booking/src/Engine/WorkshopAllocator.php",
           "symbol": "WorkshopAllocator::plan_segments",
           "note": "Back-to-back segments, two allocation rows each."
+        },
+        {
+          "path": "justsimple-booking/src/Engine/FieldAllocator.php",
+          "symbol": "FieldAllocator::travel_pad",
+          "note": "Only on-site visits travel."
+        },
+        {
+          "path": "justsimple-booking/src/Engine/Geo.php",
+          "symbol": "Geo::distance_km",
+          "note": "Vincenty on WGS-84, sphere fallback."
         }
       ],
       "status": "supported",
@@ -508,7 +518,7 @@
       "role": "backend",
       "name": "Booking service",
       "kind": "local",
-      "responsibility": "Creates bookings under a per-module GET_LOCK in one transaction, replays idempotent requests, changes statuses under row locks, sweeps expired holds before every read and from WP-Cron, keeps customers by phone without overwriting their email, and sends plain-text email through wp_mail. Salon: on-the-spot upsell under the same module lock (extend, or flag both appointments and report the clash), retail stock deducted atomically on completion, and own-appointments-only for staff linked to a WordPress user. Workshop: typed vehicles checked against supported models, the parts lead-time acknowledgement, the job parts list (row-locked), waiting for parts (time freed from now), resume under the module lock, and parts taken on completion.",
+      "responsibility": "Creates bookings under a per-module GET_LOCK in one transaction, replays idempotent requests, changes statuses under row locks, sweeps expired holds before every read and from WP-Cron, keeps customers by phone without overwriting their email, and sends plain-text email through wp_mail. Salon: on-the-spot upsell under the same module lock (extend, or flag both appointments and report the clash), retail stock deducted atomically on completion, and own-appointments-only for staff linked to a WordPress user. Workshop: typed vehicles checked against supported models, the parts lead-time acknowledgement, the job parts list (row-locked), waiting for parts (time freed from now), resume under the module lock, and parts taken on completion. Field service: the on-site address with its map pin, meeting rooms on confirmation and by hand, inspection follow-ups, and overruns through the stretch-or-flag Extend shared with salon upsell.",
       "ownership": [
         {
           "kind": "directory",
@@ -555,6 +565,21 @@
           "path": "justsimple-booking/src/Booking/Parts.php",
           "symbol": "Parts::set",
           "note": "Replace semantics, price kept, needs_ordering."
+        },
+        {
+          "path": "justsimple-booking/src/Booking/FieldService.php",
+          "symbol": "FieldService::follow_up",
+          "note": "Linked standard service at the same customer and address."
+        },
+        {
+          "path": "justsimple-booking/src/Booking/Extend.php",
+          "symbol": "Extend::try_extend",
+          "note": "Shared by upsell and overruns."
+        },
+        {
+          "path": "justsimple-booking/src/Booking/BookingService.php",
+          "symbol": "BookingService::write_booking",
+          "note": "One insert path for bookings and follow-ups."
         }
       ],
       "status": "supported",

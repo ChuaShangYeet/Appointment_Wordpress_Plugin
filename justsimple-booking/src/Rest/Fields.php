@@ -94,6 +94,12 @@ final class Fields {
 					self::fail( $field, 'must be an email address' );
 				}
 				return strtolower( $v );
+			case 'url':
+				$link = \JustSimple\Booking\Booking\FieldService::web_link( $v );
+				if ( null === $link ) {
+					self::fail( $field, 'must be an http(s) web link' );
+				}
+				return $link;
 		}
 		self::fail( $field, 'has an unknown type' );
 	}

@@ -68,6 +68,23 @@ try {
 				return $l['name'] . ' x' . $l['quantity'];
 			}, $r ) );
 			break;
+		case 'book-field': // <module_id> <service_id> <iso-start> [latitude|-] [longitude|-] [staff_id|-]
+			$in = array(
+				'service_ids' => array( (int) $argv[4] ),
+				'start'       => $argv[5],
+				'staff_id'    => isset( $argv[8] ) && '-' !== $argv[8] ? (int) $argv[8] : null,
+				'customer'    => array( 'name' => 'Racer', 'phone' => '+601' . random_int( 10000000, 99999999 ) ),
+			);
+			if ( isset( $argv[6] ) && '-' !== $argv[6] ) {
+				$in['address'] = array( 'line1' => '1 Race Road', 'latitude' => (float) $argv[6], 'longitude' => (float) $argv[7] );
+			}
+			$r   = BookingService::create( (int) $argv[3], $in );
+			$out = array( 'ok' => true, 'staff' => array_column( $r['booking']['staff'], 'name' ) );
+			break;
+		case 'overrun': // <booking_id> <minutes>
+			$r   = \JustSimple\Booking\Booking\FieldService::record_actual_duration( (int) $argv[3], (int) $argv[4] );
+			$out = array( 'ok' => true, 'conflicts' => $r['conflicting_booking_ids'], 'end' => $r['booking']['end'] );
+			break;
 		case 'complete':
 			BookingService::transition( (int) $argv[3], 'completed', 'staff', 1 );
 			$out = array( 'ok' => true );

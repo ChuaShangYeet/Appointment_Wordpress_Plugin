@@ -62,8 +62,8 @@ list( $s ) = call( 'GET', '/admin/modules' );
 check( 401 === $s, 'logged out: admin routes refused (401)', $s );
 
 as_user( 1 );
-list( $s, $d ) = call( 'POST', '/admin/modules', array( 'title' => 'Home visits', 'type' => 'field' ) );
-check( 422 === $s, 'field modules refused in this release', $d );
+list( $s, $d ) = call( 'POST', '/admin/modules', array( 'title' => 'Odd', 'type' => 'spaceship' ) );
+check( 422 === $s && 'type' === $d['data']['field'], 'an unknown module type is refused', $d );
 list( $s, $m ) = call( 'POST', '/admin/modules', array( 'title' => 'Test Spa', 'type' => 'staff' ) );
 check( 201 === $s && 'draft' === $m['status'] && $m['default_policy_id'], 'module created as draft with a default policy', $m );
 $mid = $m['id'];
@@ -947,6 +947,256 @@ $st( $jc, 'in-progress' );
 $parts( $jc, array( $pa['id'] => 1 ) );
 $wsrace['parts'] = array( 'job' => $jp, 'complete_job' => $jc, 'a' => $pa['id'], 'b' => $pb['id'] );
 
+echo "== field: setup\n";
+as_user( 1 );
+foreach ( array( array( 'location_type' => 'on_site' ), array( 'service_category' => 'inspection' ), array( 'travel_buffer_minutes' => 15 ) ) as $extra ) {
+	list( $s, $d ) = call( 'POST', "/admin/modules/$mid/services", array( 'name' => 'X', 'duration_minutes' => 30 ) + $extra );
+	check( 422 === $s && key( $extra ) === $d['data']['field'], key( $extra ) . ' refused on a staff module', $d );
+}
+const KLP      = array( 3.1390, 101.6869 );
+const NEARP    = array( 3.1200, 101.6700 );
+const SUBANGP  = array( 3.0738, 101.5183 );
+const SEREMBANP = array( 2.7297, 101.9381 );
+$practice = static function ( string $title, array $pros, ?array $hours, array $shift, ?float $radius = 25.0 ) {
+	list( , $m ) = call( 'POST', '/admin/modules', array( 'title' => $title, 'type' => 'field' ) );
+	$settings    = null === $radius ? array() : array( 'latitude' => KLP[0], 'longitude' => KLP[1], 'service_radius_km' => $radius );
+	call( 'PATCH', "/admin/modules/{$m['id']}", array( 'status' => 'active', 'settings' => $settings ) );
+	if ( null !== $hours ) {
+		call( 'PUT', "/admin/modules/{$m['id']}/hours", array( 'hours' => array_map( static function ( $d ) use ( $hours ) {
+			return array( 'weekday' => $d, 'open_time' => $hours[0], 'close_time' => $hours[1] );
+		}, range( 0, 6 ) ) ) );
+	}
+	$out = array( 'id' => $m['id'], 'policy' => $m['default_policy_id'], 'pro' => array(), 'svc' => array() );
+	foreach ( $pros as $n ) {
+		list( , $r ) = call( 'POST', "/admin/modules/{$m['id']}/staff", array( 'name' => $n ) );
+		call( 'PUT', "/admin/staff/{$r['id']}/shifts", array( 'shifts' => array_map( static function ( $d ) use ( $shift ) {
+			return array( 'weekday' => $d ) + $shift;
+		}, range( 0, 6 ) ) ) );
+		$out['pro'][ $n ] = $r['id'];
+	}
+	foreach ( array(
+		'site'   => array( 'Site inspection', 60, 'inspection', 'on_site', 30 ),
+		'work'   => array( 'Repair work', 120, 'standard', 'on_site', 30 ),
+		'office' => array( 'Office consult', 60, 'inspection', 'in_office', 30 ),
+		'video'  => array( 'Video call', 30, 'inspection', 'virtual', 0 ),
+	) as $k => $x ) {
+		list( , $r ) = call( 'POST', "/admin/modules/{$m['id']}/services", array( 'name' => $x[0], 'duration_minutes' => $x[1], 'service_category' => $x[2], 'location_type' => $x[3], 'travel_buffer_minutes' => $x[4] ) );
+		$out['svc'][ $k ] = $r['id'];
+	}
+	return $out;
+};
+$fp = $practice( 'Test Practice', array( 'Dr Lim' ), array( '08:00', '18:00' ), $day_shift );
+list( , $fm ) = call( 'GET', "/admin/modules/{$fp['id']}" );
+check( 25.0 === (float) $fm['settings']['service_radius_km'] && KLP[0] === (float) $fm['settings']['latitude'], 'the business location is saved in the module settings', $fm['settings'] );
+foreach ( array( array( 'latitude' => 91 ), array( 'longitude' => 181 ), array( 'service_radius_km' => 0 ) ) as $bad ) {
+	list( $s, $d ) = call( 'PATCH', "/admin/modules/{$fp['id']}", array( 'settings' => $bad ) );
+	check( 422 === $s, 'settings.' . key( $bad ) . ' out of range: 422', $d );
+}
+foreach ( array( array( 'location_type' => 'moon' ), array( 'service_category' => 'weird' ), array( 'travel_buffer_minutes' => -5 ) ) as $bad ) {
+	list( $s ) = call( 'POST', "/admin/modules/{$fp['id']}/services", array( 'name' => 'X', 'duration_minutes' => 30 ) + $bad );
+	check( 422 === $s, key( $bad ) . ' must be a known value' );
+}
+list( $s, $d ) = call( 'PATCH', "/admin/staff/{$fp['pro']['Dr Lim']}", array( 'meeting_link' => 'javascript:alert(1)' ) );
+check( 422 === $s && 'meeting_link' === $d['data']['field'], 'a meeting room must be an http(s) link', $d );
+list( $s, $d ) = call( 'PATCH', "/admin/staff/{$fp['pro']['Dr Lim']}", array( 'meeting_link' => 'https://meet.example/dr-lim' ) );
+check( 200 === $s && 'https://meet.example/dr-lim' === $d['meeting_link'], 'the professional\'s room saved', $d );
+
+echo "== field: radius and travel\n";
+as_user( 0 );
+list( , $pub ) = call( 'GET', "/modules/{$fp['id']}" );
+$site6 = array_column( $pub['services'], null, 'name' )['Site inspection'];
+check( ! isset( $pub['staff'][0]['meeting_link'] ) && array( 'on_site', 'inspection', 30 ) === array( $site6['location_type'], $site6['service_category'], $site6['travel_buffer_minutes'] ), 'public page: where and how each service happens, and no meeting rooms', $site6 );
+$fav = static function ( string $svc, ?array $pin, string $day ) use ( $fp ) {
+	$q = array( 'date' => $day, 'services' => (string) $fp['svc'][ $svc ] );
+	if ( $pin ) {
+		$q += array( 'latitude' => $pin[0], 'longitude' => $pin[1] );
+	}
+	return call( 'GET', "/modules/{$fp['id']}/availability", null, $q );
+};
+$fstarts = static function ( array $resp ) use ( $tz ) {
+	return array_map( static function ( $x ) use ( $tz ) {
+		return ( new DateTimeImmutable( $x['start'] ) )->setTimezone( $tz )->format( 'H:i' );
+	}, $resp['slots'] ?? array() );
+};
+list( $s, $d ) = $fav( 'site', null, $tomorrow );
+check( 422 === $s && 'latitude' === $d['data']['field'], 'on-site availability needs coordinates', $d );
+list( $s, $d ) = $fav( 'site', NEARP, $tomorrow );
+$st6 = $fstarts( $d );
+check( 200 === $s && '09:30' === $st6[0] && '16:30' === end( $st6 ), 'near: 09:30 to 16:30 (the drive fits the shift)', $st6 );
+list( $s ) = $fav( 'site', SUBANGP, $tomorrow );
+check( 200 === $s, '~20 km is inside the 25 km radius' );
+list( $s, $d ) = $fav( 'site', SEREMBANP, $tomorrow );
+check( 422 === $s && 'outside_service_area' === $d['code'] && 25.0 === (float) $d['data']['service_radius_km'] && $d['data']['distance_km'] > 50, 'Seremban: outside the service area, with the distance', $d );
+list( , $d ) = $fav( 'office', null, $tomorrow );
+$st6 = $fstarts( $d );
+check( '09:00' === $st6[0] && '17:00' === end( $st6 ), 'in office: no travel, 09:00 to 17:00', $st6 );
+
+$fbook = static function ( string $svc, string $start, array $extra = array(), array $pp = null ) use ( $fp ) {
+	$pp = $pp ?? $fp;
+	return call( 'POST', "/modules/{$pp['id']}/bookings", array_merge( array(
+		'service_ids' => array( $pp['svc'][ $svc ] ),
+		'start'       => $start,
+		'customer'    => array( 'name' => 'Client', 'phone' => '+6016' . random_int( 1000000, 9999999 ), 'email' => 'client@example.test' ),
+	), $extra ) );
+};
+$pin = static function ( array $p ) {
+	return array( 'line1' => '1 Jalan Test', 'city' => 'Kuala Lumpur', 'postcode' => '50450', 'latitude' => $p[0], 'longitude' => $p[1] );
+};
+$before = $bookings_in( $fp['id'] );
+list( $s, $d ) = $fbook( 'site', $gat( $tomorrow, '10:00' ), array( 'address' => $pin( SEREMBANP ) ) );
+check( 422 === $s && 'outside_service_area' === $d['code'] && $before === $bookings_in( $fp['id'] ), 'booking outside the radius: refused, nothing written', $d );
+list( $s, $d ) = $fbook( 'site', $gat( $tomorrow, '10:00' ) );
+check( 422 === $s && 'address' === $d['data']['field'], 'on site needs an address', $d );
+list( $s, $d ) = $fbook( 'site', $gat( $tomorrow, '10:00' ), array( 'address' => array( 'line1' => '1 Jalan Test' ) ) );
+check( 422 === $s && 'address.latitude' === $d['data']['field'], 'an address without a map pin: 422 (no geocoding)', $d );
+list( $s, $d ) = $fbook( 'site', $gat( $tomorrow, '10:00' ), array( 'address_id' => 1 ) );
+check( 422 === $s && 'address_id' === $d['data']['field'], 'a saved address id is not taken from the public', $d );
+list( $s, $d ) = $fbook( 'office', $gat( $tomorrow, '10:00' ), array( 'address' => $pin( NEARP ) ) );
+check( 422 === $s && 'address' === $d['data']['field'], 'an address on an office visit: 422', $d );
+list( $s, $d ) = call( 'POST', "/modules/{$fp['id']}/bookings", array( 'service_ids' => array( $fp['svc']['office'], $fp['svc']['video'] ), 'start' => $gat( $tomorrow, '10:00' ), 'customer' => array( 'name' => 'C', 'phone' => '+60160000001' ) ) );
+check( 422 === $s, 'one service per booking' );
+list( $s, $b ) = $fbook( 'site', $gat( $tomorrow, '10:00' ), array( 'address' => $pin( NEARP ) ) );
+$sid1 = $code_id( $b );
+check( 201 === $s && $gat( $tomorrow, '10:00' ) === $b['booking']['start'] && $gat( $tomorrow, '11:00' ) === $b['booking']['end'] && array( array( 'staff', 'Dr Lim', '09:30', '11:30', 'active' ) ) === $rows( $sid1 ), 'booked 10:00-11:00; the professional is held 09:30-11:30', $rows( $sid1 ) );
+check( '1 Jalan Test' === $b['booking']['address']['line1'] && ! isset( $b['booking']['address']['latitude'] ), 'the booking shows the address, not the pin', $b['booking']['address'] );
+list( , $d ) = $fav( 'site', NEARP, $tomorrow );
+$st6 = $fstarts( $d );
+check( '14:30' === $st6[0] && ! in_array( '11:30', $st6, true ), 'travel shapes the next visit: first fit is 14:30', $st6 );
+list( , $d ) = $fav( 'office', null, $tomorrow );
+$st6 = $fstarts( $d );
+check( in_array( '11:30', $st6, true ) && ! in_array( '11:15', $st6, true ), 'an office visit only waits for the drive back', $st6 );
+as_user( 1 );
+$nop = $practice( 'No Location Practice', array( 'Dr X' ), array( '08:00', '18:00' ), $day_shift, null );
+as_user( 0 );
+list( $s, $d ) = call( 'GET', "/modules/{$nop['id']}/availability", null, array( 'date' => $tomorrow, 'services' => (string) $nop['svc']['site'], 'latitude' => NEARP[0], 'longitude' => NEARP[1] ) );
+list( $s2 ) = call( 'GET', "/modules/{$nop['id']}/availability", null, array( 'date' => $tomorrow, 'services' => (string) $nop['svc']['office'] ) );
+check( 422 === $s && false !== strpos( $d['message'], 'service radius' ) && 200 === $s2, 'no location set: on-site refused clearly, office unaffected', $d );
+
+echo "== field: meeting links and price after inspection\n";
+list( $s, $b ) = $fbook( 'video', $gat( $tomorrow, '15:00' ) );
+check( 201 === $s && 'https://meet.example/dr-lim' === $b['booking']['meeting_link'], 'a confirmed online appointment gets the professional\'s room', $b['booking'] );
+list( $s, $b ) = $fbook( 'office', $gat( $tomorrow, '16:00' ) );
+check( 201 === $s && null === $b['booking']['meeting_link'], 'an office visit gets no link' );
+as_user( 1 );
+list( , $apol ) = call( 'POST', "/admin/modules/{$fp['id']}/policies", array( 'name' => 'Approval', 'default_status' => 'pending' ) );
+list( , $vsvc ) = call( 'POST', "/admin/modules/{$fp['id']}/services", array( 'name' => 'Video (approval)', 'duration_minutes' => 30, 'location_type' => 'virtual', 'service_category' => 'inspection', 'policy_id' => $apol['id'] ) );
+as_user( 0 );
+list( $s, $b ) = call( 'POST', "/modules/{$fp['id']}/bookings", array( 'service_ids' => array( $vsvc['id'] ), 'start' => $gat( $tomorrow, '17:00' ), 'customer' => array( 'name' => 'Pending', 'phone' => '+60160000002', 'email' => 'pending@example.test' ) ) );
+$pv = $code_id( $b );
+check( 201 === $s && 'pending' === $b['booking']['status'] && null === $b['booking']['meeting_link'], 'pending: no link yet', $b['booking'] );
+as_user( 1 );
+list( $s, $d ) = call( 'PATCH', "/admin/bookings/$pv/status", array( 'status' => 'confirmed' ) );
+check( 200 === $s && 'https://meet.example/dr-lim' === $d['meeting_link'], 'approved: the room is handed out', $d );
+$mails_before = count( mails() );
+list( $s ) = call( 'PATCH', "/admin/bookings/$pv/meeting-link", array( 'url' => 'javascript:alert(1)' ) );
+check( 422 === $s, 'a link set by hand must be http(s)' );
+list( $s, $d ) = call( 'PATCH', "/admin/bookings/$pv/meeting-link", array( 'url' => 'https://meet.example/special' ) );
+call( 'PATCH', "/admin/bookings/$pv/meeting-link", array( 'url' => 'https://meet.example/special' ) );
+$sent = array_values( array_filter( array_slice( mails(), $mails_before ), static function ( $x ) {
+	return false !== strpos( $x->subject, 'meeting link' );
+} ) );
+check( 200 === $s && 'https://meet.example/special' === $d['meeting_link'] && 1 === count( $sent ) && false !== strpos( $sent[0]->message, 'https://meet.example/special' ), 'a link set by hand wins and is emailed once', count( $sent ) );
+list( $s ) = call( 'PATCH', "/admin/bookings/$jid/meeting-link", array( 'url' => 'https://x.example' ) );
+check( 409 === $s, 'meeting links are for field bookings only' );
+list( , $psvc ) = call( 'POST', "/admin/modules/{$fp['id']}/services", array( 'name' => 'Roof repair', 'duration_minutes' => 60, 'price' => '0', 'price_after_inspection' => true ) );
+as_user( 0 );
+list( , $pub ) = call( 'GET', "/modules/{$fp['id']}" );
+check( true === array_column( $pub['services'], null, 'name' )['Roof repair']['price_after_inspection'], 'customers see the price comes after the inspection' );
+call( 'POST', "/modules/{$fp['id']}/bookings", array( 'service_ids' => array( $psvc['id'] ), 'start' => $gat( $day3, '09:00' ), 'customer' => array( 'name' => 'Roof', 'phone' => '+60160000003', 'email' => 'roof@example.test' ) ) );
+check( (bool) array_filter( mails(), static function ( $x ) {
+	return false !== strpos( $x->message, '(price given after inspection)' );
+} ), 'the email says the price comes after the inspection' );
+
+echo "== field: follow-ups and overruns\n";
+as_user( 1 );
+$np = $practice( 'Night Practice', array( 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8' ), null, array( 'start_time' => '00:00', 'end_time' => '23:45' ) );
+call( 'PATCH', "/admin/policies/{$np['policy']}", array( 'min_notice_booking_minutes' => 0 ) );
+$T3   = (int) ( ceil( ( time() + 45 * 60 ) / 900 ) * 900 ); // far enough ahead for a 30-minute drive before the visit
+$iso3 = static function ( int $ts ) use ( $tz ) {
+	return ( new DateTimeImmutable( '@' . $ts ) )->setTimezone( $tz )->format( DATE_ATOM );
+};
+$nbook = static function ( string $svc, string $pro, int $ts, array $extra = array() ) use ( $fbook, $np, $iso3, $code_id ) {
+	list( $s, $b ) = $fbook( $svc, $iso3( $ts ), array_merge( array( 'staff_id' => $np['pro'][ $pro ] ), $extra ), $np );
+	return 201 === $s ? $code_id( $b ) : 0;
+};
+$fst  = static function ( int $id, string $to ) {
+	return call( 'PATCH', "/admin/bookings/$id/status", array( 'status' => $to ) );
+};
+$fu   = static function ( int $parent, string $svc, string $start ) use ( $np ) {
+	return call( 'POST', "/admin/bookings/$parent/follow-up", array( 'service_id' => $np['svc'][ $svc ], 'start' => $start ) );
+};
+$insp  = $nbook( 'site', 'P1', $T3, array( 'address' => $pin( NEARP ) ) );
+$later = ( new DateTimeImmutable( 'today +5 days', $tz ) )->format( 'Y-m-d' );
+list( $s ) = $fu( $insp, 'work', $gat( $later, '10:00' ) );
+check( $insp > 0 && 409 === $s, 'a follow-up waits for the inspection to start' );
+$fst( $insp, 'in-progress' );
+list( $s, $child ) = $fu( $insp, 'work', $gat( $later, '10:00' ) );
+$cid = $child['id'] ?? 0;
+$parent = JustSimple\Booking\Booking\BookingService::view( $insp, true );
+check( 201 === $s && $insp === $child['follow_up_of'] && 'confirmed' === $child['status'] && 'admin' === $child['source'] && $parent['customer']['id'] === $child['customer']['id'] && '1 Jalan Test' === $child['address']['line1'], 'the follow-up is linked, confirmed, same customer and address', $child );
+check( $cid && array( '09:30', '12:30' ) === array_slice( $rows( $cid )[0], 2, 2 ), 'its travel is held too: 09:30-12:30', $cid ? $rows( $cid ) : null );
+list( $s ) = $fu( $insp, 'site', $gat( $later, '14:00' ) );
+check( 422 === $s, 'a follow-up must be a standard service' );
+list( $s ) = $fu( $insp, 'work', ( new DateTimeImmutable( '-2 hours', $tz ) )->format( DATE_ATOM ) );
+check( 422 === $s, 'a follow-up starts in the future' );
+$offi = $nbook( 'office', 'P2', $T3 );
+$fst( $offi, 'in-progress' );
+list( $s, $d ) = $fu( $offi, 'work', $gat( $later, '15:00' ) );
+check( 422 === $s && false !== strpos( $d['message'], 'address' ), 'an office inspection has no address for on-site work', $d );
+call( 'PATCH', "/admin/modules/{$np['id']}", array( 'settings' => array( 'latitude' => SEREMBANP[0], 'longitude' => SEREMBANP[1], 'service_radius_km' => 5 ) ) );
+list( $s, $d ) = $fu( $insp, 'work', $gat( $later, '16:00' ) );
+check( 422 === $s && 'outside_service_area' === $d['code'], 'an on-site follow-up is checked against the radius again', $d );
+call( 'PATCH', "/admin/modules/{$np['id']}", array( 'settings' => array( 'latitude' => KLP[0], 'longitude' => KLP[1], 'service_radius_km' => 25 ) ) );
+$direct = $nbook( 'work', 'P3', $T3, array( 'address' => $pin( NEARP ) ) );
+$fst( $direct, 'in-progress' );
+list( $s, $d ) = $fu( $direct, 'work', $gat( $later, '17:00' ) );
+check( 422 === $s && false !== strpos( $d['message'], 'inspection' ), 'only an inspection can have a follow-up', $d );
+list( $s ) = call( 'POST', "/admin/bookings/$p1id/follow-up", array( 'service_id' => $svc['id'], 'start' => $gat( $later, '10:00' ) ) );
+list( $s2 ) = call( 'PATCH', "/admin/bookings/$p1id/actual-duration", array( 'minutes' => 90 ) );
+check( 409 === $s && 409 === $s2, 'follow-ups and overruns are for field bookings only' );
+
+$ov = $nbook( 'office', 'P4', $T3 );
+list( $s ) = call( 'PATCH', "/admin/bookings/$ov/actual-duration", array( 'minutes' => 90 ) );
+check( 409 === $s, 'only a job in progress can overrun' );
+$fst( $ov, 'in-progress' );
+list( $s ) = call( 'PATCH', "/admin/bookings/$ov/actual-duration", array( 'minutes' => 0 ) );
+check( 422 === $s, 'minutes must be at least 1' );
+list( $s, $d ) = call( 'PATCH', "/admin/bookings/$ov/actual-duration", array( 'minutes' => 90 ) );
+check( 200 === $s && array() === $d['conflicting_booking_ids'] && 90 === $d['booking']['actual_duration_minutes'] && $iso3( $T3 + 5400 ) === $d['booking']['end'] && array( $hm2( $T3 ), $hm2( $T3 + 5400 ) ) === array_slice( $rows( $ov )[0], 2, 2 ), 'a free overrun stretches the reservation to 90 minutes', $d );
+$sh = $nbook( 'office', 'P5', $T3 );
+$fst( $sh, 'in-progress' );
+list( $s, $d ) = call( 'PATCH', "/admin/bookings/$sh/actual-duration", array( 'minutes' => 40 ) );
+check( 200 === $s && 40 === $d['booking']['actual_duration_minutes'] && array( $hm2( $T3 ), $hm2( $T3 + 3600 ) ) === array_slice( $rows( $sh )[0], 2, 2 ), 'a shorter job only records the figure' );
+$first = $nbook( 'office', 'P6', $T3 );
+$next  = $nbook( 'office', 'P6', $T3 + 3600 );
+$fst( $first, 'in-progress' );
+list( $s, $d ) = call( 'PATCH', "/admin/bookings/$first/actual-duration", array( 'minutes' => 90 ) );
+check( 200 === $s && array( $next ) === $d['conflicting_booking_ids'] && true === $d['booking']['schedule_conflict'] && array( $hm2( $T3 ), $hm2( $T3 + 3600 ) ) === array_slice( $rows( $first )[0], 2, 2 ) && array( $hm2( $T3 + 3600 ), $hm2( $T3 + 7200 ) ) === array_slice( $rows( $next )[0], 2, 2 ), 'an overrun into the next appointment is flagged, not forced', $d );
+list( , $flagged ) = call( 'GET', "/admin/modules/{$np['id']}/bookings", null, array( 'from' => wp_date( 'Y-m-d', $T3 ), 'to' => wp_date( 'Y-m-d', $T3 + 7200 ), 'schedule_conflict' => '1' ) );
+check( array( $first, $next ) === array_column( $flagged, 'id' ), 'both flagged on the desk', array_column( $flagged, 'id' ) );
+call( 'PATCH', "/admin/bookings/$first", array( 'schedule_conflict' => false ) );
+list( , $flagged ) = call( 'GET', "/admin/modules/{$np['id']}/bookings", null, array( 'from' => wp_date( 'Y-m-d', $T3 ), 'to' => wp_date( 'Y-m-d', $T3 + 7200 ), 'schedule_conflict' => '1' ) );
+check( array( $next ) === array_column( $flagged, 'id' ), 'clearing one leaves the other' );
+list( , $fpart ) = call( 'POST', "/admin/modules/{$np['id']}/products", array( 'name' => 'Fuse', 'stock_qty' => 5 ) );
+list( $s, $d ) = call( 'PUT', "/admin/bookings/$ov/parts", array( 'parts' => array( array( 'product_id' => $fpart['id'], 'quantity' => 2 ) ) ) );
+$fst( $ov, 'completed' );
+check( 200 === $s && array( 3, 'in_stock' ) === $stock( $fpart['id'] ), 'field jobs keep a parts list, taken on completion', $stock( $fpart['id'] ) );
+check( (bool) array_filter( mails(), static function ( $x ) {
+	return false !== strpos( $x->message, 'Visit at: 1 Jalan Test' );
+} ), 'the emails say where the visit is' );
+
+echo "== field race fixture\n";
+$frace = array( 'day' => ( new DateTimeImmutable( 'today +3 days', $tz ) )->format( 'Y-m-d' ), 'near' => NEARP );
+$one   = $practice( 'Race practice one', array( 'Dr A' ), array( '08:00', '18:00' ), $day_shift );
+$two   = $practice( 'Race practice two', array( 'Dr A', 'Dr B' ), array( '08:00', '18:00' ), $day_shift );
+$three = $practice( 'Race practice three', array( 'Dr A', 'Dr B', 'Dr C' ), array( '08:00', '18:00' ), $day_shift );
+$frace += array( 'one' => array( $one['id'], $one['svc']['site'] ), 'two' => array( $two['id'], $two['svc']['site'] ), 'three' => array( $three['id'], $three['svc']['office'] ) );
+$or1 = $nbook( 'office', 'P7', $T3 );
+$or2 = $nbook( 'office', 'P8', $T3 );
+$fst( $or1, 'in-progress' );
+$fst( $or2, 'in-progress' );
+$frace['overrun'] = array( 'module' => $np['id'], 'office' => $np['svc']['office'], 'jobs' => array( $or1, $or2 ), 'pros' => array( $np['pro']['P7'], $np['pro']['P8'] ), 'next' => $iso3( $T3 + 3600 ) );
+
 echo "== salon race fixture\n";
 list( , $rsm ) = call( 'POST', '/admin/modules', array( 'title' => 'Salon race', 'type' => 'salon' ) );
 call( 'PATCH', "/admin/modules/{$rsm['id']}", array( 'status' => 'active' ) );
@@ -989,5 +1239,6 @@ echo "\n" . ( $failures ? "$failures FAILED\n" : "all passed\n" );
 echo 'SALONRACE ' . wp_json_encode( $race ) . "\n";
 echo 'RESTRACE ' . wp_json_encode( $rrace ) . "\n";
 echo 'WSRACE ' . wp_json_encode( $wsrace ) . "\n";
+echo 'FIELDRACE ' . wp_json_encode( $frace ) . "\n";
 echo 'RACE ' . wp_json_encode( array( 'module' => $rm['id'], 'service' => $rs['id'], 'staff' => $race_staff, 'start10' => $at( '10:00' ), 'start11' => $at( '11:00' ) ) ) . "\n";
 exit( $failures ? 1 : 0 );

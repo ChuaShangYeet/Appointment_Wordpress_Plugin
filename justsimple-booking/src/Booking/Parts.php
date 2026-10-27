@@ -101,8 +101,8 @@ final class Parts {
 				if ( ! $b ) {
 					throw new EngineError( EngineError::NOT_FOUND, 'Booking not found.' );
 				}
-				if ( 'workshop' !== $b['type'] ) {
-					throw new EngineError( EngineError::VALIDATION, 'A parts list belongs to workshop jobs.' );
+				if ( ! in_array( $b['type'], array( 'workshop', 'field' ), true ) ) { // professionals keep spare parts too, as in the engine
+					throw new EngineError( EngineError::VALIDATION, 'A parts list belongs to workshop and field-service jobs.' );
 				}
 				if ( ! in_array( $b['status'], self::EDITABLE, true ) ) {
 					throw new EngineError( EngineError::INVALID_TRANSITION, sprintf( "Parts can be changed on a confirmed, running or waiting-for-parts job (status is '%s').", $b['status'] ) );

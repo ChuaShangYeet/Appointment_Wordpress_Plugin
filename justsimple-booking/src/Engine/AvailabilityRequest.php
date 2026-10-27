@@ -32,6 +32,12 @@ final class AvailabilityRequest {
 	public $table_type = 'normal';
 	/** @var bool restaurant: the customer accepts sitting at several tables */
 	public $allow_separate_seating = false;
+	/** @var float|null field: the customer's map pin for an on-site visit */
+	public $latitude = null;
+	/** @var float|null */
+	public $longitude = null;
+	/** @var array|null field: the business location and service radius (latitude, longitude, service_radius_km) */
+	public $business_location = null;
 
 	public function __construct( int $module_id, \DateTimeZone $tz, array $services, Policy $policy, string $day, ?int $resource_id, int $now ) {
 		$this->module_id   = $module_id;

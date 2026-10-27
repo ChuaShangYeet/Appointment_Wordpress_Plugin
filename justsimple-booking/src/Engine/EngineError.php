@@ -22,8 +22,10 @@ class EngineError extends \RuntimeException {
 	const MINIMUM_SPEND      = 'minimum_spend_not_accepted'; // 422
 	const INCOMPATIBLE_VEHICLE = 'incompatible_vehicle';      // 422
 	const LEAD_TIME          = 'lead_time_not_acknowledged'; // 422
+	const OUTSIDE_AREA       = 'outside_service_area';       // 422
 
 	const STATUS = array(
+		self::OUTSIDE_AREA       => 422,
 		self::INCOMPATIBLE_VEHICLE => 422,
 		self::LEAD_TIME          => 422,
 		self::MINIMUM_SPEND      => 422,

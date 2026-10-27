@@ -15,6 +15,10 @@ final class Catalog {
 	const SETTINGS_DEFAULTS = array(
 		'slot_step_minutes' => 15,
 		'notify_email'      => '',
+		// field: where the business is and how far it travels for on-site visits
+		'latitude'          => null,
+		'longitude'         => null,
+		'service_radius_km' => null,
 	);
 
 	/** @return array<string,mixed>|null with `settings` decoded */
@@ -54,7 +58,7 @@ final class Catalog {
 		}
 		$rows  = $wpdb->get_results(
 			$wpdb->prepare(
-				'SELECT id, name, duration_minutes, buffer_minutes, price, price_after_inspection, policy_id, is_addon FROM ' . Schema::table( 'services' ) .
+				'SELECT id, name, duration_minutes, buffer_minutes, price, price_after_inspection, policy_id, is_addon, location_type, travel_buffer_minutes, service_category FROM ' . Schema::table( 'services' ) .
 				' WHERE module_id = %d AND active = 1' . ( $allow_addons ? '' : ' AND is_addon = 0' ) . ' AND id IN (' . Db::ints( $ids ) . ')',
 				array_merge( array( $module_id ), $ids )
 			),
@@ -66,6 +70,7 @@ final class Catalog {
 			$r['duration_minutes'] = (int) $r['duration_minutes'];
 			$r['buffer_minutes']   = (int) $r['buffer_minutes'];
 			$r['is_addon']         = (bool) (int) $r['is_addon'];
+			$r['travel_buffer_minutes'] = (int) $r['travel_buffer_minutes'];
 			$r['policy_id']        = null === $r['policy_id'] ? null : (int) $r['policy_id'];
 			$by_id[ $r['id'] ]     = $r;
 		}

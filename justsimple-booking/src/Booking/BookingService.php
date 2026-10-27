@@ -32,7 +32,7 @@ final class BookingService {
 	const LOCK_WAIT = 10;
 
 	/** Module types bookable in this release. */
-	const BOOKABLE_TYPES = array( 'staff', 'salon', 'restaurant', 'workshop' );
+	const BOOKABLE_TYPES = array( 'staff', 'salon', 'restaurant', 'workshop', 'field' );
 
 	/**
 	 * Availability for one business day.
@@ -134,12 +134,33 @@ final class BookingService {
 		}
 		$vehicle = $workshop ? Vehicles::check( $module_id, $in['vehicle'] ?? null ) : null;
 		$ack     = in_array( $in['acknowledge_lead_time'] ?? false, array( true, 1, '1', 'true' ), true );
+		$field   = 'field' === $module['type'];
+		if ( isset( $in['address_id'] ) ) { // no customer sign-in yet: a saved address id is not taken from the public
+			throw new EngineError( EngineError::VALIDATION, 'Give the address with its map pin.', array( 'field' => 'address_id' ) );
+		}
+		if ( ! $field && isset( $in['address'] ) ) {
+			throw new EngineError( EngineError::VALIDATION, 'An address applies only to on-site services.', array( 'field' => 'address' ) );
+		}
+		$address = $field && isset( $in['address'] ) ? Addresses::check( $in['address'] ) : null;
+		if ( $address ) {
+			$party['latitude']  = $address['latitude'];
+			$party['longitude'] = $address['longitude'];
+		}
 		// what makes two requests "the same" for idempotency: everything the customer chose
-		$fingerprint = hash( 'sha256', wp_json_encode( array( $module_id, array_map( 'intval', (array) ( $in['service_ids'] ?? array() ) ), $named, $start, $name, $phone, $email, $request, $party, $spend, $vehicle ? array( $vehicle['plate_no'], $vehicle['supported']['id'], $vehicle['year'] ) : null, $ack ) ) );
+		$fingerprint = hash( 'sha256', wp_json_encode( array( $module_id, array_map( 'intval', (array) ( $in['service_ids'] ?? array() ) ), $named, $start, $name, $phone, $email, $request, $party, $spend, $vehicle ? array( $vehicle['plate_no'], $vehicle['supported']['id'], $vehicle['year'] ) : null, $ack, $address ) ) );
 
 		HoldSweeper::run( $now );
 		$req = self::request( $module, (array) ( $in['service_ids'] ?? array() ), $named ? (int) $named : null, Clock::local_date( $start, wp_timezone() ), $now, $party );
 		$req->policy->validate_start( $start, $now );
+		if ( $field && 1 === count( $req->services ) ) {
+			$on_site = 'on_site' === $req->services[0]['location_type'];
+			if ( $on_site && ! $address ) {
+				throw new EngineError( EngineError::VALIDATION, 'An on-site service needs the address to visit.', array( 'field' => 'address' ) );
+			}
+			if ( ! $on_site && $address ) {
+				throw new EngineError( EngineError::VALIDATION, 'An address applies only to on-site services.', array( 'field' => 'address' ) );
+			}
+		}
 		$notice = $workshop ? Parts::lead_time_notice( $req->service_ids() ) : array();
 		if ( $notice && ! $ack ) { // checked before anything is written
 			throw new EngineError( EngineError::LEAD_TIME, 'Some parts must be ordered; please acknowledge the estimated lead time.', array( 'parts' => $notice ) );
@@ -151,7 +172,7 @@ final class BookingService {
 		}
 		try {
 			$result = Db::transaction(
-				function () use ( $wpdb, $module, $req, $start, $name, $phone, $email, $request, $key, $fingerprint, $now, $in, $restaurant, $spend, $vehicle, $notice ) {
+				function () use ( $wpdb, $module, $req, $start, $name, $phone, $email, $request, $key, $fingerprint, $now, $in, $restaurant, $spend, $vehicle, $notice, $address ) {
 					if ( null !== $key ) {
 						$existing = $wpdb->get_row( $wpdb->prepare( 'SELECT id, idempotency_hash FROM ' . Schema::table( 'bookings' ) . ' WHERE module_id = %d AND idempotency_key = %s', $module['id'], $key ), ARRAY_A );
 						if ( $existing ) {
@@ -173,25 +194,14 @@ final class BookingService {
 					$customer_id = Customers::upsert( $name, $phone, $email );
 					$vehicle_id  = $vehicle ? Vehicles::upsert( $customer_id, $vehicle ) : null;
 					$pending     = 'pending' === $req->policy->default_status;
-					$code        = self::unique_code();
-					$sql_now     = Db::to_sql( $now );
-					$wpdb->insert(
-						Schema::table( 'bookings' ),
+					$booking_id  = self::write_booking(
 						array(
-							'code'              => $code,
-							'manage_token_hash' => ManageLink::hash( ManageLink::token( $code ) ),
 							'module_id'         => $module['id'],
 							'customer_id'       => $customer_id,
 							'contact_email'     => $email,
 							'idempotency_key'   => $key,
 							'idempotency_hash'  => null === $key ? null : $fingerprint,
 							'status'            => $req->policy->default_status,
-							'start_utc'         => Db::to_sql( min( array_map( static function ( $a ) {
-								return $a->start;
-							}, $assignments ) ) ),
-							'end_utc'           => Db::to_sql( max( array_map( static function ( $a ) {
-								return $a->end;
-							}, $assignments ) ) ),
 							'policy_snapshot'   => wp_json_encode( $req->policy->snapshot() ),
 							'special_request'   => '' === $request ? null : $request,
 							'party_size'        => $restaurant ? $req->party_size : null,
@@ -202,41 +212,17 @@ final class BookingService {
 							'lead_time_acknowledged_utc' => $notice ? Db::to_sql( $now ) : null,
 							'hold_expires_utc'  => $pending ? Db::to_sql( $now + $req->policy->pending_timeout ) : null,
 							'source'            => in_array( $in['source'] ?? '', array( 'widget', 'admin', 'api' ), true ) ? $in['source'] : 'widget',
-							'created_utc'       => $sql_now,
-							'updated_utc'       => $sql_now,
-						)
+							'address_id'        => $address ? Addresses::save( $customer_id, $address ) : null,
+						),
+						$req->services,
+						$assignments,
+						$pending ? 'held' : 'active',
+						'Booked online.',
+						$now
 					);
-					Db::check();
-					$booking_id = (int) $wpdb->insert_id;
-
-					foreach ( $req->services as $n => $s ) {
-						$wpdb->insert(
-							Schema::table( 'booking_items' ),
-							array(
-								'booking_id'       => $booking_id,
-								'service_id'       => $s['id'],
-								'duration_minutes' => $s['duration_minutes'],
-								'buffer_minutes'   => $s['buffer_minutes'],
-								'seq'              => $n,
-							)
-						);
-						Db::check();
+					if ( ! $pending ) {
+						FieldService::fill_meeting_link( $booking_id ); // a confirmed online appointment gets the professional's room
 					}
-					foreach ( $assignments as $a ) {
-						$wpdb->insert(
-							Schema::table( 'booking_allocations' ),
-							array(
-								'booking_id'  => $booking_id,
-								'resource_id' => $a->resource_id,
-								'service_id'  => $a->service_id,
-								'start_utc'   => Db::to_sql( $a->start ),
-								'end_utc'     => Db::to_sql( $a->end ),
-								'state'       => $pending ? 'held' : 'active',
-							)
-						);
-						Db::check();
-					}
-					self::history( $booking_id, null, $req->policy->default_status, null, 'Booked online.', $now );
 					return array( $booking_id, false );
 				}
 			);
@@ -306,8 +292,11 @@ final class BookingService {
 				Db::check();
 				if ( 'completed' === $to && 'salon' === $row['module_type'] ) {
 					Inventory::finalise_completion( $booking_id ); // retail stock leaves the shelf; the real duration is locked in
-				} elseif ( 'completed' === $to && 'workshop' === $row['module_type'] ) {
+				} elseif ( 'completed' === $to && in_array( $row['module_type'], array( 'workshop', 'field' ), true ) ) {
 					Inventory::deduct_stock( $booking_id ); // the job's parts leave the shelf
+				}
+				if ( 'confirmed' === $to ) {
+					FieldService::fill_meeting_link( $booking_id );
 				}
 				self::history( $booking_id, $row['status'], $to, $user_id, $note, $now );
 				return $row['status'];
@@ -426,7 +415,7 @@ final class BookingService {
 		if ( ! $b ) {
 			throw new EngineError( EngineError::NOT_FOUND, 'Booking not found.' );
 		}
-		$services = $wpdb->get_results( $wpdb->prepare( 'SELECT s.id, s.name, i.duration_minutes, i.is_upsell FROM ' . Schema::table( 'booking_items' ) . ' i JOIN ' . Schema::table( 'services' ) . ' s ON s.id = i.service_id WHERE i.booking_id = %d ORDER BY i.seq', $booking_id ), ARRAY_A );
+		$services = $wpdb->get_results( $wpdb->prepare( 'SELECT s.id, s.name, i.duration_minutes, i.is_upsell, s.location_type, s.service_category, s.price_after_inspection FROM ' . Schema::table( 'booking_items' ) . ' i JOIN ' . Schema::table( 'services' ) . ' s ON s.id = i.service_id WHERE i.booking_id = %d ORDER BY i.seq', $booking_id ), ARRAY_A );
 		$staff    = $wpdb->get_results( $wpdb->prepare( 'SELECT DISTINCT r.id, r.name, r.type FROM ' . Schema::table( 'booking_allocations' ) . ' a JOIN ' . Schema::table( 'resources' ) . ' r ON r.id = a.resource_id WHERE a.booking_id = %d', $booking_id ), ARRAY_A );
 		$snapshot = json_decode( $b['policy_snapshot'], true );
 		$state    = array(
@@ -442,11 +431,14 @@ final class BookingService {
 			'start'           => Clock::format( Db::from_sql( $b['start_utc'] ), $tz ),
 			'end'             => Clock::format( Db::from_sql( $b['end_utc'] ), $tz ),
 			'services'        => array_map( static function ( $s ) {
-				return array( 'id' => (int) $s['id'], 'name' => $s['name'], 'duration_minutes' => (int) $s['duration_minutes'], 'is_upsell' => (bool) (int) $s['is_upsell'] );
+				return array( 'id' => (int) $s['id'], 'name' => $s['name'], 'duration_minutes' => (int) $s['duration_minutes'], 'is_upsell' => (bool) (int) $s['is_upsell'], 'location_type' => $s['location_type'], 'service_category' => $s['service_category'], 'price_after_inspection' => (bool) (int) $s['price_after_inspection'] );
 			}, $services ),
 			( 'restaurant' === $b['module_type'] ? 'tables' : 'staff' ) => self::resources_of( $staff, 'restaurant' === $b['module_type'] ? 'table' : 'staff' ),
 			'bays'            => 'workshop' === $b['module_type'] ? self::resources_of( $staff, 'bay' ) : null,
 			'vehicle'         => self::vehicle_of( $b['vehicle_id'] ),
+			'address'         => self::address_of( $b['address_id'] ),
+			'meeting_link'    => $b['meeting_link'],
+			'follow_up_of'    => $b['parent_booking_id'] ? (int) $b['parent_booking_id'] : null,
 			'lead_time_acknowledged' => null !== $b['lead_time_acknowledged_utc'],
 			'customer'        => array( 'name' => $b['customer_name'] ),
 			'special_request' => $b['special_request'],
@@ -491,6 +483,70 @@ final class BookingService {
 		} ) ) );
 	}
 
+	/** The visit address without the map pin (the pin stays with the business). */
+	private static function address_of( $address_id ): ?array {
+		$a = Addresses::get( $address_id );
+		return $a ? array( 'line1' => $a['line1'], 'city' => $a['city'], 'postcode' => $a['postcode'] ) : null;
+	}
+
+	/**
+	 * Writes a booking, its services, its allocations and the first history row; returns its id. Runs inside the caller's
+	 * transaction and lock. The booking's times are the customer-visible window: the allocations may hold travel time around it.
+	 *
+	 * @param array<string,mixed> $fields jsb_bookings columns (module_id, customer_id, status, policy_snapshot, ...)
+	 */
+	public static function write_booking( array $fields, array $services, array $assignments, string $state, string $note, int $now ): int {
+		global $wpdb;
+		$code    = self::unique_code();
+		$sql_now = Db::to_sql( $now );
+		$wpdb->insert(
+			Schema::table( 'bookings' ),
+			array(
+				'code'              => $code,
+				'manage_token_hash' => ManageLink::hash( ManageLink::token( $code ) ),
+				'start_utc'         => Db::to_sql( min( array_map( static function ( $a ) {
+					return $a->service_start();
+				}, $assignments ) ) ),
+				'end_utc'           => Db::to_sql( max( array_map( static function ( $a ) {
+					return $a->service_end();
+				}, $assignments ) ) ),
+				'created_utc'       => $sql_now,
+				'updated_utc'       => $sql_now,
+			) + $fields
+		);
+		Db::check();
+		$booking_id = (int) $wpdb->insert_id;
+		foreach ( $services as $n => $s ) {
+			$wpdb->insert(
+				Schema::table( 'booking_items' ),
+				array(
+					'booking_id'       => $booking_id,
+					'service_id'       => $s['id'],
+					'duration_minutes' => $s['duration_minutes'],
+					'buffer_minutes'   => $s['buffer_minutes'],
+					'seq'              => $n,
+				)
+			);
+			Db::check();
+		}
+		foreach ( $assignments as $a ) {
+			$wpdb->insert(
+				Schema::table( 'booking_allocations' ),
+				array(
+					'booking_id'  => $booking_id,
+					'resource_id' => $a->resource_id,
+					'service_id'  => $a->service_id,
+					'start_utc'   => Db::to_sql( $a->start ),
+					'end_utc'     => Db::to_sql( $a->end ),
+					'state'       => $state,
+				)
+			);
+			Db::check();
+		}
+		self::history( $booking_id, null, (string) $fields['status'], null, $note, $now );
+		return $booking_id;
+	}
+
 	private static function vehicle_of( $vehicle_id ): ?array {
 		global $wpdb;
 		if ( ! $vehicle_id ) {
@@ -500,7 +556,7 @@ final class BookingService {
 		return $v ? array( 'plate_no' => $v['plate_no'], 'make' => $v['make'], 'model' => $v['model'], 'year' => null === $v['year'] ? null : (int) $v['year'] ) : null;
 	}
 
-	private static function request( array $module, array $service_ids, ?int $resource_id, string $date, int $now, array $party = array() ): AvailabilityRequest {
+	public static function request( array $module, array $service_ids, ?int $resource_id, string $date, int $now, array $party = array() ): AvailabilityRequest {
 		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) || ! checkdate( (int) substr( $date, 5, 2 ), (int) substr( $date, 8, 2 ), (int) substr( $date, 0, 4 ) ) ) {
 			throw new EngineError( EngineError::VALIDATION, 'Give the date as YYYY-MM-DD.', array( 'field' => 'date' ) );
 		}
@@ -517,6 +573,15 @@ final class BookingService {
 		$policy   = Catalog::resolve_policy( $module, $services );
 		$req      = new AvailabilityRequest( (int) $module['id'], wp_timezone(), $services, $policy, $date, $resource_id ?: null, $now );
 		$req->step = 60 * max( 5, (int) $module['settings']['slot_step_minutes'] );
+		if ( 'field' === $module['type'] ) { // the customer's map pin and the business location, for the service radius
+			$req->latitude          = isset( $party['latitude'] ) && is_numeric( $party['latitude'] ) ? (float) $party['latitude'] : null;
+			$req->longitude         = isset( $party['longitude'] ) && is_numeric( $party['longitude'] ) ? (float) $party['longitude'] : null;
+			$req->business_location = array(
+				'latitude'          => $module['settings']['latitude'],
+				'longitude'         => $module['settings']['longitude'],
+				'service_radius_km' => $module['settings']['service_radius_km'],
+			);
+		}
 		return $req;
 	}
 
@@ -554,7 +619,7 @@ final class BookingService {
 	}
 
 	/** An ISO 8601 instant with an explicit offset or Z; a time without one would be ambiguous. */
-	private static function parse_start( string $s ): int {
+	public static function parse_start( string $s ): int {
 		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(Z|[+-]\d{2}:\d{2})$/', $s ) ) {
 			throw new EngineError( EngineError::VALIDATION, 'Give the start as an ISO 8601 time with its offset, as the availability response does.', array( 'field' => 'start' ) );
 		}
@@ -579,7 +644,7 @@ final class BookingService {
 	 * Last line of defence inside the lock: the chosen resources must not overlap a live allocation.
 	 * The allocator already decided against committed rows, so this firing means a bug, and it refuses rather than double-books.
 	 */
-	private static function assert_still_free( array $assignments, int $now ): void {
+	public static function assert_still_free( array $assignments, int $now ): void {
 		global $wpdb;
 		foreach ( $assignments as $a ) {
 			$clash = (int) $wpdb->get_var(
@@ -599,7 +664,7 @@ final class BookingService {
 		}
 	}
 
-	private static function unique_code(): string {
+	public static function unique_code(): string {
 		global $wpdb;
 		do {
 			$code = ManageLink::new_code();
@@ -607,7 +672,7 @@ final class BookingService {
 		return $code;
 	}
 
-	private static function history( int $booking_id, ?string $from, string $to, ?int $user_id, ?string $note, int $now ): void {
+	public static function history( int $booking_id, ?string $from, string $to, ?int $user_id, ?string $note, int $now ): void {
 		global $wpdb;
 		$wpdb->insert(
 			Schema::table( 'status_history' ),

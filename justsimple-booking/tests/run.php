@@ -24,6 +24,8 @@ use JustSimple\Booking\Engine\AvailabilityRequest;
 use JustSimple\Booking\Engine\SalonAllocator;
 use JustSimple\Booking\Engine\Clock;
 use JustSimple\Booking\Engine\EngineError;
+use JustSimple\Booking\Engine\FieldAllocator;
+use JustSimple\Booking\Engine\Geo;
 use JustSimple\Booking\Engine\Interval;
 use JustSimple\Booking\Engine\IntervalMath;
 use JustSimple\Booking\Engine\MinimumSpend;
@@ -663,8 +665,9 @@ test( 'the allocator factory knows the types built so far', function () {
 	ok( Allocators::for_type( 'staff' ) instanceof StaffAllocator, 'staff' );
 	ok( Allocators::for_type( 'restaurant' ) instanceof RestaurantAllocator, 'restaurant' );
 	ok( Allocators::for_type( 'workshop' ) instanceof WorkshopAllocator, 'workshop' );
+	ok( Allocators::for_type( 'field' ) instanceof FieldAllocator, 'field' );
 	throws( EngineError::VALIDATION, function () {
-		Allocators::for_type( 'field' );
+		Allocators::for_type( 'spaceship' );
 	} );
 } );
 
@@ -1133,6 +1136,134 @@ test( 'a job needs at least one service', function () {
 	throws( EngineError::VALIDATION, function () {
 		job_starts( garage(), array() );
 	} );
+} );
+
+// ------------------------------------------------------------------ field service (test_field_service.py)
+
+const KL_PIN   = array( 3.1390, 101.6869 ); // the business
+const NEAR     = array( 3.1200, 101.6700 ); // ~3 km away
+const SUBANG   = array( 3.0738, 101.5183 ); // ~20 km away
+const SEREMBAN = array( 2.7297, 101.9381 ); // ~55 km away
+const SITE     = array( 'id' => 31, 'duration_minutes' => 60, 'buffer_minutes' => 0, 'location_type' => 'on_site', 'travel_buffer_minutes' => 30, 'service_category' => 'inspection' );
+const OFFICE   = array( 'id' => 32, 'duration_minutes' => 60, 'buffer_minutes' => 0, 'location_type' => 'in_office', 'travel_buffer_minutes' => 30, 'service_category' => 'inspection' );
+const VIDEO    = array( 'id' => 33, 'duration_minutes' => 30, 'buffer_minutes' => 0, 'location_type' => 'virtual', 'travel_buffer_minutes' => 30, 'service_category' => 'inspection' );
+
+/** test_field_service.py's practice: open 08:00-18:00, Dr Lim (1) 09:00-18:00 with a 13:00-14:00 break. */
+function practice( array $pros = array( 1 => 'Dr Lim' ) ): MemSource {
+	$src = new MemSource();
+	for ( $d = 0; $d < 7; $d++ ) {
+		$src->hours[] = array( 'weekday' => $d, 'open_time' => '08:00', 'close_time' => '18:00' );
+	}
+	foreach ( $pros as $id => $name ) {
+		$src->add_staff( $id );
+		$src->names[ $id ] = $name;
+	}
+	return $src;
+}
+function visit( array $svc, ?array $pin = null, ?int $pro = null, float $radius = 25.0 ): AvailabilityRequest {
+	$r                    = req( D, $pro, null, null, null, array( $svc ) );
+	$r->latitude          = $pin ? $pin[0] : null;
+	$r->longitude         = $pin ? $pin[1] : null;
+	$r->business_location = array( 'latitude' => KL_PIN[0], 'longitude' => KL_PIN[1], 'service_radius_km' => $radius );
+	return $r;
+}
+function visit_starts( MemSource $src, AvailabilityRequest $r ): array {
+	return starts( ( new FieldAllocator() )->find_slots( $src, $r ) );
+}
+function book_visit( MemSource $src, AvailabilityRequest $r, int $h, int $m = 0 ) {
+	$a = ( new FieldAllocator() )->allocate( $src, $r, at( D, $h, $m ) )[0];
+	$src->book( $a->resource_id, $a->start, $a->end );
+	return $a;
+}
+
+test( 'only on-site visits reserve travel time', function () {
+	eq( array( 1800, 0, 0, 0 ), array( FieldAllocator::travel_pad( 'on_site', 30 ), FieldAllocator::travel_pad( 'in_office', 30 ), FieldAllocator::travel_pad( 'virtual', 30 ), FieldAllocator::travel_pad( 'on_site', 0 ) ) );
+} );
+test( 'distances on the ground', function () {
+	$subang = Geo::distance_km( KL_PIN[0], KL_PIN[1], SUBANG[0], SUBANG[1] );
+	ok( $subang > 19.5 && $subang < 20.6, "Kuala Lumpur to Subang ~20 km (the engine test's range), got $subang" );
+	$near = Geo::distance_km( KL_PIN[0], KL_PIN[1], NEAR[0], NEAR[1] );
+	ok( $near > 2.5 && $near < 3.5, "NEAR ~3 km, got $near" );
+	ok( Geo::distance_km( KL_PIN[0], KL_PIN[1], SEREMBAN[0], SEREMBAN[1] ) > 50, 'Seremban is over 50 km' );
+	eq( 0.0, Geo::distance_km( 3.1, 101.6, 3.1, 101.6 ), 'the same point' );
+	$across = Geo::distance_km( 0.0, 179.5, 0.0, -179.5 );
+	ok( abs( $across - 111.32 ) < 0.1, "one degree of longitude across the antimeridian on the equator, got $across" );
+	ok( abs( $subang - Geo::haversine_km( KL_PIN[0], KL_PIN[1], SUBANG[0], SUBANG[1] ) ) / $subang < 0.005, 'ellipsoid and sphere agree within 0.5%' );
+	ok( Geo::distance_km( 40.0, 0.0, -40.0, 179.9 ) > 19000, 'nearly antipodal points still give a distance' );
+} );
+test( 'the radius boundary is exact', function () {
+	$km = Geo::distance_km( KL_PIN[0], KL_PIN[1], SUBANG[0], SUBANG[1] );
+	ok( count( visit_starts( practice(), visit( SITE, SUBANG, null, $km + 0.01 ) ) ) > 0, 'a hair inside' );
+	throws( EngineError::OUTSIDE_AREA, function () use ( $km ) {
+		visit_starts( practice(), visit( SITE, SUBANG, null, $km - 0.01 ) );
+	} );
+} );
+test( 'on-site availability needs coordinates and offers slots inside the radius', function () {
+	$e = throws( EngineError::VALIDATION, function () {
+		visit_starts( practice(), visit( SITE ) );
+	} );
+	eq( 'latitude', $e->data['field'] );
+	ok( count( visit_starts( practice(), visit( SITE, NEAR ) ) ) > 0, 'near' );
+	ok( count( visit_starts( practice(), visit( SITE, SUBANG ) ) ) > 0, '~20 km is inside 25 km' );
+	$far = throws( EngineError::OUTSIDE_AREA, function () {
+		visit_starts( practice(), visit( SITE, SEREMBAN ) );
+	} );
+	ok( 25.0 === $far->data['service_radius_km'] && $far->data['distance_km'] > 50, 'the error says how far and how far is allowed' );
+} );
+test( 'the business location must be set for on-site visits, never for office or online', function () {
+	$r                    = visit( SITE, NEAR );
+	$r->business_location = array( 'latitude' => null, 'longitude' => null, 'service_radius_km' => null );
+	throws( EngineError::VALIDATION, function () use ( $r ) {
+		visit_starts( practice(), $r );
+	} );
+	$o                    = visit( OFFICE );
+	$o->business_location = null;
+	ok( count( visit_starts( practice(), $o ) ) > 0, 'in office needs no location' );
+} );
+test( 'on-site visits block travel time before and after', function () {
+	$s = visit_starts( practice(), visit( SITE, NEAR ) );
+	eq( array( '09:30', '16:30' ), array( $s[0], end( $s ) ), 'the 30-minute drive must also fit the 09:00-18:00 shift' );
+	$o = visit_starts( practice(), visit( OFFICE ) );
+	eq( array( '09:00', '17:00' ), array( $o[0], end( $o ) ), 'no travel in the office' );
+	$a = ( new FieldAllocator() )->allocate( practice(), visit( SITE, NEAR ), at( D, 10 ) )[0];
+	eq( array( '09:30', '11:30', '10:00', '11:00' ), array( hhmm( $a->start ), hhmm( $a->end ), hhmm( $a->service_start() ), hhmm( $a->service_end() ) ), 'allocation padded, visit not' );
+} );
+test( 'travel buffers shape what can be booked next', function () {
+	$src = practice();
+	book_visit( $src, visit( SITE, NEAR ), 10 ); // holds 09:30-11:30
+	$s = visit_starts( $src, visit( SITE, NEAR ) );
+	ok( ! in_array( '11:30', $s, true ) && ! in_array( '12:00', $s, true ), 'drive time would overlap, or run into lunch' );
+	eq( '14:30', $s[0], 'the first visit whose padded block fits after lunch' );
+	$o = visit_starts( $src, visit( OFFICE ) );
+	ok( in_array( '11:30', $o, true ) && ! in_array( '11:15', $o, true ), 'an office consult only waits for the drive back' );
+} );
+test( 'online appointments carry no travel time', function () {
+	$a = ( new FieldAllocator() )->allocate( practice(), visit( VIDEO ), at( D, 10 ) )[0];
+	eq( array( 0, 0, '10:00', '10:30' ), array( $a->pad_before, $a->pad_after, hhmm( $a->start ), hhmm( $a->end ) ) );
+} );
+test( 'a field-service booking takes exactly one service', function () {
+	throws( EngineError::VALIDATION, function () {
+		( new FieldAllocator() )->find_slots( practice(), req( D, null, null, null, null, array( OFFICE, VIDEO ) ) );
+	} );
+} );
+test( 'auto-assignment prefers the less loaded professional and respects qualification', function () {
+	$src = practice( array( 1 => 'Ali', 2 => 'Bala' ) );
+	eq( 1, book_visit( $src, visit( OFFICE ), 10 )->resource_id, 'equal load: name' );
+	eq( 2, book_visit( $src, visit( OFFICE ), 15 )->resource_id, 'the second goes to whoever is less loaded' );
+	$src->links[ VIDEO['id'] ] = array( 2 );
+	eq( 2, book_visit( $src, visit( VIDEO ), 11 )->resource_id, 'only Bala does video calls' );
+} );
+test( 'a named professional must be one', function () {
+	eq( 1, ( new FieldAllocator() )->allocate( practice(), visit( OFFICE, null, 1 ), at( D, 10 ) )[0]->resource_id );
+	throws( EngineError::NOT_FOUND, function () {
+		visit_starts( practice(), visit( OFFICE, null, 999 ) );
+	} );
+} );
+test( 'a practice with no opening hours is open all day (shifts decide)', function () {
+	$src        = practice();
+	$src->hours = array();
+	$s          = visit_starts( $src, visit( OFFICE ) );
+	eq( array( '09:00', '17:00' ), array( $s[0], end( $s ) ) );
 } );
 
 // ------------------------------------------------------------------ run
