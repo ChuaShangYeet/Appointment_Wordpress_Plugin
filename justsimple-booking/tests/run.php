@@ -33,6 +33,8 @@ use JustSimple\Booking\Engine\RestaurantAllocator;
 use JustSimple\Booking\Engine\ScheduleSource;
 use JustSimple\Booking\Engine\StaffAllocator;
 use JustSimple\Booking\Engine\StatusFlow;
+use JustSimple\Booking\Engine\WorkshopAllocator;
+use JustSimple\Booking\Engine\WorkshopSource;
 
 // ------------------------------------------------------------------ harness
 
@@ -96,7 +98,7 @@ function same_intervals( array $expected, array $actual, string $what = '' ) {
 }
 
 /** In-memory stand-in for the jsb_ tables. */
-final class MemSource implements RestaurantSource {
+final class MemSource implements RestaurantSource, WorkshopSource {
 	public $days_off = array();
 	public $hours    = array();
 	public $staff    = array(); // id => true (active)
@@ -106,6 +108,8 @@ final class MemSource implements RestaurantSource {
 	public $tables   = array(); // restaurant: [id, name, capacity, status, is_vip, minimum_spend (cents)]
 	public $seating  = null;    // restaurant: the seating-time setting
 	public $rules    = array(); // restaurant: [table_type, weekday|null, specific_date|null, open_tables]
+	public $bays     = array(); // workshop: id => true (active)
+	public $names    = array(); // id => name (defaults to "r<id>")
 
 	public function days_off( int $module_id ): array {
 		return $this->days_off;
@@ -114,13 +118,16 @@ final class MemSource implements RestaurantSource {
 		return $this->hours;
 	}
 	public function qualified_resource_ids( int $module_id, string $type, array $service_ids, ?int $only_id ): array {
-		$ids = array_keys( array_filter( $this->staff ) );
+		$pool = 'bay' === $type ? $this->bays : $this->staff;
+		$ids  = array_keys( array_filter( $pool ) );
 		if ( null !== $only_id ) {
 			$ids = array_values( array_intersect( $ids, array( $only_id ) ) );
 		}
 		foreach ( $service_ids as $sid ) {
-			if ( isset( $this->links[ $sid ] ) ) {
-				$ids = array_values( array_intersect( $ids, $this->links[ $sid ] ) );
+			// links count per type, as in WpScheduleSource: a link to a bay never narrows the staff
+			$of_type = array_values( array_intersect( $this->links[ $sid ] ?? array(), array_keys( $pool ) ) );
+			if ( $of_type ) {
+				$ids = array_values( array_intersect( $ids, $of_type ) );
 			}
 		}
 		sort( $ids );
@@ -143,6 +150,15 @@ final class MemSource implements RestaurantSource {
 		return $out;
 	}
 
+	public function resources( array $ids ): array {
+		$out = array();
+		foreach ( $ids as $id ) {
+			if ( isset( $this->staff[ $id ] ) || isset( $this->bays[ $id ] ) ) {
+				$out[ $id ] = array( 'name' => $this->names[ $id ] ?? "r$id", 'type' => isset( $this->bays[ $id ] ) ? 'bay' : 'staff' );
+			}
+		}
+		return $out;
+	}
 	public function tables( int $module_id ): array {
 		return $this->tables;
 	}
@@ -646,8 +662,9 @@ test( 'the allocator factory knows the types built so far', function () {
 	ok( Allocators::for_type( 'salon' ) instanceof SalonAllocator, 'salon' );
 	ok( Allocators::for_type( 'staff' ) instanceof StaffAllocator, 'staff' );
 	ok( Allocators::for_type( 'restaurant' ) instanceof RestaurantAllocator, 'restaurant' );
+	ok( Allocators::for_type( 'workshop' ) instanceof WorkshopAllocator, 'workshop' );
 	throws( EngineError::VALIDATION, function () {
-		Allocators::for_type( 'workshop' );
+		Allocators::for_type( 'field' );
 	} );
 } );
 
@@ -963,6 +980,159 @@ test( 'an after midnight seating is booked on the business day before', function
 	list( $a, $day ) = Availability::allocate_on_business_day( new RestaurantAllocator(), $src, $r, $start );
 	eq( D, $day );
 	eq( $start, $a[0]->start );
+} );
+
+// ------------------------------------------------------------------ workshop (test_automotive.py)
+
+const OIL   = array( 'id' => 21, 'duration_minutes' => 60, 'buffer_minutes' => 0 );
+const BRAKE = array( 'id' => 22, 'duration_minutes' => 120, 'buffer_minutes' => 0 );
+
+/** test_automotive.py's garage: open 08:00-18:00; mechanics Ali (1) and Bala (2) 09:00-18:00 with a 13:00-14:00 break; Bay 1 (11) and Bay 2 (12). */
+function garage( array $mechanics = array( 1 => 'Ali', 2 => 'Bala' ), array $bays = array( 11 => 'Bay 1', 12 => 'Bay 2' ) ): MemSource {
+	$src = new MemSource();
+	for ( $d = 0; $d < 7; $d++ ) {
+		$src->hours[] = array( 'weekday' => $d, 'open_time' => '08:00', 'close_time' => '18:00' );
+	}
+	foreach ( $mechanics as $id => $name ) {
+		$src->add_staff( $id );
+		$src->names[ $id ] = $name;
+	}
+	foreach ( $bays as $id => $name ) {
+		$src->bays[ $id ]  = true;
+		$src->names[ $id ] = $name;
+	}
+	return $src;
+}
+function job( array $services, ?int $mechanic = null ): AvailabilityRequest {
+	return req( D, $mechanic, null, null, null, $services );
+}
+/** Books the job at h:m into the source and returns [mechanic name, bay name, start, end] per segment. */
+function book_job( MemSource $src, array $services, int $h, int $m = 0, ?int $mechanic = null ): array {
+	$a   = ( new WorkshopAllocator() )->allocate( $src, job( $services, $mechanic ), at( D, $h, $m ) );
+	$out = array();
+	for ( $i = 0; $i < count( $a ); $i += 2 ) {
+		$src->book( $a[ $i ]->resource_id, $a[ $i ]->start, $a[ $i ]->end );
+		$src->book( $a[ $i + 1 ]->resource_id, $a[ $i + 1 ]->start, $a[ $i + 1 ]->end );
+		$out[] = array( $src->names[ $a[ $i ]->resource_id ], $src->names[ $a[ $i + 1 ]->resource_id ], hhmm( $a[ $i ]->start ), hhmm( $a[ $i ]->end ) );
+	}
+	return $out;
+}
+function job_starts( MemSource $src, array $services, ?int $mechanic = null ): array {
+	return starts( ( new WorkshopAllocator() )->find_slots( $src, job( $services, $mechanic ) ) );
+}
+
+test( 'segments are contiguous and include buffers', function () {
+	$segs = WorkshopAllocator::plan_segments( at( D, 9 ), array( OIL, array( 'id' => 9, 'duration_minutes' => 120, 'buffer_minutes' => 15 ), array( 'id' => 8, 'duration_minutes' => 30, 'buffer_minutes' => 0 ) ) );
+	eq( array( '09:00-10:00', '10:00-12:15', '12:15-12:45' ), array_map( static function ( $s ) {
+		return hhmm( $s[1]->start ) . '-' . hhmm( $s[1]->end );
+	}, $segs ) );
+} );
+test( 'fits needs the whole segment inside one free interval', function () {
+	$free = array( iv( 9, 0, 13, 0 ), iv( 14, 0, 18, 0 ) );
+	ok( IntervalMath::fits( $free, iv( 12, 0, 13, 0 ) ), 'ends exactly at the break' );
+	ok( ! IntervalMath::fits( $free, iv( 12, 30, 13, 30 ) ), 'runs into the break' );
+	ok( ! IntervalMath::fits( $free, iv( 8, 0, 9, 30 ) ), 'starts before the window' );
+	ok( ! IntervalMath::fits( array(), iv( 9, 0, 10, 0 ) ), 'nothing free' );
+} );
+test( 'choose resource prefers continuity then load then name', function () {
+	$names = array( 1 => 'Ali', 2 => 'Bala', 3 => 'Chen' );
+	$load  = array( 1 => 120.0, 2 => 30.0, 3 => 30.0 );
+	eq( 1, WorkshopAllocator::choose_resource( array( 1, 2, 3 ), 1, $load, $names ), 'same person as the previous segment' );
+	eq( 2, WorkshopAllocator::choose_resource( array( 2, 3 ), 1, $load, $names ), 'previous unavailable: least loaded, then name' );
+	eq( 1, WorkshopAllocator::choose_resource( array( 3, 1 ), null, array(), $names ), 'equal load: name' );
+} );
+test( 'a slot needs both a mechanic and a bay', function () {
+	eq( array(), job_starts( garage( array( 1 => 'Ali' ), array() ), array( OIL ) ), 'no bays' );
+	eq( array(), job_starts( garage( array(), array( 11 => 'Bay 1' ) ), array( OIL ) ), 'no mechanics' );
+	ok( count( job_starts( garage( array( 1 => 'Ali' ), array( 11 => 'Bay 1' ) ), array( OIL ) ) ) > 0, 'both' );
+} );
+test( 'a booking reserves one mechanic row and one bay row per segment', function () {
+	$a = ( new WorkshopAllocator() )->allocate( garage(), job( array( OIL ) ), at( D, 10 ) );
+	eq( 2, count( $a ) );
+	eq( array( 1, 11 ), array( $a[0]->resource_id, $a[1]->resource_id ), 'Ali (least loaded, then name) and Bay 1' );
+	eq( array( OIL['id'], OIL['id'] ), array( $a[0]->service_id, $a[1]->service_id ), 'both rows tagged with the service' );
+	$slot = ( new WorkshopAllocator() )->find_slots( garage(), job( array( OIL ) ) )[0]->to_array( $GLOBALS['KL'] );
+	ok( isset( $slot['staff_ids'], $slot['bay_ids'] ), 'a job slot names mechanics and bays' );
+} );
+test( 'the bay is the bottleneck when mechanics outnumber bays', function () {
+	$src = garage( array( 1 => 'Ali', 2 => 'Bala' ), array( 11 => 'Bay 1' ) );
+	book_job( $src, array( OIL ), 10 );
+	throws( EngineError::SLOT_UNAVAILABLE, function () use ( $src ) {
+		book_job( $src, array( OIL ), 10 );
+	} );
+	ok( ! in_array( '10:00', job_starts( $src, array( OIL ) ), true ), '10:00 no longer offered' );
+} );
+test( 'the mechanic is the bottleneck when bays outnumber mechanics', function () {
+	$src = garage( array( 1 => 'Ali' ), array( 11 => 'Bay 1', 12 => 'Bay 2' ) );
+	book_job( $src, array( OIL ), 10 );
+	throws( EngineError::SLOT_UNAVAILABLE, function () use ( $src ) {
+		book_job( $src, array( OIL ), 10 );
+	} );
+} );
+test( 'service qualifications restrict mechanic and bay separately', function () {
+	$src                     = garage();
+	$src->links[ OIL['id'] ]   = array( 2, 12 ); // Bala, Bay 2
+	$src->links[ BRAKE['id'] ] = array( 1, 11 ); // Ali, Bay 1
+	eq( array( array( 'Bala', 'Bay 2', '10:00', '11:00' ) ), book_job( $src, array( OIL ), 10 ) );
+	eq( array( array( 'Ali', 'Bay 1', '10:00', '12:00' ) ), book_job( $src, array( BRAKE ), 10 ) );
+} );
+test( 'a service linked only to a bay does not disqualify the mechanics', function () {
+	$src                   = garage();
+	$src->links[ OIL['id'] ] = array( 12 );
+	eq( 'Bay 2', book_job( $src, array( OIL ), 10 )[0][1] );
+} );
+test( 'mechanic breaks apply but bays have none', function () {
+	$s = job_starts( garage(), array( OIL ) );
+	eq( array( '09:00', '17:00' ), array( $s[0], end( $s ) ) );
+	ok( in_array( '12:00', $s, true ) && in_array( '14:00', $s, true ), 'either side of the break' );
+	ok( ! array_intersect( array( '12:15', '13:00', '13:45' ), $s ), 'nothing running into or inside the break' );
+} );
+test( 'services are stacked back to back with two rows per segment', function () {
+	eq( array( array( 'Ali', 'Bay 1', '09:00', '10:00' ), array( 'Ali', 'Bay 1', '10:00', '12:00' ) ), book_job( garage(), array( OIL, BRAKE ), 9 ), 'and the same mechanic and bay are kept' );
+} );
+test( 'segments block resources one at a time', function () {
+	$src                     = garage();
+	$src->links[ OIL['id'] ]   = array( 1 ); // Ali does oil
+	$src->links[ BRAKE['id'] ] = array( 2 ); // Bala does brakes
+	eq( array( 'Ali', 'Bala' ), array_column( book_job( $src, array( OIL, BRAKE ), 9 ), 0 ) );
+	book_job( $src, array( OIL ), 10 ); // Ali is free again from 10:00
+	throws( EngineError::SLOT_UNAVAILABLE, function () use ( $src ) {
+		book_job( $src, array( OIL, BRAKE ), 9 );
+	} ); // the second stacked job needs Bala from 10:00
+} );
+test( 'a segment running into the break makes the start unavailable', function () {
+	$s = job_starts( garage(), array( OIL, BRAKE ) );
+	ok( in_array( '10:00', $s, true ), '10-11 oil, 11-13 brake ends exactly at the break' );
+	ok( ! in_array( '10:15', $s, true ) && ! in_array( '12:00', $s, true ), 'the brake segment would cross 13:00-14:00' );
+	ok( in_array( '15:00', $s, true ) && ! in_array( '15:15', $s, true ), 'a 3-hour job must end by 18:00' );
+} );
+test( 'buffer time is part of each segment', function () {
+	$align = array( 'id' => 23, 'duration_minutes' => 60, 'buffer_minutes' => 15 );
+	eq( array( '10:00', '11:15' ), array_slice( book_job( garage(), array( OIL, $align ), 9 )[1], 2 ) );
+} );
+test( 'a named mechanic must be qualified for and free during every segment', function () {
+	$src                   = garage();
+	$src->links[ OIL['id'] ] = array( 1 ); // only Ali does oil; anyone does brakes
+	ok( count( job_starts( $src, array( OIL, BRAKE ), 1 ) ) > 0, 'Ali can do the whole job' );
+	eq( array(), job_starts( $src, array( OIL, BRAKE ), 2 ), 'Bala cannot do the oil segment' );
+	eq( array( 'Ali', 'Ali' ), array_column( book_job( $src, array( OIL, BRAKE ), 9, 0, 1 ), 0 ) );
+	throws( EngineError::NOT_FOUND, function () use ( $src ) {
+		job_starts( $src, array( OIL ), 999 );
+	} );
+	throws( EngineError::NOT_FOUND, function () use ( $src ) {
+		job_starts( $src, array( OIL ), 11 );
+	} ); // a bay is not a mechanic
+} );
+test( 'a workshop with no opening hours is open all day (shifts decide)', function () {
+	$src        = garage();
+	$src->hours = array();
+	$s          = job_starts( $src, array( OIL ) );
+	eq( array( '09:00', '17:00' ), array( $s[0], end( $s ) ) );
+} );
+test( 'a job needs at least one service', function () {
+	throws( EngineError::VALIDATION, function () {
+		job_starts( garage(), array() );
+	} );
 } );
 
 // ------------------------------------------------------------------ run

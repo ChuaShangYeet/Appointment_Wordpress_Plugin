@@ -16,6 +16,8 @@ final class SlotOption {
 	public $tables = false;
 	/** @var int restaurant: minimum spend of the proposed tables, in cents */
 	public $minimum_spend = 0;
+	/** @var int[]|null workshop: the bays the job would use (resource_ids then holds its mechanics) */
+	public $bay_ids = null;
 
 	public function __construct( int $start, int $end, array $resource_ids ) {
 		sort( $resource_ids );
@@ -33,11 +35,27 @@ final class SlotOption {
 		return $s;
 	}
 
+	/**
+	 * A workshop job: the mechanics and bays it would use, in segment order.
+	 *
+	 * @param int[] $mechanic_ids
+	 * @param int[] $bay_ids
+	 */
+	public static function job( int $start, int $end, array $mechanic_ids, array $bay_ids ): self {
+		$s               = new self( $start, $end, array() );
+		$s->resource_ids = array_values( $mechanic_ids );
+		$s->bay_ids      = array_values( $bay_ids );
+		return $s;
+	}
+
 	public function to_array( \DateTimeZone $tz ): array {
 		$out = array(
 			'start' => Clock::format( $this->start, $tz ),
 			'end'   => Clock::format( $this->end, $tz ),
 		);
+		if ( null !== $this->bay_ids ) {
+			return $out + array( 'staff_ids' => $this->resource_ids, 'bay_ids' => $this->bay_ids );
+		}
 		if ( ! $this->tables ) {
 			return $out + array( 'staff_ids' => $this->resource_ids );
 		}

@@ -10,6 +10,7 @@ final class Allocators {
 		'staff'      => StaffAllocator::class,
 		'salon'      => SalonAllocator::class,
 		'restaurant' => RestaurantAllocator::class,
+		'workshop'   => WorkshopAllocator::class,
 	);
 
 	/** @throws EngineError validation for a type not built yet */

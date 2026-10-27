@@ -45,6 +45,29 @@ try {
 			);
 			$out = array( 'ok' => true, 'tables' => array_column( $r['booking']['tables'], 'name' ), 'spend' => $r['booking']['minimum_spend_agreed'] );
 			break;
+		case 'book-job': // <module_id> <service_ids,comma-separated> <iso-start> <supported_vehicle_id>
+			$r   = BookingService::create(
+				(int) $argv[3],
+				array(
+					'service_ids' => array_map( 'intval', explode( ',', $argv[4] ) ),
+					'start'       => $argv[5],
+					'vehicle'     => array( 'plate_no' => 'R' . random_int( 10000, 99999 ), 'supported_vehicle_id' => (int) $argv[6] ),
+					'customer'    => array( 'name' => 'Racer', 'phone' => '+601' . random_int( 10000000, 99999999 ) ),
+				)
+			);
+			$out = array( 'ok' => true, 'staff' => array_column( $r['booking']['staff'], 'name' ), 'bays' => array_column( $r['booking']['bays'], 'name' ) );
+			break;
+		case 'set-parts': // <booking_id> <product_id:quantity,...>
+			$lines = array();
+			foreach ( explode( ',', $argv[4] ) as $pair ) {
+				list( $pid, $qty ) = explode( ':', $pair );
+				$lines[]           = array( 'product_id' => (int) $pid, 'quantity' => (int) $qty );
+			}
+			$r   = \JustSimple\Booking\Booking\Parts::set( (int) $argv[3], $lines );
+			$out = array( 'ok' => true, 'parts' => array_map( static function ( $l ) {
+				return $l['name'] . ' x' . $l['quantity'];
+			}, $r ) );
+			break;
 		case 'complete':
 			BookingService::transition( (int) $argv[3], 'completed', 'staff', 1 );
 			$out = array( 'ok' => true );

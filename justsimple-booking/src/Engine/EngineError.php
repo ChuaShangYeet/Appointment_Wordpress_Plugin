@@ -20,8 +20,12 @@ class EngineError extends \RuntimeException {
 	const INSUFFICIENT_STOCK = 'insufficient_stock'; // 409
 	const FORBIDDEN          = 'forbidden';          // 403
 	const MINIMUM_SPEND      = 'minimum_spend_not_accepted'; // 422
+	const INCOMPATIBLE_VEHICLE = 'incompatible_vehicle';      // 422
+	const LEAD_TIME          = 'lead_time_not_acknowledged'; // 422
 
 	const STATUS = array(
+		self::INCOMPATIBLE_VEHICLE => 422,
+		self::LEAD_TIME          => 422,
 		self::MINIMUM_SPEND      => 422,
 		self::INSUFFICIENT_STOCK => 409,
 		self::FORBIDDEN          => 403,

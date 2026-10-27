@@ -62,8 +62,8 @@ list( $s ) = call( 'GET', '/admin/modules' );
 check( 401 === $s, 'logged out: admin routes refused (401)', $s );
 
 as_user( 1 );
-list( $s, $d ) = call( 'POST', '/admin/modules', array( 'title' => 'Garage', 'type' => 'workshop' ) );
-check( 422 === $s, 'workshop modules refused in this release', $d );
+list( $s, $d ) = call( 'POST', '/admin/modules', array( 'title' => 'Home visits', 'type' => 'field' ) );
+check( 422 === $s, 'field modules refused in this release', $d );
 list( $s, $m ) = call( 'POST', '/admin/modules', array( 'title' => 'Test Spa', 'type' => 'staff' ) );
 check( 201 === $s && 'draft' === $m['status'] && $m['default_policy_id'], 'module created as draft with a default policy', $m );
 $mid = $m['id'];
@@ -642,6 +642,311 @@ foreach ( $days as $k => $day ) {
 	$rrace[ "day$k" ] = ( new DateTimeImmutable( "$day 19:00", $tz ) )->format( DATE_ATOM );
 }
 
+echo "== workshop: setup\n";
+as_user( 1 );
+list( $s, $d ) = call( 'POST', "/admin/modules/$mid/bays", array( 'name' => 'Bay X' ) );
+check( 422 === $s && 'bays' === $d['data']['field'], 'bays refused on a staff module', $d );
+$garage = static function ( string $title, array $mechs, array $bays, ?array $hours, array $shift ) {
+	list( , $g ) = call( 'POST', '/admin/modules', array( 'title' => $title, 'type' => 'workshop' ) );
+	call( 'PATCH', "/admin/modules/{$g['id']}", array( 'status' => 'active' ) );
+	if ( null !== $hours ) {
+		call( 'PUT', "/admin/modules/{$g['id']}/hours", array( 'hours' => array_map( static function ( $d ) use ( $hours ) {
+			return array( 'weekday' => $d, 'open_time' => $hours[0], 'close_time' => $hours[1] );
+		}, range( 0, 6 ) ) ) );
+	}
+	$out = array( 'id' => $g['id'], 'policy' => $g['default_policy_id'], 'mech' => array(), 'bay' => array(), 'svc' => array(), 'car' => array() );
+	foreach ( $mechs as $n ) {
+		list( , $r ) = call( 'POST', "/admin/modules/{$g['id']}/staff", array( 'name' => $n ) );
+		call( 'PUT', "/admin/staff/{$r['id']}/shifts", array( 'shifts' => array_map( static function ( $d ) use ( $shift ) {
+			return array( 'weekday' => $d ) + $shift;
+		}, range( 0, 6 ) ) ) );
+		$out['mech'][ $n ] = $r['id'];
+	}
+	foreach ( $bays as $n ) {
+		list( , $r ) = call( 'POST', "/admin/modules/{$g['id']}/bays", array( 'name' => $n ) );
+		$out['bay'][ $n ] = $r['id'];
+	}
+	foreach ( array( 'oil' => 60, 'brake' => 120 ) as $k => $min ) {
+		list( , $r ) = call( 'POST', "/admin/modules/{$g['id']}/services", array( 'name' => $k, 'duration_minutes' => $min ) );
+		$out['svc'][ $k ] = $r['id'];
+	}
+	foreach ( array( 'Vios' => array( 'Toyota', null, null ), 'City' => array( 'Honda', 2015, 2022 ) ) as $model => $x ) {
+		list( , $r ) = call( 'POST', "/admin/modules/{$g['id']}/supported-vehicles", array( 'make' => $x[0], 'model' => $model, 'year_from' => $x[1], 'year_to' => $x[2] ) );
+		$out['car'][ $model ] = $r['id'];
+	}
+	return $out;
+};
+$day_shift = array( 'start_time' => '09:00', 'end_time' => '18:00', 'break_start' => '13:00', 'break_end' => '14:00' );
+$g         = $garage( 'Test Garage', array( 'Ali', 'Bala' ), array( 'Bay 1', 'Bay 2' ), array( '08:00', '18:00' ), $day_shift );
+check( 2 === count( $g['bay'] ) && 2 === count( array_filter( $g['car'] ) ), 'workshop with two mechanics, two bays and two supported models' );
+list( $s, $d ) = call( 'POST', "/admin/modules/{$g['id']}/supported-vehicles", array( 'make' => 'X', 'model' => 'Y', 'year_from' => 2020, 'year_to' => 2010 ) );
+check( 422 === $s && 'year_to' === $d['data']['field'], 'a year range must run forwards', $d );
+list( $s ) = call( 'POST', "/admin/modules/$rid/supported-vehicles", array( 'make' => 'X', 'model' => 'Y' ) );
+check( 422 === $s, 'supported vehicles refused on a restaurant' );
+list( $s, $d ) = call( 'POST', "/admin/modules/{$g['id']}/products", array( 'name' => 'X', 'stock_status' => 'available_on_order' ) );
+check( 422 === $s && 'estimated_lead_time_days' === $d['data']['field'], 'a part on order needs a lead time', $d );
+
+$day3 = ( new DateTimeImmutable( 'today +3 days', $tz ) )->format( 'Y-m-d' );
+$gat  = static function ( string $day, string $hm ) use ( $tz ) {
+	return ( new DateTimeImmutable( "$day $hm", $tz ) )->format( DATE_ATOM );
+};
+$gbook = static function ( array $gg, array $svcs, string $start, array $extra = array() ) {
+	return call( 'POST', "/modules/{$gg['id']}/bookings", array_merge( array(
+		'service_ids' => array_map( static function ( $k ) use ( $gg ) {
+			return $gg['svc'][ $k ];
+		}, $svcs ),
+		'start'       => $start,
+		'customer'    => array( 'name' => 'Driver', 'phone' => '+6014' . random_int( 1000000, 9999999 ), 'email' => 'driver@example.test' ),
+		'vehicle'     => array( 'plate_no' => 'W' . random_int( 10000, 99999 ), 'supported_vehicle_id' => $gg['car']['Vios'] ),
+	), $extra ) );
+};
+$rows = static function ( int $booking_id ) use ( $wpdb, $tz ) {
+	$f = static function ( $u ) use ( $tz ) {
+		return ( new DateTimeImmutable( $u, new DateTimeZone( 'UTC' ) ) )->setTimezone( $tz )->format( 'H:i' );
+	};
+	return array_map( static function ( $x ) use ( $f ) {
+		return array( $x['type'], $x['name'], $f( $x['start_utc'] ), $f( $x['end_utc'] ), $x['state'] );
+	}, $wpdb->get_results( $wpdb->prepare( 'SELECT r.type, r.name, a.start_utc, a.end_utc, a.state FROM ' . Schema::table( 'booking_allocations' ) . ' a JOIN ' . Schema::table( 'resources' ) . ' r ON r.id = a.resource_id WHERE a.booking_id = %d ORDER BY a.start_utc, r.type', $booking_id ), ARRAY_A ) );
+};
+$code_id = static function ( array $created ) use ( $wpdb ) {
+	return (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . Schema::table( 'bookings' ) . ' WHERE code = %s', $created['booking']['code'] ) );
+};
+$bookings_in = static function ( int $module ) use ( $wpdb ) {
+	return (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . Schema::table( 'bookings' ) . ' WHERE module_id = %d', $module ) );
+};
+
+echo "== workshop: vehicles\n";
+as_user( 0 );
+list( $s, $list ) = call( 'GET', "/modules/{$g['id']}/supported-vehicles" );
+check( 200 === $s && array( 'Honda City', 'Toyota Vios' ) === array_map( static function ( $v ) {
+	return $v['make'] . ' ' . $v['model'];
+}, $list ) && 2015 === $list[0]['year_from'], 'the supported models are public', $list );
+list( $s, $d ) = $gbook( $g, array( 'oil' ), $gat( $tomorrow, '10:00' ), array( 'vehicle' => null ) );
+check( 422 === $s && 'vehicle' === $d['data']['field'], 'a workshop booking needs a vehicle', $d );
+list( $s, $d ) = $gbook( $g, array( 'oil' ), $gat( $tomorrow, '10:00' ), array( 'vehicle_id' => 1 ) );
+check( 422 === $s && 'vehicle_id' === $d['data']['field'], 'a saved vehicle id is not taken from the public (no sign-in yet)', $d );
+list( $s, $d ) = $gbook( $g, array( 'oil' ), $gat( $tomorrow, '10:00' ), array( 'vehicle' => array( 'plate_no' => 'XYZ1', 'supported_vehicle_id' => 999999 ) ) );
+check( 422 === $s && 'incompatible_vehicle' === $d['code'] && 0 === $bookings_in( $g['id'] ), 'an unsupported vehicle is refused and nothing is booked', $d );
+foreach ( array( 2010, 2023, null ) as $y ) {
+	list( $s, $d ) = $gbook( $g, array( 'oil' ), $gat( $tomorrow, '10:00' ), array( 'vehicle' => array( 'plate_no' => 'C1', 'supported_vehicle_id' => $g['car']['City'], 'year' => $y ) ) );
+	check( 422 === $s && 'incompatible_vehicle' === $d['code'], 'Honda City ' . var_export( $y, true ) . ': outside 2015-2022', $d );
+}
+list( $s, $b ) = $gbook( $g, array( 'oil' ), $gat( $tomorrow, '15:00' ), array( 'vehicle' => array( 'plate_no' => 'C1', 'supported_vehicle_id' => $g['car']['City'], 'year' => 2018 ) ) );
+check( 201 === $s && 'Honda' === $b['booking']['vehicle']['make'] && 2018 === $b['booking']['vehicle']['year'], 'a 2018 City is booked', $b );
+$same = array( 'name' => 'Aisha', 'phone' => '+60123456789' );
+list( $s ) = $gbook( $g, array( 'oil' ), $gat( $tomorrow, '16:00' ), array( 'customer' => $same, 'vehicle' => array( 'plate_no' => 'abc 123', 'supported_vehicle_id' => $g['car']['Vios'] ) ) );
+list( $s2, $b ) = $gbook( $g, array( 'oil' ), $gat( $tomorrow, '17:00' ), array( 'customer' => $same, 'vehicle' => array( 'plate_no' => 'ABC-123', 'supported_vehicle_id' => $g['car']['Vios'] ) ) );
+$vehicles = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . Schema::table( 'vehicles' ) . ' v JOIN ' . Schema::table( 'customers' ) . ' c ON c.id = v.customer_id WHERE c.phone = %s', '+60123456789' ) );
+check( 201 === $s && 201 === $s2 && 1 === $vehicles && 'ABC123' === $b['booking']['vehicle']['plate_no'], '"abc 123" and "ABC-123" from one phone are one vehicle', array( $s, $s2, $vehicles ) );
+list( $s, $d ) = call( 'POST', "/modules/$mid/bookings", array( 'service_ids' => array( $svc['id'] ), 'start' => $at( '12:00' ), 'customer' => array( 'name' => 'A', 'phone' => '+60175550001' ), 'vehicle' => array( 'plate_no' => 'A1', 'supported_vehicle_id' => $g['car']['Vios'] ) ) );
+check( 422 === $s && 'vehicle' === $d['data']['field'], 'a vehicle on a spa booking: 422', $d );
+
+echo "== workshop: mechanic and bay\n";
+list( , $av ) = call( 'GET', "/modules/{$g['id']}/availability", null, array( 'date' => $day3, 'services' => "{$g['svc']['oil']},{$g['svc']['brake']}" ) );
+$first = $av['slots'][0];
+check( $gat( $day3, '09:00' ) === $first['start'] && $gat( $day3, '12:00' ) === $first['end'] && isset( $first['bay_ids'] ) && array() === $av['lead_time_notice'], 'oil + brake: 09:00-12:00, with mechanics, bays and an empty lead-time notice', $first );
+$starts = wp_list_pluck( $av['slots'], 'start' );
+check( in_array( $gat( $day3, '10:00' ), $starts, true ) && ! in_array( $gat( $day3, '10:15' ), $starts, true ) && in_array( $gat( $day3, '15:00' ), $starts, true ) && ! in_array( $gat( $day3, '15:15' ), $starts, true ), 'a segment may not cross the 13:00 break, and a 3-hour job ends by 18:00' );
+list( $s, $b ) = $gbook( $g, array( 'oil', 'brake' ), $gat( $day3, '09:00' ) );
+$jid = $code_id( $b );
+check( 201 === $s && array( array( 'bay', 'Bay 1', '09:00', '10:00', 'active' ), array( 'staff', 'Ali', '09:00', '10:00', 'active' ), array( 'bay', 'Bay 1', '10:00', '12:00', 'active' ), array( 'staff', 'Ali', '10:00', '12:00', 'active' ) ) === $rows( $jid ) && $gat( $day3, '12:00' ) === $b['booking']['end'], 'stacked job: two rows per segment, same mechanic and bay throughout', $rows( $jid ) );
+check( array( 'Ali' ) === array_column( $b['booking']['staff'], 'name' ) && array( 'Bay 1' ) === array_column( $b['booking']['bays'], 'name' ), 'the booking names its mechanic and bay' );
+list( $s, $b ) = $gbook( $g, array( 'oil' ), $gat( $day3, '09:00' ), array( 'staff_id' => $g['mech']['Ali'] ) );
+check( 409 === $s, 'naming the busy mechanic: 409' );
+as_user( 1 );
+call( 'PUT', "/admin/bays/{$g['bay']['Bay 2']}/services", array( 'service_ids' => array( $g['svc']['oil'] ) ) );
+list( , $bs ) = call( 'GET', "/admin/bays/{$g['bay']['Bay 2']}/services" );
+check( array( $g['svc']['oil'] ) === $bs['service_ids'], 'bay qualifications saved' );
+as_user( 0 );
+list( $s, $b ) = $gbook( $g, array( 'oil' ), $gat( $day3, '09:00' ) );
+check( 201 === $s && array( 'Bala' ) === array_column( $b['booking']['staff'], 'name' ) && array( 'Bay 2' ) === array_column( $b['booking']['bays'], 'name' ), 'the second mechanic and the only other bay', $b['booking'] ?? $b );
+list( $s ) = $gbook( $g, array( 'oil' ), $gat( $day3, '09:00' ) );
+check( 409 === $s, 'both mechanics and bays busy at 09:00: 409' );
+
+echo "== workshop: parts lead time\n";
+as_user( 1 );
+list( , $pads ) = call( 'POST', "/admin/modules/{$g['id']}/products", array( 'name' => 'Brake pads', 'stock_status' => 'available_on_order', 'estimated_lead_time_days' => 5 ) );
+list( $s, $d ) = call( 'PUT', "/admin/services/{$g['svc']['brake']}/parts", array( 'product_ids' => array( $pads['id'] ) ) );
+check( 200 === $s && array( $pads['id'] ) === $d['product_ids'], 'brake service needs brake pads', $d );
+list( $s ) = call( 'PUT', "/admin/services/{$g['svc']['oil']}/parts", array( 'product_ids' => array( 999999 ) ) );
+check( 404 === $s, 'an unknown part on a service: 404' );
+as_user( 0 );
+list( , $av ) = call( 'GET', "/modules/{$g['id']}/availability", null, array( 'date' => $day3, 'services' => (string) $g['svc']['brake'] ) );
+list( , $av2 ) = call( 'GET', "/modules/{$g['id']}/availability", null, array( 'date' => $day3, 'services' => (string) $g['svc']['oil'] ) );
+check( array( array( 'name' => 'Brake pads', 'estimated_lead_time_days' => 5 ) ) === $av['lead_time_notice'] && array() === $av2['lead_time_notice'], 'availability lists the on-order part for brakes only', $av['lead_time_notice'] );
+$before = $bookings_in( $g['id'] );
+list( $s, $d ) = $gbook( $g, array( 'brake' ), $gat( $day3, '14:00' ) );
+check( 422 === $s && 'lead_time_not_acknowledged' === $d['code'] && 'Brake pads' === $d['data']['parts'][0]['name'] && $before === $bookings_in( $g['id'] ), 'booking without acknowledging: 422, nothing written', $d );
+list( $s, $b ) = $gbook( $g, array( 'brake' ), $gat( $day3, '14:00' ), array( 'acknowledge_lead_time' => true ) );
+check( 201 === $s && true === $b['booking']['lead_time_acknowledged'], 'acknowledged: booked and recorded', $b );
+as_user( 1 );
+call( 'PATCH', "/admin/products/{$pads['id']}", array( 'stock_status' => 'in_stock', 'stock_qty' => 4 ) );
+as_user( 0 );
+list( $s ) = $gbook( $g, array( 'brake' ), $gat( $day3, '15:00' ) );
+check( 201 === $s, 'the part arrived: no acknowledgement needed' );
+
+echo "== workshop: waiting for parts and resume\n";
+as_user( 1 );
+$ng = $garage( 'Night Garage', array( 'M1', 'M2', 'M3', 'M4', 'M5', 'M6' ), array( 'B1', 'B2', 'B3', 'B4', 'B5', 'B6' ), null, array( 'start_time' => '00:00', 'end_time' => '23:45' ) );
+call( 'PATCH', "/admin/policies/{$ng['policy']}", array( 'min_notice_booking_minutes' => 0 ) );
+$T2   = (int) ( ceil( ( time() + 300 ) / 900 ) * 900 );
+$hm2  = static function ( int $ts ) use ( $tz ) {
+	return ( new DateTimeImmutable( '@' . $ts ) )->setTimezone( $tz )->format( 'H:i' );
+};
+$soonjob = static function ( array $svcs, string $mech, array $extra = array() ) use ( $gbook, $ng, $T2, $code_id ) {
+	list( $s, $b ) = $gbook( $ng, $svcs, ( new DateTimeImmutable( '@' . $T2 ) )->setTimezone( wp_timezone() )->format( DATE_ATOM ), array_merge( array( 'staff_id' => $ng['mech'][ $mech ] ), $extra ) );
+	return 201 === $s ? $code_id( $b ) : 0;
+};
+$st = static function ( int $id, string $to ) {
+	return call( 'PATCH', "/admin/bookings/$id/status", array( 'status' => $to ) );
+};
+$j1 = $soonjob( array( 'brake' ), 'M1' );
+list( $s ) = $st( $j1, 'waiting-for-parts' );
+check( $j1 > 0 && 409 === $s, 'waiting for parts needs the job in progress first' );
+$st( $j1, 'in-progress' );
+list( $s, $d ) = $st( $j1, 'waiting-for-parts' );
+check( 200 === $s && 'waiting-for-parts' === $d['status'] && array( 'released', 'released' ) === array_column( $rows( $j1 ), 4 ), 'not started yet: mechanic and bay released', $rows( $j1 ) );
+list( $s, $b ) = $gbook( $ng, array( 'oil' ), ( new DateTimeImmutable( '@' . $T2 ) )->setTimezone( $tz )->format( DATE_ATOM ), array( 'staff_id' => $ng['mech']['M1'] ) );
+check( 201 === $s, 'the freed mechanic can be booked again' );
+list( $s, $d ) = $st( $j1, 'confirmed' );
+check( 409 === $s && false !== strpos( $d['message'], 'rescheduled' ), 'a waiting job is resumed, not confirmed', $d );
+list( $s ) = $st( $j1, 'completed' );
+check( 409 === $s, 'a waiting job cannot be completed' );
+list( $s ) = call( 'PATCH', "/admin/bookings/$p1id/status", array( 'status' => 'waiting-for-parts' ) );
+check( 409 === $s, 'a spa booking never waits for parts' );
+
+$j2 = $soonjob( array( 'oil', 'brake' ), 'M2' ); // T2 .. T2+60 oil, T2+60 .. T2+180 brake
+$st( $j2, 'in-progress' );
+JustSimple\Booking\Booking\BookingService::transition( $j2, 'waiting-for-parts', 'staff', 1, null, $T2 + 90 * 60 ); // as if 90 minutes in
+$cut = $rows( $j2 );
+check( array( array( 'bay', 'B2', $hm2( $T2 ), $hm2( $T2 + 3600 ), 'active' ), array( 'staff', 'M2', $hm2( $T2 ), $hm2( $T2 + 3600 ), 'active' ), array( 'bay', 'B2', $hm2( $T2 + 3600 ), $hm2( $T2 + 5400 ), 'active' ), array( 'staff', 'M2', $hm2( $T2 + 3600 ), $hm2( $T2 + 5400 ), 'active' ) ) === $cut, 'running job: finished segment kept, running segment cut at now', $cut );
+
+$later = ( new DateTimeImmutable( 'today +4 days', $tz ) )->format( 'Y-m-d' );
+list( $s, $d ) = call( 'POST', "/admin/bookings/$j1/resume", array( 'start' => $gat( $later, '10:00' ) ) );
+check( 200 === $s && 'confirmed' === $d['status'] && $gat( $later, '12:00' ) === $d['end'], 'resumed: confirmed, the job moves to the new time', $d );
+$live = array_values( array_filter( $rows( $j1 ), static function ( $x ) {
+	return 'active' === $x[4];
+} ) );
+check( 2 === count( $live ) && '10:00' === $live[0][2], 'new mechanic and bay rows at 10:00', $live );
+list( $s ) = call( 'POST', "/admin/bookings/$j1/resume", array( 'start' => $gat( $later, '14:00' ) ) );
+check( 409 === $s, 'resuming a job that is no longer waiting: 409' );
+list( $s, $d ) = call( 'POST', "/admin/bookings/$j2/resume", array( 'start' => $gat( $later, '09:00' ), 'service_ids' => array( $ng['svc']['brake'] ) ) );
+check( 200 === $s && $gat( $later, '11:00' ) === $d['end'], 'resume only the remaining brake service: 2 hours', $d );
+
+$j3 = $soonjob( array( 'oil' ), 'M3' );
+$st( $j3, 'in-progress' );
+$st( $j3, 'waiting-for-parts' );
+list( $s ) = call( 'POST', "/admin/bookings/$j3/resume", array( 'start' => ( new DateTimeImmutable( '-1 hour', $tz ) )->format( DATE_ATOM ) ) );
+check( 422 === $s, 'resume in the past: 422' );
+list( $s ) = call( 'POST', "/admin/bookings/$j3/resume", array( 'start' => $gat( $later, '15:00' ), 'service_ids' => array( $ng['svc']['brake'] ) ) );
+check( 422 === $s, 'resume a service not on the job: 422' );
+list( $s, $d ) = call( 'POST', "/admin/bookings/$j3/resume", array( 'start' => $gat( $later, '10:00' ), 'staff_id' => $ng['mech']['M1'] ) );
+check( 409 === $s && 'slot_unavailable' === $d['code'] && isset( $d['data']['slots'] ), 'resume onto a busy mechanic: 409 with the free slots', $d );
+$far = ( new DateTimeImmutable( 'today +70 days', $tz ) )->format( 'Y-m-d' );
+list( $s ) = call( 'POST', "/admin/bookings/$j3/resume", array( 'start' => $gat( $far, '10:00' ) ) );
+check( 200 === $s, 'an admin resume may go beyond the 60-day booking window' );
+
+echo "== workshop: the job's parts\n";
+list( , $filter ) = call( 'POST', "/admin/modules/{$ng['id']}/products", array( 'name' => 'Oil filter', 'stock_qty' => 5, 'price' => '25' ) );
+list( , $plug )   = call( 'POST', "/admin/modules/{$ng['id']}/products", array( 'name' => 'Spark plug', 'stock_qty' => 1, 'price' => '10' ) );
+$parts = static function ( int $id, array $lines ) {
+	return call( 'PUT', "/admin/bookings/$id/parts", array( 'parts' => array_map( static function ( $pid, $q ) {
+		return array( 'product_id' => $pid, 'quantity' => $q );
+	}, array_keys( $lines ), $lines ) ) );
+};
+$stock = static function ( int $id ) use ( $wpdb ) {
+	$r = $wpdb->get_row( $wpdb->prepare( 'SELECT stock_qty, stock_status FROM ' . Schema::table( 'products' ) . ' WHERE id = %d', $id ), ARRAY_A );
+	return array( (int) $r['stock_qty'], $r['stock_status'] );
+};
+$j4 = $soonjob( array( 'oil' ), 'M4' );
+list( $s, $d ) = $parts( $j4, array( $filter['id'] => 2 ) );
+check( 200 === $s && '25.00' === $d['parts'][0]['unit_price'] && false === $d['parts'][0]['needs_ordering'], 'parts go on the job at today\'s price', $d );
+call( 'PATCH', "/admin/products/{$filter['id']}", array( 'price' => '30' ) );
+list( $s, $d ) = $parts( $j4, array( $filter['id'] => 3, $plug['id'] => 2 ) );
+$by = array_column( $d['parts'], null, 'name' );
+check( 200 === $s && '25.00' === $by['Oil filter']['unit_price'] && 3 === $by['Oil filter']['quantity'] && '10.00' === $by['Spark plug']['unit_price'] && true === $by['Spark plug']['needs_ordering'], 'the list is replaced; old lines keep their price; 2 plugs > 1 on the shelf needs ordering', $d );
+list( $s ) = $parts( $j4, array( $filter['id'] => 1, 999999 => 1 ) );
+list( , $now_list ) = call( 'GET', "/admin/bookings/$j4/parts" );
+check( 404 === $s && 2 === count( $now_list['parts'] ), 'a bad list changes nothing' );
+list( $s ) = call( 'PUT', "/admin/bookings/$j4/parts", array( 'parts' => array( array( 'product_id' => $filter['id'], 'quantity' => 1 ), array( 'product_id' => $filter['id'], 'quantity' => 1 ) ) ) );
+check( 422 === $s, 'a part listed twice: 422' );
+$many = array();
+for ( $i = 0; $i < 51; $i++ ) {
+	$many[] = array( 'product_id' => $filter['id'] + $i, 'quantity' => 1 );
+}
+list( $s ) = call( 'PUT', "/admin/bookings/$j4/parts", array( 'parts' => $many ) );
+check( 422 === $s, 'more than 50 lines: 422' );
+list( $s ) = call( 'PUT', "/admin/bookings/$p1id/parts", array( 'parts' => array() ) );
+check( 422 === $s, 'a spa booking has no parts list' );
+
+$mech_user = get_user_by( 'login', 'jsb-mechanic' );
+$muid      = $mech_user ? $mech_user->ID : wp_insert_user( array( 'user_login' => 'jsb-mechanic', 'user_pass' => wp_generate_password( 24 ), 'role' => 'editor', 'user_email' => 'mechanic@example.test' ) );
+call( 'PATCH', "/admin/staff/{$ng['mech']['M5']}", array( 'wp_user_id' => $muid ) );
+$j5 = $soonjob( array( 'oil' ), 'M5' );
+as_user( $muid );
+list( $s ) = $parts( $j4, array( $filter['id'] => 1 ) );
+list( $s2 ) = $parts( $j5, array( $filter['id'] => 1 ) );
+list( $s3 ) = call( 'POST', "/admin/bookings/$j4/resume", array( 'start' => $gat( $later, '16:00' ) ) );
+check( 403 === $s && 200 === $s2 && 403 === $s3, 'a mechanic edits parts on their own job only; resume too', array( $s, $s2, $s3 ) );
+as_user( 1 );
+
+$st( $j4, 'in-progress' );
+check( array( 5, 'in_stock' ) === $stock( $filter['id'] ), 'nothing leaves the shelf while the job runs' );
+list( $s, $d ) = $st( $j4, 'completed' );
+check( 200 === $s && array( 2, 'in_stock' ) === $stock( $filter['id'] ) && array( 0, 'out_of_stock' ) === $stock( $plug['id'] ), 'completed: 3 filters and the 1 plug taken (never below 0)', array( $stock( $filter['id'] ), $stock( $plug['id'] ) ) );
+list( $s ) = $parts( $j4, array() );
+check( 409 === $s, 'a completed job\'s parts can no longer change' );
+$st( $j5, 'cancelled' );
+check( array( 2, 'in_stock' ) === $stock( $filter['id'] ), 'a job that never completes takes nothing' );
+list( , $gasket ) = call( 'POST', "/admin/modules/{$ng['id']}/products", array( 'name' => 'Gasket', 'stock_qty' => 1, 'stock_status' => 'available_on_order', 'estimated_lead_time_days' => 2 ) );
+$j6 = $soonjob( array( 'oil' ), 'M6' );
+$j7 = $soonjob( array( 'oil' ), 'M5' ); // M5's job was cancelled, so M5 is free again (M1 still has the rebooked oil change)
+foreach ( array( $j6, $j7 ) as $j ) {
+	$st( $j, 'in-progress' );
+	$parts( $j, array( $gasket['id'] => 1 ) );
+}
+$st( $j6, 'completed' );
+$st( $j7, 'completed' );
+check( $j6 && $j7 && array( 0, 'available_on_order' ) === $stock( $gasket['id'] ), 'two jobs on the last gasket: 0, and the on-order label stays', $stock( $gasket['id'] ) );
+
+echo "== workshop: the parts-waiting flow end to end\n";
+$j8 = $soonjob( array( 'oil' ), 'M4' ); // M4's job was completed; M2 still holds its finished first segment
+$st( $j8, 'in-progress' );
+list( , $d ) = $parts( $j8, array( $plug['id'] => 2 ) );
+$flag = $d['parts'][0]['needs_ordering'];
+$st( $j8, 'waiting-for-parts' );
+call( 'PATCH', "/admin/products/{$plug['id']}", array( 'stock_qty' => 4, 'stock_status' => 'in_stock' ) );
+list( , $d ) = call( 'GET', "/admin/bookings/$j8/parts" );
+$after = $d['parts'][0]['needs_ordering'];
+list( $s ) = call( 'POST', "/admin/bookings/$j8/resume", array( 'start' => ( new DateTimeImmutable( '@' . ( $T2 + 15 * 60 ) ) )->setTimezone( $tz )->format( DATE_ATOM ) ) );
+$st( $j8, 'in-progress' );
+list( $s2, $d ) = $st( $j8, 'completed' );
+check( true === $flag && false === $after && 200 === $s && 200 === $s2 && array( 2, 'in_stock' ) === $stock( $plug['id'] ), 'needs ordering -> waiting -> stock arrives -> resumed -> completed, parts taken', array( $flag, $after, $s, $s2, $stock( $plug['id'] ) ) );
+$mail = mails();
+check( (bool) array_filter( $mail, static function ( $x ) {
+	return false !== strpos( $x->message, 'Vehicle: ' );
+} ), 'the emails name the vehicle' );
+
+echo "== workshop race fixture\n";
+$wsrace = array();
+foreach ( array( '3x1' => array( 3, 1 ), '1x3' => array( 1, 3 ), '2x2' => array( 2, 2 ) ) as $k => $n ) {
+	$x = $garage( "Race $k", array_map( static function ( $i ) {
+		return "M$i";
+	}, range( 1, $n[0] ) ), array_map( static function ( $i ) {
+		return "B$i";
+	}, range( 1, $n[1] ) ), array( '08:00', '18:00' ), $day_shift );
+	$wsrace[ $k ] = array( 'module' => $x['id'], 'oil' => $x['svc']['oil'], 'brake' => $x['svc']['brake'], 'car' => $x['car']['Vios'] );
+}
+$wsrace['day']  = $day3;
+$jp             = $soonjob( array( 'oil' ), 'M3' );
+$st( $jp, 'in-progress' );
+list( , $pa ) = call( 'POST', "/admin/modules/{$ng['id']}/products", array( 'name' => 'Race part A', 'stock_qty' => 10 ) );
+list( , $pb ) = call( 'POST', "/admin/modules/{$ng['id']}/products", array( 'name' => 'Race part B', 'stock_qty' => 10 ) );
+$jc = $soonjob( array( 'oil' ), 'M4' );
+$st( $jc, 'in-progress' );
+$parts( $jc, array( $pa['id'] => 1 ) );
+$wsrace['parts'] = array( 'job' => $jp, 'complete_job' => $jc, 'a' => $pa['id'], 'b' => $pb['id'] );
+
 echo "== salon race fixture\n";
 list( , $rsm ) = call( 'POST', '/admin/modules', array( 'title' => 'Salon race', 'type' => 'salon' ) );
 call( 'PATCH', "/admin/modules/{$rsm['id']}", array( 'status' => 'active' ) );
@@ -683,5 +988,6 @@ foreach ( array( 'A', 'B', 'C' ) as $n ) {
 echo "\n" . ( $failures ? "$failures FAILED\n" : "all passed\n" );
 echo 'SALONRACE ' . wp_json_encode( $race ) . "\n";
 echo 'RESTRACE ' . wp_json_encode( $rrace ) . "\n";
+echo 'WSRACE ' . wp_json_encode( $wsrace ) . "\n";
 echo 'RACE ' . wp_json_encode( array( 'module' => $rm['id'], 'service' => $rs['id'], 'staff' => $race_staff, 'start10' => $at( '10:00' ), 'start11' => $at( '11:00' ) ) ) . "\n";
 exit( $failures ? 1 : 0 );

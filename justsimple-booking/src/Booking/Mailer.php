@@ -35,6 +35,7 @@ final class Mailer {
 				$what,
 				$when,
 				self::who( $b ),
+				self::vehicle( $b ),
 				/* translators: %s: booking code */
 				sprintf( __( 'Booking code: %s', 'justsimple-booking' ), $b['code'] ),
 				$link ? sprintf( __( 'View or cancel: %s', 'justsimple-booking' ), $link ) : null,
@@ -120,6 +121,16 @@ final class Mailer {
 		}
 		/* translators: %s: staff names */
 		return empty( $b['staff'] ) ? null : sprintf( __( 'With: %s', 'justsimple-booking' ), implode( ', ', wp_list_pluck( $b['staff'], 'name' ) ) );
+	}
+
+	/** The car on a workshop job. */
+	private static function vehicle( array $b ): ?string {
+		if ( empty( $b['vehicle'] ) ) {
+			return null;
+		}
+		$v = $b['vehicle'];
+		/* translators: 1: number plate, 2: make and model */
+		return sprintf( __( 'Vehicle: %1$s (%2$s)', 'justsimple-booking' ), $v['plate_no'], trim( $v['make'] . ' ' . $v['model'] . ( $v['year'] ? ' ' . $v['year'] : '' ) ) );
 	}
 
 	private static function when( array $b ): string {

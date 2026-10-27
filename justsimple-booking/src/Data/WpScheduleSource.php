@@ -4,13 +4,14 @@ namespace JustSimple\Booking\Data;
 use JustSimple\Booking\Engine\Interval;
 use JustSimple\Booking\Engine\MinimumSpend;
 use JustSimple\Booking\Engine\RestaurantSource;
+use JustSimple\Booking\Engine\WorkshopSource;
 
 defined( 'ABSPATH' ) || exit;
 
 // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table names come from Schema::table(), values are prepared.
 
 /** The engine's view of the jsb_ tables. Reads committed rows only; BookingService calls it inside its lock. */
-final class WpScheduleSource implements RestaurantSource {
+final class WpScheduleSource implements RestaurantSource, WorkshopSource {
 
 	public function days_off( int $module_id ): array {
 		global $wpdb;
@@ -105,6 +106,18 @@ final class WpScheduleSource implements RestaurantSource {
 		$out = array();
 		foreach ( $rows as $row ) {
 			$out[ (int) $row['resource_id'] ][] = new Interval( Db::from_sql( $row['start_utc'] ), Db::from_sql( $row['end_utc'] ) );
+		}
+		return $out;
+	}
+
+	public function resources( array $ids ): array {
+		global $wpdb;
+		if ( ! $ids ) {
+			return array();
+		}
+		$out = array();
+		foreach ( $wpdb->get_results( $wpdb->prepare( 'SELECT id, name, type FROM ' . Schema::table( 'resources' ) . ' WHERE id IN (' . Db::ints( $ids ) . ')', $ids ), ARRAY_A ) as $r ) {
+			$out[ (int) $r['id'] ] = array( 'name' => $r['name'], 'type' => $r['type'] );
 		}
 		return $out;
 	}

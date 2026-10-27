@@ -4,6 +4,7 @@ namespace JustSimple\Booking\Rest;
 use JustSimple\Booking\Activator;
 use JustSimple\Booking\Booking\Access;
 use JustSimple\Booking\Booking\BookingService;
+use JustSimple\Booking\Booking\Parts;
 use JustSimple\Booking\Booking\Upsell;
 use JustSimple\Booking\Data\Catalog;
 use JustSimple\Booking\Data\Db;
@@ -94,7 +95,30 @@ final class AdminController {
 				'location'      => array( 'type' => 'str', 'nullable' => true, 'max' => 80 ),
 			),
 		),
-		// Salon retail products (workshop parts later).
+		// Workshop bays: resources of type 'bay'. They follow opening hours and days off; they have no shifts.
+		'bays'     => array(
+			'table'         => 'resources',
+			'path'          => 'bays',
+			'resource_type' => 'bay',
+			'fields'        => array(
+				'name'       => array( 'type' => 'str', 'required' => true ),
+				'status'     => array( 'type' => 'enum', 'values' => array( 'active', 'inactive' ) ),
+				'sort_order' => array( 'type' => 'int' ),
+			),
+		),
+		// The car models a workshop services, optionally limited to model years.
+		'supported-vehicles' => array(
+			'table'      => 'supported_vehicles',
+			'path'       => 'supported-vehicles',
+			'timestamps' => false,
+			'fields'     => array(
+				'make'      => array( 'type' => 'str', 'required' => true, 'max' => 80 ),
+				'model'     => array( 'type' => 'str', 'required' => true, 'max' => 80 ),
+				'year_from' => array( 'type' => 'int', 'nullable' => true, 'min' => 1900, 'max' => 2100 ),
+				'year_to'   => array( 'type' => 'int', 'nullable' => true, 'min' => 1900, 'max' => 2100 ),
+			),
+		),
+		// Salon retail products and workshop parts.
 		'products' => array(
 			'table'      => 'products',
 			'path'       => 'products',
@@ -163,6 +187,25 @@ final class AdminController {
 		self::route( '/admin/staff/(?P<id>\d+)/services', array(
 			array( 'GET', array( __CLASS__, 'get_staff_services' ), $manage ),
 			array( 'PUT', array( __CLASS__, 'put_staff_services' ), $manage ),
+		) );
+		self::route( '/admin/bays/(?P<id>\d+)/services', array(
+			array( 'GET', static function ( \WP_REST_Request $r ) {
+				return self::get_staff_services( $r, 'bays' );
+			}, $manage ),
+			array( 'PUT', static function ( \WP_REST_Request $r ) {
+				return self::put_staff_services( $r, 'bays' );
+			}, $manage ),
+		) );
+		self::route( '/admin/services/(?P<id>\d+)/parts', array(
+			array( 'GET', array( __CLASS__, 'get_service_parts' ), $manage ),
+			array( 'PUT', array( __CLASS__, 'put_service_parts' ), $manage ),
+		) );
+		self::route( '/admin/bookings/(?P<id>\d+)/parts', array(
+			array( 'GET', array( __CLASS__, 'get_job_parts' ), $work ),
+			array( 'PUT', array( __CLASS__, 'put_job_parts' ), $work ),
+		) );
+		self::route( '/admin/bookings/(?P<id>\d+)/resume', array(
+			array( 'POST', array( __CLASS__, 'resume' ), $work ),
 		) );
 		self::route( '/admin/modules/(?P<id>\d+)/hours', array(
 			array( 'GET', array( __CLASS__, 'get_hours' ), $manage ),
@@ -314,7 +357,7 @@ final class AdminController {
 			$spec  = self::SPECS[ $key ];
 			$m     = self::module_or_404( (int) $r['id'] );
 			$where = self::type_where( $spec );
-			$order = in_array( $key, array( 'services', 'staff', 'tables' ), true ) ? 'sort_order, id' : ( 'days-off' === $key ? 'start_date, id' : ( 'products' === $key ? 'name, id' : 'id' ) );
+			$order = in_array( $key, array( 'services', 'staff', 'tables', 'bays' ), true ) ? 'sort_order, id' : ( 'days-off' === $key ? 'start_date, id' : ( 'products' === $key ? 'name, id' : ( 'supported-vehicles' === $key ? 'make, model, id' : 'id' ) ) );
 			$rows  = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . Schema::table( $spec['table'] ) . " WHERE module_id = %d$where ORDER BY $order", $m['id'] ), ARRAY_A );
 			return array_map( static function ( $row ) use ( $spec ) {
 				return self::row_out( $spec, $row );
@@ -446,10 +489,10 @@ final class AdminController {
 		} );
 	}
 
-	public static function get_staff_services( \WP_REST_Request $r ) {
-		return Rest::run( static function () use ( $r ) {
+	public static function get_staff_services( \WP_REST_Request $r, string $key = 'staff' ) {
+		return Rest::run( static function () use ( $r, $key ) {
 			global $wpdb;
-			$staff = self::child_or_404( 'staff', (int) $r['id'] );
+			$staff = self::child_or_404( $key, (int) $r['id'] );
 			return array( 'service_ids' => array_map( 'intval', $wpdb->get_col( $wpdb->prepare( 'SELECT service_id FROM ' . Schema::table( 'service_resources' ) . ' WHERE resource_id = %d ORDER BY service_id', $staff['id'] ) ) ) );
 		} );
 	}
@@ -458,10 +501,10 @@ final class AdminController {
 	 * Which services this staff member does. A service linked to nobody can be done by every active staff member;
 	 * once any staff member is linked to it, only linked staff are offered for it.
 	 */
-	public static function put_staff_services( \WP_REST_Request $r ) {
-		return Rest::run( static function () use ( $r ) {
+	public static function put_staff_services( \WP_REST_Request $r, string $key = 'staff' ) {
+		return Rest::run( static function () use ( $r, $key ) {
 			global $wpdb;
-			$staff = self::child_or_404( 'staff', (int) $r['id'] );
+			$staff = self::child_or_404( $key, (int) $r['id'] );
 			$ids   = Rest::ids( $r->get_json_params()['service_ids'] ?? array() );
 			foreach ( $ids as $sid ) {
 				self::owned_or_fail( 'services', $sid, (int) $staff['module_id'], 'service_ids' );
@@ -700,6 +743,63 @@ final class AdminController {
 		} );
 	}
 
+	// ------------------------------------------------------------------ workshop: parts and resume
+
+	public static function get_service_parts( \WP_REST_Request $r ) {
+		return Rest::run( static function () use ( $r ) {
+			global $wpdb;
+			$svc = self::child_or_404( 'services', (int) $r['id'] );
+			return array( 'product_ids' => array_map( 'intval', $wpdb->get_col( $wpdb->prepare( 'SELECT product_id FROM ' . Schema::table( 'service_products' ) . ' WHERE service_id = %d ORDER BY product_id', $svc['id'] ) ) ) );
+		} );
+	}
+
+	/** The parts a service needs (drives the lead-time notice). Body: { "product_ids": [..] } replaces the list. */
+	public static function put_service_parts( \WP_REST_Request $r ) {
+		return Rest::run( static function () use ( $r ) {
+			global $wpdb;
+			$svc = self::child_or_404( 'services', (int) $r['id'] );
+			$ids = array_values( array_unique( Rest::ids( $r->get_json_params()['product_ids'] ?? array() ) ) );
+			foreach ( $ids as $pid ) {
+				if ( ! $wpdb->get_var( $wpdb->prepare( 'SELECT 1 FROM ' . Schema::table( 'products' ) . ' WHERE id = %d AND module_id = %d', $pid, (int) $svc['module_id'] ) ) ) {
+					throw new EngineError( EngineError::NOT_FOUND, 'Unknown part.', array( 'field' => 'product_ids' ) );
+				}
+			}
+			Db::transaction( static function () use ( $wpdb, $svc, $ids ) {
+				$wpdb->delete( Schema::table( 'service_products' ), array( 'service_id' => $svc['id'] ) );
+				foreach ( $ids as $pid ) {
+					$wpdb->insert( Schema::table( 'service_products' ), array( 'service_id' => $svc['id'], 'product_id' => $pid ) );
+					Db::check();
+				}
+			} );
+			return array( 'product_ids' => $ids );
+		} );
+	}
+
+	public static function get_job_parts( \WP_REST_Request $r ) {
+		return Rest::run( static function () use ( $r ) {
+			BookingService::view( (int) $r['id'], true ); // 404 when missing
+			return array( 'parts' => Parts::lines( (int) $r['id'] ) );
+		} );
+	}
+
+	/** Replaces the job's parts list. Body: { "parts": [ { "product_id": 1, "quantity": 2 } ] } (an empty list clears it). */
+	public static function put_job_parts( \WP_REST_Request $r ) {
+		return Rest::run( static function () use ( $r ) {
+			Access::assert_can_work( get_current_user_id(), (int) $r['id'] );
+			$parts = array_values( array_filter( (array) ( $r->get_json_params()['parts'] ?? array() ), 'is_array' ) );
+			return array( 'parts' => Parts::set( (int) $r['id'], $parts ) );
+		} );
+	}
+
+	/** Reschedules a job that is waiting for parts. Body: { "start": ISO 8601, "staff_id"?: int, "service_ids"?: [..] } */
+	public static function resume( \WP_REST_Request $r ) {
+		return Rest::run( static function () use ( $r ) {
+			$body = $r->get_json_params() ?: array();
+			Access::assert_can_work( get_current_user_id(), (int) $r['id'] );
+			return BookingService::resume( (int) $r['id'], (string) ( $body['start'] ?? '' ), empty( $body['staff_id'] ) ? null : (int) $body['staff_id'], Rest::ids( $body['service_ids'] ?? array() ), get_current_user_id() );
+		} );
+	}
+
 	public static function history( \WP_REST_Request $r ) {
 		return Rest::run( static function () use ( $r ) {
 			global $wpdb;
@@ -837,6 +937,15 @@ final class AdminController {
 			if ( (float) ( $in['attributes']['minimum_spend'] ?? 0 ) > 0 && empty( $in['attributes']['is_vip'] ) ) {
 				Fields::fail( 'minimum_spend', 'is only for VIP tables' );
 			}
+		}
+		if ( in_array( $key, array( 'bays', 'supported-vehicles' ), true ) && 'workshop' !== Catalog::module( $module_id )['type'] ) {
+			Fields::fail( $key, 'are only for workshop modules' );
+		}
+		if ( 'supported-vehicles' === $key && isset( $in['year_from'], $in['year_to'] ) && (int) $in['year_to'] < (int) $in['year_from'] ) {
+			Fields::fail( 'year_to', 'must not be before year_from' );
+		}
+		if ( 'products' === $key && 'available_on_order' === ( $in['stock_status'] ?? null ) && empty( $in['estimated_lead_time_days'] ) ) {
+			Fields::fail( 'estimated_lead_time_days', 'is needed for a part that is available on order' );
 		}
 		if ( 'staff' === $key && ! empty( $in['wp_user_id'] ) && ! get_userdata( (int) $in['wp_user_id'] ) ) {
 			Fields::fail( 'wp_user_id', 'is not a user of this site' );

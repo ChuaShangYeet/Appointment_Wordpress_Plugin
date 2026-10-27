@@ -32,7 +32,7 @@ final class BookingService {
 	const LOCK_WAIT = 10;
 
 	/** Module types bookable in this release. */
-	const BOOKABLE_TYPES = array( 'staff', 'salon', 'restaurant' );
+	const BOOKABLE_TYPES = array( 'staff', 'salon', 'restaurant', 'workshop' );
 
 	/**
 	 * Availability for one business day.
@@ -45,12 +45,16 @@ final class BookingService {
 		$module = Catalog::bookable_module( $module_id );
 		$req    = self::request( $module, $service_ids, $resource_id, $date, $now, $party );
 		$slots  = Allocators::for_type( $module['type'] )->find_slots( new WpScheduleSource(), $req );
-		return array(
+		$out = array(
 			'date'  => $date,
 			'slots' => array_map( static function ( $s ) use ( $req ) {
 				return $s->to_array( $req->tz );
 			}, $slots ),
 		);
+		if ( 'workshop' === $module['type'] ) { // parts that must be ordered: the customer acknowledges the lead time before booking
+			$out['lead_time_notice'] = Parts::lead_time_notice( $req->service_ids() );
+		}
+		return $out;
 	}
 
 	/**
@@ -121,12 +125,25 @@ final class BookingService {
 		$named      = $restaurant ? ( $in['table_id'] ?? null ) : ( $in['staff_id'] ?? null );
 		$party      = $restaurant ? self::party( $in ) : array();
 		$spend      = $restaurant ? self::accepted_spend( $in ) : array( false, null );
+		$workshop   = 'workshop' === $module['type'];
+		if ( ! $workshop && ( isset( $in['vehicle'] ) || isset( $in['vehicle_id'] ) ) ) {
+			throw new EngineError( EngineError::VALIDATION, 'Vehicles only apply to workshop bookings.', array( 'field' => 'vehicle' ) );
+		}
+		if ( $workshop && isset( $in['vehicle_id'] ) ) { // no customer sign-in yet: a saved vehicle id is not taken from the public
+			throw new EngineError( EngineError::VALIDATION, 'Give the vehicle as plate_no, supported_vehicle_id and year.', array( 'field' => 'vehicle_id' ) );
+		}
+		$vehicle = $workshop ? Vehicles::check( $module_id, $in['vehicle'] ?? null ) : null;
+		$ack     = in_array( $in['acknowledge_lead_time'] ?? false, array( true, 1, '1', 'true' ), true );
 		// what makes two requests "the same" for idempotency: everything the customer chose
-		$fingerprint = hash( 'sha256', wp_json_encode( array( $module_id, array_map( 'intval', (array) ( $in['service_ids'] ?? array() ) ), $named, $start, $name, $phone, $email, $request, $party, $spend ) ) );
+		$fingerprint = hash( 'sha256', wp_json_encode( array( $module_id, array_map( 'intval', (array) ( $in['service_ids'] ?? array() ) ), $named, $start, $name, $phone, $email, $request, $party, $spend, $vehicle ? array( $vehicle['plate_no'], $vehicle['supported']['id'], $vehicle['year'] ) : null, $ack ) ) );
 
 		HoldSweeper::run( $now );
 		$req = self::request( $module, (array) ( $in['service_ids'] ?? array() ), $named ? (int) $named : null, Clock::local_date( $start, wp_timezone() ), $now, $party );
 		$req->policy->validate_start( $start, $now );
+		$notice = $workshop ? Parts::lead_time_notice( $req->service_ids() ) : array();
+		if ( $notice && ! $ack ) { // checked before anything is written
+			throw new EngineError( EngineError::LEAD_TIME, 'Some parts must be ordered; please acknowledge the estimated lead time.', array( 'parts' => $notice ) );
+		}
 
 		$lock = 'jsb:module:' . $module_id;
 		if ( '1' !== (string) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, %d)', $lock, self::LOCK_WAIT ) ) ) {
@@ -134,7 +151,7 @@ final class BookingService {
 		}
 		try {
 			$result = Db::transaction(
-				function () use ( $wpdb, $module, $req, $start, $name, $phone, $email, $request, $key, $fingerprint, $now, $in, $restaurant, $spend ) {
+				function () use ( $wpdb, $module, $req, $start, $name, $phone, $email, $request, $key, $fingerprint, $now, $in, $restaurant, $spend, $vehicle, $notice ) {
 					if ( null !== $key ) {
 						$existing = $wpdb->get_row( $wpdb->prepare( 'SELECT id, idempotency_hash FROM ' . Schema::table( 'bookings' ) . ' WHERE module_id = %d AND idempotency_key = %s', $module['id'], $key ), ARRAY_A );
 						if ( $existing ) {
@@ -154,6 +171,7 @@ final class BookingService {
 					MinimumSpend::ensure_accepted( $minimum_spend, $spend[0], $spend[1] );
 
 					$customer_id = Customers::upsert( $name, $phone, $email );
+					$vehicle_id  = $vehicle ? Vehicles::upsert( $customer_id, $vehicle ) : null;
 					$pending     = 'pending' === $req->policy->default_status;
 					$code        = self::unique_code();
 					$sql_now     = Db::to_sql( $now );
@@ -180,6 +198,8 @@ final class BookingService {
 							'table_type'        => $restaurant ? $req->table_type : null,
 							'allow_separate_seating' => $restaurant ? (int) $req->allow_separate_seating : null,
 							'minimum_spend_agreed'   => $minimum_spend > 0 ? MinimumSpend::format( $minimum_spend ) : null,
+							'vehicle_id'             => $vehicle_id,
+							'lead_time_acknowledged_utc' => $notice ? Db::to_sql( $now ) : null,
 							'hold_expires_utc'  => $pending ? Db::to_sql( $now + $req->policy->pending_timeout ) : null,
 							'source'            => in_array( $in['source'] ?? '', array( 'widget', 'admin', 'api' ), true ) ? $in['source'] : 'widget',
 							'created_utc'       => $sql_now,
@@ -266,6 +286,12 @@ final class BookingService {
 					$wpdb->query( $wpdb->prepare( "UPDATE $alloc SET state = 'active' WHERE booking_id = %d AND state = 'held'", $booking_id ) );
 				} elseif ( in_array( $to, StatusFlow::RELEASING, true ) ) {
 					$wpdb->query( $wpdb->prepare( "UPDATE $alloc SET state = 'released' WHERE booking_id = %d AND state IN ('held','active')", $booking_id ) );
+				} elseif ( 'waiting-for-parts' === $to ) {
+					// free the mechanic and bay from now on: rows not started are released, a running one is cut at now, finished work stays
+					$sql_now = Db::to_sql( $now );
+					$wpdb->query( $wpdb->prepare( "UPDATE $alloc SET state = 'released' WHERE booking_id = %d AND state IN ('held','active') AND start_utc >= %s", $booking_id, $sql_now ) );
+					Db::check();
+					$wpdb->query( $wpdb->prepare( "UPDATE $alloc SET end_utc = %s WHERE booking_id = %d AND state IN ('held','active') AND start_utc < %s AND end_utc > %s", $sql_now, $booking_id, $sql_now, $sql_now ) );
 				}
 				Db::check();
 				$wpdb->update(
@@ -280,6 +306,8 @@ final class BookingService {
 				Db::check();
 				if ( 'completed' === $to && 'salon' === $row['module_type'] ) {
 					Inventory::finalise_completion( $booking_id ); // retail stock leaves the shelf; the real duration is locked in
+				} elseif ( 'completed' === $to && 'workshop' === $row['module_type'] ) {
+					Inventory::deduct_stock( $booking_id ); // the job's parts leave the shelf
 				}
 				self::history( $booking_id, $row['status'], $to, $user_id, $note, $now );
 				return $row['status'];
@@ -287,6 +315,80 @@ final class BookingService {
 		);
 		do_action( 'jsb_booking_status_changed', $booking_id, $from, $to, $actor );
 		return self::view( $booking_id, 'customer' !== $actor, $now );
+	}
+
+	/**
+	 * Reschedule a workshop job that is waiting for parts: new mechanic and bay allocations, status back to confirmed.
+	 *
+	 * Only the remaining services are scheduled when named (default: every service on the job). An admin action, so notice and
+	 * booking window are skipped, but the start must be in the future and every mechanic and bay rule applies. The original start
+	 * is kept; the end moves to the new end. Decided under the same per-module lock as a new booking. Ported from resume_booking.
+	 *
+	 * @param int[] $service_ids
+	 */
+	public static function resume( int $booking_id, string $start_iso, ?int $staff_id, array $service_ids, ?int $user_id = null, ?int $now = null ): array {
+		global $wpdb;
+		$now = $now ?? time();
+		HoldSweeper::run( $now );
+		$b   = Schema::table( 'bookings' );
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT id, module_id, status FROM $b WHERE id = %d", $booking_id ), ARRAY_A );
+		if ( ! $row ) {
+			throw new EngineError( EngineError::NOT_FOUND, 'Booking not found.' );
+		}
+		if ( 'waiting-for-parts' !== $row['status'] ) {
+			throw new EngineError( EngineError::INVALID_TRANSITION, sprintf( "Only a job waiting for parts can be resumed (status is '%s').", $row['status'] ) );
+		}
+		$start = self::parse_start( $start_iso );
+		if ( $start <= $now ) {
+			throw new EngineError( EngineError::VALIDATION, 'The new start must be in the future.', array( 'field' => 'start' ) );
+		}
+		$on_job = array_map( 'intval', $wpdb->get_col( $wpdb->prepare( 'SELECT service_id FROM ' . Schema::table( 'booking_items' ) . ' WHERE booking_id = %d ORDER BY seq', $booking_id ) ) );
+		$wanted = $service_ids ? array_values( array_unique( array_map( 'intval', $service_ids ) ) ) : $on_job;
+		if ( array_diff( $wanted, $on_job ) ) {
+			throw new EngineError( EngineError::VALIDATION, 'service_ids must be services on this job.', array( 'field' => 'service_ids' ) );
+		}
+		$module = Catalog::module( (int) $row['module_id'] );
+		$req    = self::request( $module, $wanted, $staff_id, Clock::local_date( $start, wp_timezone() ), $now );
+		$req->ignore_notice = true;
+
+		$lock = 'jsb:module:' . $module['id'];
+		if ( '1' !== (string) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, %d)', $lock, self::LOCK_WAIT ) ) ) {
+			throw new EngineError( EngineError::BUSY, 'The schedule is busy. Please try again in a moment.' );
+		}
+		try {
+			Db::transaction(
+				static function () use ( $wpdb, $b, $booking_id, $module, $req, $start, $user_id, $now ) {
+					if ( 'waiting-for-parts' !== $wpdb->get_var( $wpdb->prepare( "SELECT status FROM $b WHERE id = %d FOR UPDATE", $booking_id ) ) ) {
+						throw new EngineError( EngineError::INVALID_TRANSITION, 'Only a job waiting for parts can be resumed.' );
+					}
+					list( $assignments ) = Availability::allocate_on_business_day( Allocators::for_type( $module['type'] ), new WpScheduleSource(), $req, $start );
+					self::assert_still_free( $assignments, $now );
+					foreach ( $assignments as $a ) {
+						$wpdb->insert(
+							Schema::table( 'booking_allocations' ),
+							array(
+								'booking_id'  => $booking_id,
+								'resource_id' => $a->resource_id,
+								'service_id'  => $a->service_id,
+								'start_utc'   => Db::to_sql( $a->start ),
+								'end_utc'     => Db::to_sql( $a->end ),
+								'state'       => 'active',
+							)
+						);
+						Db::check();
+					}
+					$wpdb->update( $b, array( 'status' => 'confirmed', 'end_utc' => Db::to_sql( max( array_map( static function ( $a ) {
+						return $a->end;
+					}, $assignments ) ) ), 'updated_utc' => Db::to_sql( $now ) ), array( 'id' => $booking_id ) );
+					Db::check();
+					self::history( $booking_id, 'waiting-for-parts', 'confirmed', $user_id, 'Resumed after waiting for parts.', $now );
+				}
+			);
+		} finally {
+			$wpdb->query( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock ) );
+		}
+		do_action( 'jsb_booking_status_changed', $booking_id, 'waiting-for-parts', 'confirmed', 'staff' );
+		return self::view( $booking_id, true, $now );
 	}
 
 	/** Customer cancellation through the manage link. */
@@ -325,7 +427,7 @@ final class BookingService {
 			throw new EngineError( EngineError::NOT_FOUND, 'Booking not found.' );
 		}
 		$services = $wpdb->get_results( $wpdb->prepare( 'SELECT s.id, s.name, i.duration_minutes, i.is_upsell FROM ' . Schema::table( 'booking_items' ) . ' i JOIN ' . Schema::table( 'services' ) . ' s ON s.id = i.service_id WHERE i.booking_id = %d ORDER BY i.seq', $booking_id ), ARRAY_A );
-		$staff    = $wpdb->get_results( $wpdb->prepare( 'SELECT DISTINCT r.id, r.name FROM ' . Schema::table( 'booking_allocations' ) . ' a JOIN ' . Schema::table( 'resources' ) . ' r ON r.id = a.resource_id WHERE a.booking_id = %d', $booking_id ), ARRAY_A );
+		$staff    = $wpdb->get_results( $wpdb->prepare( 'SELECT DISTINCT r.id, r.name, r.type FROM ' . Schema::table( 'booking_allocations' ) . ' a JOIN ' . Schema::table( 'resources' ) . ' r ON r.id = a.resource_id WHERE a.booking_id = %d', $booking_id ), ARRAY_A );
 		$snapshot = json_decode( $b['policy_snapshot'], true );
 		$state    = array(
 			'status'          => $b['status'],
@@ -342,9 +444,10 @@ final class BookingService {
 			'services'        => array_map( static function ( $s ) {
 				return array( 'id' => (int) $s['id'], 'name' => $s['name'], 'duration_minutes' => (int) $s['duration_minutes'], 'is_upsell' => (bool) (int) $s['is_upsell'] );
 			}, $services ),
-			( 'restaurant' === $b['module_type'] ? 'tables' : 'staff' ) => array_map( static function ( $s ) {
-				return array( 'id' => (int) $s['id'], 'name' => $s['name'] );
-			}, $staff ),
+			( 'restaurant' === $b['module_type'] ? 'tables' : 'staff' ) => self::resources_of( $staff, 'restaurant' === $b['module_type'] ? 'table' : 'staff' ),
+			'bays'            => 'workshop' === $b['module_type'] ? self::resources_of( $staff, 'bay' ) : null,
+			'vehicle'         => self::vehicle_of( $b['vehicle_id'] ),
+			'lead_time_acknowledged' => null !== $b['lead_time_acknowledged_utc'],
 			'customer'        => array( 'name' => $b['customer_name'] ),
 			'special_request' => $b['special_request'],
 			'party_size'      => null === $b['party_size'] ? null : (int) $b['party_size'],
@@ -367,6 +470,9 @@ final class BookingService {
 			$out['created']       = Clock::format( Db::from_sql( $b['created_utc'] ), $tz );
 			$out['schedule_conflict'] = (bool) (int) $b['schedule_conflict'];
 			$out['actual_duration_minutes'] = null === $b['actual_duration_minutes'] ? null : (int) $b['actual_duration_minutes'];
+			if ( 'workshop' === $b['module_type'] ) {
+				$out['parts'] = Parts::lines( $booking_id );
+			}
 			$out['products'] = array_map( static function ( $p ) {
 				return array( 'product_id' => (int) $p['product_id'], 'name' => $p['name'], 'quantity' => (int) $p['quantity'], 'unit_price' => $p['unit_price'] );
 			}, $wpdb->get_results( $wpdb->prepare( 'SELECT l.product_id, p.name, l.quantity, l.unit_price FROM ' . Schema::table( 'booking_products' ) . ' l JOIN ' . Schema::table( 'products' ) . ' p ON p.id = l.product_id WHERE l.booking_id = %d ORDER BY p.name', $booking_id ), ARRAY_A ) );
@@ -375,6 +481,24 @@ final class BookingService {
 	}
 
 	// ------------------------------------------------------------------ internals
+
+	/** The allocated resources of one type, as id and name. */
+	private static function resources_of( array $rows, string $type ): array {
+		return array_values( array_map( static function ( $s ) {
+			return array( 'id' => (int) $s['id'], 'name' => $s['name'] );
+		}, array_filter( $rows, static function ( $s ) use ( $type ) {
+			return $s['type'] === $type;
+		} ) ) );
+	}
+
+	private static function vehicle_of( $vehicle_id ): ?array {
+		global $wpdb;
+		if ( ! $vehicle_id ) {
+			return null;
+		}
+		$v = $wpdb->get_row( $wpdb->prepare( 'SELECT plate_no, make, model, year FROM ' . Schema::table( 'vehicles' ) . ' WHERE id = %d', (int) $vehicle_id ), ARRAY_A );
+		return $v ? array( 'plate_no' => $v['plate_no'], 'make' => $v['make'], 'model' => $v['model'], 'year' => null === $v['year'] ? null : (int) $v['year'] ) : null;
+	}
 
 	private static function request( array $module, array $service_ids, ?int $resource_id, string $date, int $now, array $party = array() ): AvailabilityRequest {
 		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) || ! checkdate( (int) substr( $date, 5, 2 ), (int) substr( $date, 8, 2 ), (int) substr( $date, 0, 4 ) ) ) {

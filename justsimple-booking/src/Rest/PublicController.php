@@ -45,6 +45,11 @@ final class PublicController {
 			'callback'            => self::limited( 'read', 'products' ),
 			'permission_callback' => '__return_true',
 		) );
+		register_rest_route( Rest::NS, '/modules/(?P<id>\d+)/supported-vehicles', array(
+			'methods'             => 'GET',
+			'callback'            => self::limited( 'read', 'supported_vehicles' ),
+			'permission_callback' => '__return_true',
+		) );
 		register_rest_route( Rest::NS, '/bookings/(?P<code>[A-Za-z0-9]{12})', array(
 			'methods'             => 'GET',
 			'callback'            => self::limited( 'read', 'show' ),
@@ -159,6 +164,23 @@ final class PublicController {
 		return $id ? (int) $id : null;
 	}
 
+	/** The car models a workshop services, with any year limits. */
+	public static function supported_vehicles( \WP_REST_Request $r ) {
+		return Rest::run( static function () use ( $r ) {
+			global $wpdb;
+			$m = Catalog::bookable_module( (int) $r['id'] );
+			return array_map( static function ( $v ) {
+				return array(
+					'id'        => (int) $v['id'],
+					'make'      => $v['make'],
+					'model'     => $v['model'],
+					'year_from' => null === $v['year_from'] ? null : (int) $v['year_from'],
+					'year_to'   => null === $v['year_to'] ? null : (int) $v['year_to'],
+				);
+			}, $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . Schema::table( 'supported_vehicles' ) . ' WHERE module_id = %d ORDER BY make, model, id', $m['id'] ), ARRAY_A ) );
+		} );
+	}
+
 	/** Retail products: name, price and stock status only, never the count or SKU. */
 	public static function products( \WP_REST_Request $r ) {
 		return Rest::run( static function () use ( $r ) {
@@ -213,6 +235,10 @@ final class PublicController {
 			'table_id'               => $r['table_id'] ? (int) $r['table_id'] : null,
 			'accept_minimum_spend'   => $r['accept_minimum_spend'],
 			'accepted_minimum_spend' => $r['accepted_minimum_spend'],
+			// workshop
+			'vehicle'                => $r['vehicle'],
+			'vehicle_id'             => $r['vehicle_id'],
+			'acknowledge_lead_time'  => $r['acknowledge_lead_time'],
 		);
 		$created = null;
 		$resp    = Rest::run( static function () use ( $r, $in, &$created ) {
