@@ -9,7 +9,9 @@ use JustSimple\Booking\Engine\Availability;
 use JustSimple\Booking\Engine\AvailabilityRequest;
 use JustSimple\Booking\Engine\Clock;
 use JustSimple\Booking\Engine\EngineError;
+use JustSimple\Booking\Engine\MinimumSpend;
 use JustSimple\Booking\Engine\Policy;
+use JustSimple\Booking\Engine\RestaurantAllocator;
 use JustSimple\Booking\Engine\Allocators;
 use JustSimple\Booking\Engine\StatusFlow;
 
@@ -30,18 +32,18 @@ final class BookingService {
 	const LOCK_WAIT = 10;
 
 	/** Module types bookable in this release. */
-	const BOOKABLE_TYPES = array( 'staff', 'salon' );
+	const BOOKABLE_TYPES = array( 'staff', 'salon', 'restaurant' );
 
 	/**
 	 * Availability for one business day.
 	 *
 	 * @return array{date:string,slots:array}
 	 */
-	public static function availability( int $module_id, string $date, array $service_ids, ?int $staff_id, ?int $now = null ): array {
+	public static function availability( int $module_id, string $date, array $service_ids, ?int $resource_id, array $party = array(), ?int $now = null ): array {
 		$now = $now ?? time();
 		HoldSweeper::run( $now );
 		$module = Catalog::bookable_module( $module_id );
-		$req    = self::request( $module, $service_ids, $staff_id, $date, $now );
+		$req    = self::request( $module, $service_ids, $resource_id, $date, $now, $party );
 		$slots  = Allocators::for_type( $module['type'] )->find_slots( new WpScheduleSource(), $req );
 		return array(
 			'date'  => $date,
@@ -56,11 +58,11 @@ final class BookingService {
 	 *
 	 * @return array{month:string,dates:string[]}
 	 */
-	public static function month_availability( int $module_id, string $month, array $service_ids, ?int $staff_id, ?int $now = null ): array {
+	public static function month_availability( int $module_id, string $month, array $service_ids, ?int $resource_id, array $party = array(), ?int $now = null ): array {
 		$now    = $now ?? time();
 		HoldSweeper::run( $now );
 		$module = Catalog::bookable_module( $module_id );
-		$req    = self::request( $module, $service_ids, $staff_id, $month . '-01', $now );
+		$req    = self::request( $module, $service_ids, $resource_id, $month . '-01', $now, $party );
 		list( $earliest, $latest ) = $req->policy->bounds( $now );
 		$first_open = Clock::local_date( $earliest, $req->tz );
 		$last_open  = Clock::local_date( $latest, $req->tz );
@@ -114,12 +116,16 @@ final class BookingService {
 		if ( mb_strlen( $request ) > 1000 ) {
 			throw new EngineError( EngineError::VALIDATION, 'Keep the request under 1000 characters.', array( 'field' => 'special_request' ) );
 		}
-		$key = self::clean_idempotency_key( $in['idempotency_key'] ?? null );
+		$key        = self::clean_idempotency_key( $in['idempotency_key'] ?? null );
+		$restaurant = 'restaurant' === $module['type'];
+		$named      = $restaurant ? ( $in['table_id'] ?? null ) : ( $in['staff_id'] ?? null );
+		$party      = $restaurant ? self::party( $in ) : array();
+		$spend      = $restaurant ? self::accepted_spend( $in ) : array( false, null );
 		// what makes two requests "the same" for idempotency: everything the customer chose
-		$fingerprint = hash( 'sha256', wp_json_encode( array( $module_id, array_map( 'intval', (array) ( $in['service_ids'] ?? array() ) ), $in['staff_id'] ?? null, $start, $name, $phone, $email, $request ) ) );
+		$fingerprint = hash( 'sha256', wp_json_encode( array( $module_id, array_map( 'intval', (array) ( $in['service_ids'] ?? array() ) ), $named, $start, $name, $phone, $email, $request, $party, $spend ) ) );
 
 		HoldSweeper::run( $now );
-		$req = self::request( $module, (array) ( $in['service_ids'] ?? array() ), isset( $in['staff_id'] ) ? (int) $in['staff_id'] : null, Clock::local_date( $start, wp_timezone() ), $now );
+		$req = self::request( $module, (array) ( $in['service_ids'] ?? array() ), $named ? (int) $named : null, Clock::local_date( $start, wp_timezone() ), $now, $party );
 		$req->policy->validate_start( $start, $now );
 
 		$lock = 'jsb:module:' . $module_id;
@@ -128,7 +134,7 @@ final class BookingService {
 		}
 		try {
 			$result = Db::transaction(
-				function () use ( $wpdb, $module, $req, $start, $name, $phone, $email, $request, $key, $fingerprint, $now, $in ) {
+				function () use ( $wpdb, $module, $req, $start, $name, $phone, $email, $request, $key, $fingerprint, $now, $in, $restaurant, $spend ) {
 					if ( null !== $key ) {
 						$existing = $wpdb->get_row( $wpdb->prepare( 'SELECT id, idempotency_hash FROM ' . Schema::table( 'bookings' ) . ' WHERE module_id = %d AND idempotency_key = %s', $module['id'], $key ), ARRAY_A );
 						if ( $existing ) {
@@ -141,6 +147,11 @@ final class BookingService {
 
 					list( $assignments, $business_day ) = Availability::allocate_on_business_day( Allocators::for_type( $module['type'] ), new WpScheduleSource(), $req, $start );
 					self::assert_still_free( $assignments, $now );
+					// VIP tables: the amount is decided now, under the lock, and never above what the customer accepted
+					$minimum_spend = (int) array_sum( array_map( static function ( $a ) {
+						return $a->minimum_spend;
+					}, $assignments ) );
+					MinimumSpend::ensure_accepted( $minimum_spend, $spend[0], $spend[1] );
 
 					$customer_id = Customers::upsert( $name, $phone, $email );
 					$pending     = 'pending' === $req->policy->default_status;
@@ -165,6 +176,10 @@ final class BookingService {
 							}, $assignments ) ) ),
 							'policy_snapshot'   => wp_json_encode( $req->policy->snapshot() ),
 							'special_request'   => '' === $request ? null : $request,
+							'party_size'        => $restaurant ? $req->party_size : null,
+							'table_type'        => $restaurant ? $req->table_type : null,
+							'allow_separate_seating' => $restaurant ? (int) $req->allow_separate_seating : null,
+							'minimum_spend_agreed'   => $minimum_spend > 0 ? MinimumSpend::format( $minimum_spend ) : null,
 							'hold_expires_utc'  => $pending ? Db::to_sql( $now + $req->policy->pending_timeout ) : null,
 							'source'            => in_array( $in['source'] ?? '', array( 'widget', 'admin', 'api' ), true ) ? $in['source'] : 'widget',
 							'created_utc'       => $sql_now,
@@ -299,7 +314,7 @@ final class BookingService {
 		$tz  = wp_timezone();
 		$b   = $wpdb->get_row(
 			$wpdb->prepare(
-				'SELECT b.*, m.title AS module_title, c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email
+				'SELECT b.*, m.title AS module_title, m.type AS module_type, c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email
 				 FROM ' . Schema::table( 'bookings' ) . ' b JOIN ' . Schema::table( 'modules' ) . ' m ON m.id = b.module_id
 				 JOIN ' . Schema::table( 'customers' ) . ' c ON c.id = b.customer_id WHERE b.id = %d',
 				$booking_id
@@ -327,11 +342,14 @@ final class BookingService {
 			'services'        => array_map( static function ( $s ) {
 				return array( 'id' => (int) $s['id'], 'name' => $s['name'], 'duration_minutes' => (int) $s['duration_minutes'], 'is_upsell' => (bool) (int) $s['is_upsell'] );
 			}, $services ),
-			'staff'           => array_map( static function ( $s ) {
+			( 'restaurant' === $b['module_type'] ? 'tables' : 'staff' ) => array_map( static function ( $s ) {
 				return array( 'id' => (int) $s['id'], 'name' => $s['name'] );
 			}, $staff ),
 			'customer'        => array( 'name' => $b['customer_name'] ),
 			'special_request' => $b['special_request'],
+			'party_size'      => null === $b['party_size'] ? null : (int) $b['party_size'],
+			'table_type'      => $b['table_type'],
+			'minimum_spend_agreed' => $b['minimum_spend_agreed'],
 			'hold_expires'    => $b['hold_expires_utc'] ? Clock::format( Db::from_sql( $b['hold_expires_utc'] ), $tz ) : null,
 			'can_cancel'      => in_array( $b['status'], StatusFlow::CUSTOMER_CANCELLABLE, true ) && StatusFlow::can_cancel_online( $state, $now ),
 			'cancel_deadline' => null === $deadline ? null : Clock::format( $deadline, $tz ),
@@ -358,15 +376,57 @@ final class BookingService {
 
 	// ------------------------------------------------------------------ internals
 
-	private static function request( array $module, array $service_ids, ?int $staff_id, string $date, int $now ): AvailabilityRequest {
+	private static function request( array $module, array $service_ids, ?int $resource_id, string $date, int $now, array $party = array() ): AvailabilityRequest {
 		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) || ! checkdate( (int) substr( $date, 5, 2 ), (int) substr( $date, 8, 2 ), (int) substr( $date, 0, 4 ) ) ) {
 			throw new EngineError( EngineError::VALIDATION, 'Give the date as YYYY-MM-DD.', array( 'field' => 'date' ) );
 		}
+		if ( 'restaurant' === $module['type'] ) { // a party, not services: the seating-time setting decides the length
+			$setting = RestaurantAllocator::settings_or_fail( new WpScheduleSource(), (int) $module['id'] );
+			$policy  = Catalog::resolve_restaurant_policy( $module, $setting['policy_id'] );
+			$req     = new AvailabilityRequest( (int) $module['id'], wp_timezone(), array(), $policy, $date, $resource_id ?: null, $now );
+			$req->party_size             = $party['party_size'] ?? null;
+			$req->table_type             = $party['table_type'] ?? 'normal';
+			$req->allow_separate_seating = ! empty( $party['allow_separate_seating'] );
+			return $req;
+		}
 		$services = Catalog::services_for_booking( (int) $module['id'], $service_ids, 'salon' === $module['type'] );
 		$policy   = Catalog::resolve_policy( $module, $services );
-		$req      = new AvailabilityRequest( (int) $module['id'], wp_timezone(), $services, $policy, $date, $staff_id ?: null, $now );
+		$req      = new AvailabilityRequest( (int) $module['id'], wp_timezone(), $services, $policy, $date, $resource_id ?: null, $now );
 		$req->step = 60 * max( 5, (int) $module['settings']['slot_step_minutes'] );
 		return $req;
+	}
+
+	/**
+	 * The party fields of a restaurant request, validated.
+	 *
+	 * @return array{party_size:int,table_type:string,allow_separate_seating:bool}
+	 */
+	public static function party( array $in ): array {
+		$size = $in['party_size'] ?? null;
+		if ( ! is_numeric( $size ) || (int) $size != $size || (int) $size < 1 || (int) $size > 200 ) { // phpcs:ignore Universal.Operators.StrictComparisons -- "4" and 4 are both fine
+			throw new EngineError( EngineError::VALIDATION, 'Give the party size as a whole number from 1 to 200.', array( 'field' => 'party_size' ) );
+		}
+		$type = $in['table_type'] ?? 'normal';
+		if ( ! in_array( $type, array( 'normal', 'vip' ), true ) ) {
+			throw new EngineError( EngineError::VALIDATION, "table_type must be 'normal' or 'vip'.", array( 'field' => 'table_type' ) );
+		}
+		return array(
+			'party_size'             => (int) $size,
+			'table_type'             => $type,
+			'allow_separate_seating' => in_array( $in['allow_separate_seating'] ?? false, array( true, 1, '1', 'true' ), true ),
+		);
+	}
+
+	/** [accept (yes/no), accepted amount in cents or null] from a restaurant request. */
+	private static function accepted_spend( array $in ): array {
+		$accepted = null;
+		if ( isset( $in['accepted_minimum_spend'] ) && '' !== $in['accepted_minimum_spend'] ) {
+			$accepted = MinimumSpend::to_cents( $in['accepted_minimum_spend'] );
+			if ( null === $accepted ) {
+				throw new EngineError( EngineError::VALIDATION, 'accepted_minimum_spend must be an amount such as 300 or 300.00.', array( 'field' => 'accepted_minimum_spend' ) );
+			}
+		}
+		return array( in_array( $in['accept_minimum_spend'] ?? false, array( true, 1, '1', 'true' ), true ), $accepted );
 	}
 
 	/** An ISO 8601 instant with an explicit offset or Z; a time without one would be ambiguous. */

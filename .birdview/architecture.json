@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "mapId": "justsimple-wp-plugin",
-  "revision": 3,
+  "revision": 4,
   "language": "en",
   "project": {
     "id": "justsimple-booking-wp",
     "name": "JustSimple Booking: standalone WordPress plugin"
   },
   "constraintDiscovery": {
-    "checkedAt": "2026-10-26T13:50:00Z",
+    "checkedAt": "2026-10-27T04:20:00Z",
     "checkedPaths": [
       "WP_PLUGIN_PLAN.md",
       "PRODUCT.md",
@@ -259,7 +259,7 @@
       "role": "backend",
       "name": "REST routes",
       "kind": "local",
-      "responsibility": "justsimple/v1: six public routes (module, day and month availability, book, view and cancel by code) with per-IP rate limits and a honeypot; admin routes for modules, services, staff, shifts, qualifications, policies, hours, days off and the booking desk, behind capabilities. Phase 3 adds products (admin CRUD, public status-only list), POST /admin/bookings/{id}/items, PATCH /admin/bookings/{id} to clear schedule_conflict, and the add-on flag on services.",
+      "responsibility": "justsimple/v1: six public routes (module, day and month availability, book, view and cancel by code) with per-IP rate limits and a honeypot; admin routes for modules, services, staff, shifts, qualifications, policies, hours, days off and the booking desk, behind capabilities. Phase 3 adds products (admin CRUD, public status-only list), POST /admin/bookings/{id}/items, PATCH /admin/bookings/{id} to clear schedule_conflict, and the add-on flag on services. Phase 4 adds restaurant tables, seating times and open-table rules for admins, and party size, table class, separate seating, a chosen table and minimum-spend acceptance for the public.",
       "ownership": [
         {
           "kind": "directory",
@@ -298,7 +298,7 @@
       "role": "backend",
       "name": "Scheduling engine",
       "kind": "local",
-      "responsibility": "Pure PHP availability and allocation: UTC-second intervals, wall clock to real time across daylight saving, strictest-policy merge, the 5-step availability pipeline, the staff and salon allocators (one base service plus add-ons, qualification by the base) and the booking state machine. Restaurant, workshop and field arrive in phases 4 to 6.",
+      "responsibility": "Pure PHP availability and allocation: UTC-second intervals, wall clock to real time across daylight saving, strictest-policy merge, the availability pipeline, and allocators for staff, salon (base service plus add-ons) and restaurant (smallest fit, separate seating, VIP pools, open-table caps, minimum spend in cents), plus the booking state machine. Workshop and field arrive in phases 5 and 6.",
       "ownership": [
         {
           "kind": "directory",
@@ -338,6 +338,16 @@
           "path": "justsimple-booking/src/Engine/Allocators.php",
           "symbol": "Allocators::for_type",
           "note": "Module type to allocator."
+        },
+        {
+          "path": "justsimple-booking/src/Engine/RestaurantAllocator.php",
+          "symbol": "RestaurantAllocator::solve_seating",
+          "note": "Smallest single table, else fewest tables covering the party."
+        },
+        {
+          "path": "justsimple-booking/src/Engine/MinimumSpend.php",
+          "symbol": "MinimumSpend::ensure_accepted",
+          "note": "Never booked above the amount the customer accepted."
         }
       ],
       "status": "supported",
@@ -469,6 +479,11 @@
           "path": "justsimple-booking/src/Data/Catalog.php",
           "symbol": "Catalog",
           "note": "Modules, bookable services and policy resolution."
+        },
+        {
+          "path": "justsimple-booking/src/Data/WpScheduleSource.php",
+          "symbol": "WpScheduleSource::tables",
+          "note": "Restaurant reads: tables, seating times, open-table rules."
         }
       ],
       "status": "supported",

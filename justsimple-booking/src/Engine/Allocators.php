@@ -7,8 +7,9 @@ defined( 'ABSPATH' ) || exit;
 final class Allocators {
 
 	const BY_TYPE = array(
-		'staff' => StaffAllocator::class,
-		'salon' => SalonAllocator::class,
+		'staff'      => StaffAllocator::class,
+		'salon'      => SalonAllocator::class,
+		'restaurant' => RestaurantAllocator::class,
 	);
 
 	/** @throws EngineError validation for a type not built yet */

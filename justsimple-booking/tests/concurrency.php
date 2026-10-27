@@ -31,6 +31,20 @@ try {
 			$r   = BookingService::create( (int) $argv[3], array( 'service_ids' => array( (int) $argv[4] ), 'staff_id' => (int) $argv[5], 'start' => $argv[6], 'customer' => array( 'name' => 'Racer', 'phone' => '+601' . random_int( 10000000, 99999999 ) ) ) );
 			$out = array( 'ok' => true, 'code' => $r['booking']['code'] );
 			break;
+		case 'book-table': // <module_id> <party> <iso-start> [table_type] [accepted_minimum_spend|-] [table_id|-]
+			$r   = BookingService::create(
+				(int) $argv[3],
+				array(
+					'party_size'             => (int) $argv[4],
+					'start'                  => $argv[5],
+					'table_type'             => $argv[6] ?? 'normal',
+					'accepted_minimum_spend' => isset( $argv[7] ) && '-' !== $argv[7] ? $argv[7] : null,
+					'table_id'               => isset( $argv[8] ) && '-' !== $argv[8] ? (int) $argv[8] : null,
+					'customer'               => array( 'name' => 'Racer', 'phone' => '+601' . random_int( 10000000, 99999999 ) ),
+				)
+			);
+			$out = array( 'ok' => true, 'tables' => array_column( $r['booking']['tables'], 'name' ), 'spend' => $r['booking']['minimum_spend_agreed'] );
+			break;
 		case 'complete':
 			BookingService::transition( (int) $argv[3], 'completed', 'staff', 1 );
 			$out = array( 'ok' => true );
@@ -39,6 +53,6 @@ try {
 			throw new InvalidArgumentException( "unknown action $action" );
 	}
 } catch ( EngineError $e ) {
-	$out = array( 'ok' => false, 'code' => $e->error_code );
+	$out = array( 'ok' => false, 'code' => $e->error_code ) + ( isset( $e->data['minimum_spend'] ) ? array( 'minimum_spend' => $e->data['minimum_spend'] ) : array() );
 }
 echo wp_json_encode( array( 'action' => $action ) + $out ) . "\n";

@@ -62,8 +62,8 @@ list( $s ) = call( 'GET', '/admin/modules' );
 check( 401 === $s, 'logged out: admin routes refused (401)', $s );
 
 as_user( 1 );
-list( $s, $d ) = call( 'POST', '/admin/modules', array( 'title' => 'Dinner', 'type' => 'restaurant' ) );
-check( 422 === $s, 'restaurant modules refused in this release', $d );
+list( $s, $d ) = call( 'POST', '/admin/modules', array( 'title' => 'Garage', 'type' => 'workshop' ) );
+check( 422 === $s, 'workshop modules refused in this release', $d );
 list( $s, $m ) = call( 'POST', '/admin/modules', array( 'title' => 'Test Spa', 'type' => 'staff' ) );
 check( 201 === $s && 'draft' === $m['status'] && $m['default_policy_id'], 'module created as draft with a default policy', $m );
 $mid = $m['id'];
@@ -457,6 +457,191 @@ check( array( 0, 'available_on_order' ) === $stock( $tube['id'] ), 'stock clamps
 list( $s ) = call( 'DELETE', "/admin/products/{$pr['shampoo']}" );
 check( 422 === $s, 'a product on a ticket cannot be deleted' );
 
+echo "== restaurant: setup\n";
+as_user( 1 );
+list( $s, $d ) = call( 'POST', "/admin/modules/$sid/tables", array( 'name' => 'T1', 'capacity' => 2 ) );
+check( 422 === $s && 'tables' === $d['data']['field'], 'tables refused on a salon module', $d );
+list( , $rm2 ) = call( 'POST', '/admin/modules', array( 'title' => 'Test Bistro', 'type' => 'restaurant' ) );
+$rid = $rm2['id'];
+call( 'PATCH', "/admin/modules/$rid", array( 'status' => 'active' ) );
+call( 'PATCH', "/admin/policies/{$rm2['default_policy_id']}", array( 'min_notice_cancel_minutes' => 120 ) );
+call( 'PUT', "/admin/modules/$rid/hours", array( 'hours' => array_map( static function ( $d ) {
+	return array( 'weekday' => $d, 'open_time' => '11:00', 'close_time' => '22:00' );
+}, range( 0, 6 ) ) ) );
+list( $s ) = call( 'GET', "/modules/$rid/availability", null, array( 'date' => $tomorrow, 'party_size' => 2 ) );
+check( 422 === $s, 'no seating times yet: 422' );
+$seating = array( 'booking_mode' => 'flexible', 'slot_duration_minutes' => 90, 'slot_interval_minutes' => 30, 'first_slot_time' => '11:00', 'last_slot_time' => '20:30', 'buffer_minutes' => 15 );
+list( $s, $d ) = call( 'PUT', "/admin/modules/$rid/seating", $seating );
+check( 200 === $s && 'flexible' === $d['booking_mode'] && false === $d['allow_table_selection'] && '20:30' === $d['last_slot_time'], 'seating times saved; table choice off by default', $d );
+list( $s ) = call( 'PUT', "/admin/modules/$mid/seating", $seating );
+check( 422 === $s, 'seating times refused on a staff module' );
+$tb = array();
+foreach ( array( array( 'a2', 2, false, null ), array( 'b2', 2, false, null ), array( 'c4', 4, false, null ), array( 'd6', 6, false, null ), array( 'v4', 4, true, '300' ), array( 'v2', 2, true, '200' ) ) as $x ) {
+	list( $s, $t ) = call( 'POST', "/admin/modules/$rid/tables", array( 'name' => $x[0], 'capacity' => $x[1], 'is_vip' => $x[2], 'minimum_spend' => $x[3] ?? 0, 'location' => 'indoor' ) );
+	$tb[ $x[0] ] = $t['id'];
+}
+check( 201 === $s && true === $t['is_vip'] && '200.00' === $t['minimum_spend'] && 2 === $t['capacity'] && 'indoor' === $t['location'], 'tables created with class, minimum spend and location', $t );
+list( $s, $d ) = call( 'POST', "/admin/modules/$rid/tables", array( 'name' => 'x', 'capacity' => 2, 'minimum_spend' => 50 ) );
+check( 422 === $s && 'minimum_spend' === $d['data']['field'], 'minimum spend only on VIP tables', $d );
+list( $s, $d ) = call( 'POST', "/admin/modules/$rid/tables", array( 'name' => 'x' ) );
+check( 422 === $s && 'capacity' === $d['data']['field'], 'a table needs a capacity', $d );
+list( $s, $d ) = call( 'PATCH', "/admin/tables/{$tb['v2']}", array( 'location' => 'terrace' ) );
+check( 200 === $s && 'terrace' === $d['location'] && '200.00' === $d['minimum_spend'] && true === $d['is_vip'], 'patching one attribute keeps the others', $d );
+
+$wd   = (int) wp_date( 'w', strtotime( $tomorrow . ' 12:00' ) );
+$rule = static function ( array $rules ) use ( $rid ) {
+	return call( 'PUT', "/admin/modules/$rid/table-rules", array( 'rules' => $rules ) );
+};
+check( 422 === $rule( array( array( 'weekday' => 1, 'table_type' => 'normal', 'open_tables' => 5 ) ) )[0], 'open_tables above the 4 normal tables: 422' );
+check( 422 === $rule( array( array( 'weekday' => 1, 'table_type' => 'vip', 'open_tables' => 3 ) ) )[0], 'open_tables above the 2 VIP tables: 422' );
+check( 422 === $rule( array( array( 'table_type' => 'normal', 'open_tables' => 1 ) ) )[0], 'neither weekday nor date: 422' );
+check( 422 === $rule( array( array( 'weekday' => 1, 'specific_date' => '2031-01-01', 'open_tables' => 1 ) ) )[0], 'both weekday and date: 422' );
+$dup = array( 'weekday' => 1, 'table_type' => 'normal', 'open_tables' => 1 );
+check( 422 === $rule( array( $dup, $dup ) )[0], 'duplicate rules: 422' );
+list( $s, $d ) = $rule( array( array( 'weekday' => 1, 'table_type' => 'normal', 'open_tables' => 4 ) ) );
+check( 200 === $s && 1 === count( $d ), 'a valid rule is saved', $d );
+$rule( array() );
+
+echo "== restaurant: public reads and booking\n";
+as_user( 0 );
+list( $s, $info ) = call( 'GET', "/modules/$rid" );
+check( 200 === $s && 6 === $info['restaurant']['normal']['largest_table'] && 14 === $info['restaurant']['normal']['largest_separate_party'] && 6 === $info['restaurant']['vip']['largest_separate_party'] && ! isset( $info['restaurant']['tables'] ), 'module info: what a party can book, no table list while choice is off', $info['restaurant'] ?? $info );
+list( $s, $d ) = call( 'GET', "/modules/$rid/availability", null, array( 'date' => $tomorrow ) );
+check( 422 === $s && 'party_size' === $d['data']['field'], 'party size is required', $d );
+list( , $av ) = call( 'GET', "/modules/$rid/availability", null, array( 'date' => $tomorrow, 'party_size' => 2 ) );
+$sl = $av['slots'];
+check( $at( '11:00' ) === $sl[0]['start'] && $at( '20:30' ) === end( $sl )['start'] && 105 * 60 === strtotime( $sl[0]['end'] ) - strtotime( $sl[0]['start'] ) && array( $tb['a2'] ) === $sl[0]['table_ids'], 'grid 11:00-20:30, 105 minutes held, the smallest 2-top first', $sl[0] );
+list( , $mo ) = call( 'GET', "/modules/$rid/availability/month", null, array( 'month' => substr( $tomorrow, 0, 7 ), 'party_size' => 2 ) );
+check( in_array( $tomorrow, $mo['dates'], true ), 'month view works with a party', $mo );
+
+$rbook = static function ( int $party, string $hm, array $extra = array(), string $phone = null ) use ( $rid, $at ) {
+	return call( 'POST', "/modules/$rid/bookings", array_merge( array(
+		'party_size' => $party,
+		'start'      => $at( $hm ),
+		'customer'   => array( 'name' => 'Diner', 'phone' => $phone ?? '+6013' . random_int( 1000000, 9999999 ), 'email' => 'diner@example.test' ),
+	), $extra ) );
+};
+list( $s, $b ) = $rbook( 3, '19:00', array( 'special_request' => 'Window seat, birthday' ) );
+check( 201 === $s && array( 'c4' ) === array_column( $b['booking']['tables'], 'name' ) && 3 === $b['booking']['party_size'] && 'normal' === $b['booking']['table_type'] && ! isset( $b['booking']['staff'] ) && null === $b['booking']['minimum_spend_agreed'], 'party of 3 at 19:00: the 4-top, no minimum spend', $b );
+$first_rest = $b;
+list( $s, $d ) = $rbook( 8, '19:00' );
+check( 409 === $s && 'slot_unavailable' === $d['code'], '8 without separate seating: 409', $d );
+list( $s, $b ) = $rbook( 8, '19:00', array( 'allow_separate_seating' => true ) );
+check( 201 === $s && array( 'a2', 'd6' ) === array_column( $b['booking']['tables'], 'name' ) || ( 201 === $s && array( 'd6', 'a2' ) === array_column( $b['booking']['tables'], 'name' ) ), '8 with separate seating: 6 + 2', $b['booking']['tables'] ?? $b );
+
+list( $s, $d ) = $rbook( 3, '19:00', array( 'table_type' => 'vip' ) );
+check( 422 === $s && 'minimum_spend_not_accepted' === $d['code'] && '300.00' === $d['data']['minimum_spend'], 'VIP without accepting: 422 with the amount', $d );
+list( $s, $d ) = $rbook( 3, '19:00', array( 'table_type' => 'vip', 'accepted_minimum_spend' => 'lots' ) );
+check( 422 === $s && 'accepted_minimum_spend' === $d['data']['field'], 'the accepted amount must be a real amount', $d );
+list( $s, $b ) = $rbook( 3, '19:00', array( 'table_type' => 'vip', 'accept_minimum_spend' => true ) );
+check( 201 === $s && '300.00' === $b['booking']['minimum_spend_agreed'] && array( 'v4' ) === array_column( $b['booking']['tables'], 'name' ), 'VIP accepted: v4 at 300.00', $b );
+list( $s, $d ) = $rbook( 2, '19:00', array( 'table_type' => 'vip', 'accepted_minimum_spend' => '150' ) );
+check( 422 === $s && '200.00' === $d['data']['minimum_spend'] && '150.00' === $d['data']['accepted_minimum_spend'], 'an amount below the table\'s: refused with both amounts', $d );
+list( $s, $b ) = $rbook( 2, '19:00', array( 'table_type' => 'vip', 'accepted_minimum_spend' => '500' ) );
+check( 201 === $s && '200.00' === $b['booking']['minimum_spend_agreed'], 'a cheaper table than the amount shown is fine and records its own amount', $b );
+
+as_user( 1 );
+list( , $vipdesk ) = call( 'GET', "/admin/modules/$rid/bookings", null, array( 'from' => $tomorrow, 'to' => $tomorrow, 'table_type' => 'vip' ) );
+check( 2 === count( $vipdesk ) && array( 'vip' ) === array_values( array_unique( array_column( $vipdesk, 'table_type' ) ) ), 'desk list filtered to VIP', count( $vipdesk ) );
+list( , $normdesk ) = call( 'GET', "/admin/modules/$rid/bookings", null, array( 'from' => $tomorrow, 'to' => $tomorrow, 'table_type' => 'normal' ) );
+$withreq = array_values( array_filter( $normdesk, static function ( $x ) {
+	return 'Window seat, birthday' === $x['special_request'];
+} ) );
+check( 1 === count( $withreq ) && 3 === $withreq[0]['party_size'], 'the special request and party size reach the desk' );
+as_user( 0 );
+
+list( $s, $d ) = call( 'POST', "/bookings/{$first_rest['booking']['code']}/cancel", array( 'token' => $first_rest['manage_token'] ) );
+list( , $av ) = call( 'GET', "/modules/$rid/availability", null, array( 'date' => $tomorrow, 'party_size' => 3 ) );
+$at19 = array_values( array_filter( $av['slots'], static function ( $x ) use ( $at ) {
+	return $x['start'] === $at( '19:00' );
+} ) );
+check( 200 === $s && $at19 && array( $tb['c4'] ) === $at19[0]['table_ids'], 'cancelling frees the 4-top at 19:00', $at19 );
+$mail = mails();
+check( (bool) array_filter( $mail, static function ( $x ) {
+	return false !== strpos( $x->message, 'Table for 3' ) && false !== strpos( $x->message, 'Table: c4' );
+} ), 'the email names the party and the table' );
+
+echo "== restaurant: caps, holds and closures\n";
+as_user( 1 );
+$rule( array( array( 'weekday' => $wd, 'table_type' => 'normal', 'open_tables' => 2 ) ) );
+// 19:00 already holds d6 + a2 (the party of 8): two tables in use, so the cap of 2 is reached then
+list( $s ) = $rbook( 2, '19:00' );
+check( 409 === $s, 'cap of 2 reached by the combined party: 409' );
+list( $s ) = $rbook( 2, '12:00' );
+list( $s2 ) = $rbook( 2, '12:00' );
+list( $s3 ) = $rbook( 2, '12:00' );
+check( 201 === $s && 201 === $s2 && 409 === $s3, 'cap of 2 at noon: third party refused', array( $s, $s2, $s3 ) );
+list( $s ) = $rbook( 2, '14:00' );
+check( 201 === $s, 'a seating after both have finished is fine' );
+$rule( array( array( 'weekday' => $wd, 'table_type' => 'normal', 'open_tables' => 4 ), array( 'specific_date' => $tomorrow, 'table_type' => 'normal', 'open_tables' => 0 ) ) );
+list( , $av ) = call( 'GET', "/modules/$rid/availability", null, array( 'date' => $tomorrow, 'party_size' => 2 ) );
+check( array() === $av['slots'], 'a date rule of 0 beats the weekday rule and closes online booking' );
+$rule( array() );
+list( , $leave ) = call( 'POST', "/admin/modules/$rid/days-off", array( 'name' => 'Repair', 'resource_id' => $tb['d6'], 'start_date' => $tomorrow, 'end_date' => $tomorrow ) );
+list( , $av ) = call( 'GET', "/modules/$rid/availability", null, array( 'date' => $tomorrow, 'party_size' => 5 ) );
+check( array() === $av['slots'], 'the only 5-seat table on leave: no slots for 5' );
+call( 'DELETE', "/admin/days-off/{$leave['id']}" );
+
+list( , $pol ) = call( 'POST', "/admin/modules/$rid/policies", array( 'name' => 'Approval', 'default_status' => 'pending', 'pending_timeout_minutes' => 30 ) );
+$seating['policy_id'] = $pol['id'];
+call( 'PUT', "/admin/modules/$rid/seating", $seating );
+as_user( 0 );
+// 11:00, because the 6-top is busy 19:00-20:45 with the party of 8
+list( $s, $b ) = $rbook( 6, '11:00' );
+list( $s2, $d ) = $rbook( 6, '11:00' );
+check( 201 === $s && 'pending' === $b['booking']['status'] && 409 === $s2, 'the seating\'s own policy applies: pending, and the hold keeps the 6-top', array( $s, $s2 ) );
+as_user( 1 );
+$seating['policy_id'] = null;
+call( 'PUT', "/admin/modules/$rid/seating", $seating );
+
+echo "== restaurant: choosing a table\n";
+as_user( 0 );
+list( $s, $d ) = $rbook( 2, '17:00', array( 'table_id' => $tb['c4'] ) );
+check( 422 === $s && 'table_id' === $d['data']['field'], 'choice off: a named table is refused, not ignored', $d );
+as_user( 1 );
+call( 'PUT', "/admin/modules/$rid/seating", array_merge( $seating, array( 'allow_table_selection' => true ) ) );
+as_user( 0 );
+list( , $info ) = call( 'GET', "/modules/$rid" );
+check( true === $info['restaurant']['table_selection'] && 6 === count( $info['restaurant']['tables'] ) && '200.00' === array_column( $info['restaurant']['tables'], 'minimum_spend', 'name' )['v2'], 'choice on: the tables are listed with class and minimum spend', $info['restaurant'] );
+list( $s, $b ) = $rbook( 2, '17:00', array( 'table_id' => $tb['c4'] ) );
+check( 201 === $s && array( 'c4' ) === array_column( $b['booking']['tables'], 'name' ), 'the customer gets the table they chose', $b );
+list( $s ) = $rbook( 2, '17:00', array( 'table_id' => $tb['c4'] ) );
+list( $s2 ) = $rbook( 2, '17:00' );
+check( 409 === $s && 201 === $s2, 'a chosen table that is taken: 409, while the others stay bookable' );
+list( $s ) = $rbook( 2, '17:00', array( 'table_id' => $tb['v2'] ) );
+check( 422 === $s, 'a VIP table for a normal party: 422' );
+list( $s ) = $rbook( 2, '17:00', array( 'table_id' => $tb['d6'], 'allow_separate_seating' => true ) );
+check( 422 === $s, 'a chosen table is never combined: 422' );
+as_user( 1 );
+call( 'PUT', "/admin/modules/$rid/seating", $seating );
+list( $s, $d ) = call( 'DELETE', "/admin/tables/{$tb['c4']}" );
+check( 200 === $s && true === $d['deactivated'], 'a booked table is deactivated, not deleted', $d );
+call( 'PATCH', "/admin/tables/{$tb['c4']}", array( 'status' => 'active' ) );
+
+echo "== restaurant race fixture\n";
+list( , $rr ) = call( 'POST', '/admin/modules', array( 'title' => 'Restaurant race', 'type' => 'restaurant' ) );
+call( 'PATCH', "/admin/modules/{$rr['id']}", array( 'status' => 'active' ) );
+call( 'PUT', "/admin/modules/{$rr['id']}/hours", array( 'hours' => array_map( static function ( $d ) {
+	return array( 'weekday' => $d, 'open_time' => '11:00', 'close_time' => '22:00' );
+}, range( 0, 6 ) ) ) );
+call( 'PUT', "/admin/modules/{$rr['id']}/seating", array_merge( $seating, array( 'allow_table_selection' => true ) ) );
+$rrace = array( 'module' => $rr['id'] );
+foreach ( array( array( 'a2', 2, false, 0 ), array( 'b2', 2, false, 0 ), array( 'c4', 4, false, 0 ), array( 'd6', 6, false, 0 ), array( 'v4', 4, true, 300 ), array( 'v2', 2, true, 200 ) ) as $x ) {
+	list( , $t ) = call( 'POST', "/admin/modules/{$rr['id']}/tables", array( 'name' => $x[0], 'capacity' => $x[1], 'is_vip' => $x[2], 'minimum_spend' => $x[3] ) );
+	$rrace[ $x[0] ] = $t['id'];
+}
+$days = array();
+for ( $k = 3; $k <= 6; $k++ ) {
+	$days[ $k ] = ( new DateTimeImmutable( "today +$k days", $tz ) )->format( 'Y-m-d' );
+}
+call( 'PUT', "/admin/modules/{$rr['id']}/table-rules", array( 'rules' => array(
+	array( 'specific_date' => $days[3], 'table_type' => 'normal', 'open_tables' => 2 ),
+	array( 'specific_date' => $days[4], 'table_type' => 'normal', 'open_tables' => 1 ),
+) ) );
+foreach ( $days as $k => $day ) {
+	$rrace[ "day$k" ] = ( new DateTimeImmutable( "$day 19:00", $tz ) )->format( DATE_ATOM );
+}
+
 echo "== salon race fixture\n";
 list( , $rsm ) = call( 'POST', '/admin/modules', array( 'title' => 'Salon race', 'type' => 'salon' ) );
 call( 'PATCH', "/admin/modules/{$rsm['id']}", array( 'status' => 'active' ) );
@@ -497,5 +682,6 @@ foreach ( array( 'A', 'B', 'C' ) as $n ) {
 
 echo "\n" . ( $failures ? "$failures FAILED\n" : "all passed\n" );
 echo 'SALONRACE ' . wp_json_encode( $race ) . "\n";
+echo 'RESTRACE ' . wp_json_encode( $rrace ) . "\n";
 echo 'RACE ' . wp_json_encode( array( 'module' => $rm['id'], 'service' => $rs['id'], 'staff' => $race_staff, 'start10' => $at( '10:00' ), 'start11' => $at( '11:00' ) ) ) . "\n";
 exit( $failures ? 1 : 0 );

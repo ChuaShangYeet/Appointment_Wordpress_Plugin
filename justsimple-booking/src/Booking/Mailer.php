@@ -20,7 +20,7 @@ final class Mailer {
 		$b    = BookingService::view( $booking_id, true );
 		$site = wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES );
 		$when = self::when( $b );
-		$what = implode( ', ', wp_list_pluck( $b['services'], 'name' ) );
+		$what = self::what( $b );
 		$link = ManageLink::url( $b['code'], $token, $b['module']['id'] );
 
 		if ( $b['contact_email'] ) {
@@ -34,8 +34,7 @@ final class Mailer {
 				'',
 				$what,
 				$when,
-				/* translators: %s: staff names */
-				$b['staff'] ? sprintf( __( 'With: %s', 'justsimple-booking' ), implode( ', ', wp_list_pluck( $b['staff'], 'name' ) ) ) : null,
+				self::who( $b ),
 				/* translators: %s: booking code */
 				sprintf( __( 'Booking code: %s', 'justsimple-booking' ), $b['code'] ),
 				$link ? sprintf( __( 'View or cancel: %s', 'justsimple-booking' ), $link ) : null,
@@ -94,7 +93,7 @@ final class Mailer {
 				'',
 				$messages[ $to ],
 				'',
-				implode( ', ', wp_list_pluck( $b['services'], 'name' ) ),
+				self::what( $b ),
 				self::when( $b ),
 				/* translators: %s: booking code */
 				sprintf( __( 'Booking code: %s', 'justsimple-booking' ), $b['code'] ),
@@ -102,6 +101,25 @@ final class Mailer {
 			'status_' . $to,
 			$b
 		);
+	}
+
+	/** The services, or for a restaurant the party. */
+	private static function what( array $b ): string {
+		if ( null !== $b['party_size'] ) {
+			/* translators: %d: number of people */
+			return sprintf( _n( 'Table for %d', 'Table for %d', $b['party_size'], 'justsimple-booking' ), $b['party_size'] );
+		}
+		return implode( ', ', wp_list_pluck( $b['services'], 'name' ) );
+	}
+
+	/** Who serves it: the staff, or the tables a party is seated at. */
+	private static function who( array $b ): ?string {
+		if ( ! empty( $b['tables'] ) ) {
+			/* translators: %s: table names */
+			return sprintf( _n( 'Table: %s', 'Tables: %s', count( $b['tables'] ), 'justsimple-booking' ), implode( ', ', wp_list_pluck( $b['tables'], 'name' ) ) );
+		}
+		/* translators: %s: staff names */
+		return empty( $b['staff'] ) ? null : sprintf( __( 'With: %s', 'justsimple-booking' ), implode( ', ', wp_list_pluck( $b['staff'], 'name' ) ) );
 	}
 
 	private static function when( array $b ): string {

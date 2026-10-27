@@ -8,6 +8,7 @@ use JustSimple\Booking\Booking\Upsell;
 use JustSimple\Booking\Data\Catalog;
 use JustSimple\Booking\Data\Db;
 use JustSimple\Booking\Data\Schema;
+use JustSimple\Booking\Data\WpScheduleSource;
 use JustSimple\Booking\Engine\Clock;
 use JustSimple\Booking\Engine\EngineError;
 
@@ -40,8 +41,9 @@ final class AdminController {
 			),
 		),
 		'staff'    => array(
-			'table'  => 'resources',
-			'path'   => 'staff',
+			'table'         => 'resources',
+			'path'          => 'staff',
+			'resource_type' => 'staff',
 			'fields' => array(
 				'name'          => array( 'type' => 'str', 'required' => true ),
 				'status'        => array( 'type' => 'enum', 'values' => array( 'active', 'inactive' ) ),
@@ -73,6 +75,23 @@ final class AdminController {
 				'end_date'      => array( 'type' => 'date', 'required' => true ),
 				'resource_id'   => array( 'type' => 'int', 'nullable' => true ),
 				'repeat_yearly' => array( 'type' => 'bool' ),
+			),
+		),
+		// Restaurant tables: resources of type 'table'; class, minimum spend and location live in the attributes JSON.
+		'tables'   => array(
+			'table'         => 'resources',
+			'path'          => 'tables',
+			'resource_type' => 'table',
+			'fields'        => array(
+				'name'       => array( 'type' => 'str', 'required' => true ),
+				'capacity'   => array( 'type' => 'int', 'required' => true, 'min' => 1, 'max' => 50 ),
+				'status'     => array( 'type' => 'enum', 'values' => array( 'active', 'inactive' ) ),
+				'sort_order' => array( 'type' => 'int' ),
+			),
+			'attributes'    => array(
+				'is_vip'        => array( 'type' => 'bool' ),
+				'minimum_spend' => array( 'type' => 'decimal' ),
+				'location'      => array( 'type' => 'str', 'nullable' => true, 'max' => 80 ),
 			),
 		),
 		// Salon retail products (workshop parts later).
@@ -148,6 +167,14 @@ final class AdminController {
 		self::route( '/admin/modules/(?P<id>\d+)/hours', array(
 			array( 'GET', array( __CLASS__, 'get_hours' ), $manage ),
 			array( 'PUT', array( __CLASS__, 'put_hours' ), $manage ),
+		) );
+		self::route( '/admin/modules/(?P<id>\d+)/seating', array(
+			array( 'GET', array( __CLASS__, 'get_seating' ), $manage ),
+			array( 'PUT', array( __CLASS__, 'put_seating' ), $manage ),
+		) );
+		self::route( '/admin/modules/(?P<id>\d+)/table-rules', array(
+			array( 'GET', array( __CLASS__, 'get_table_rules' ), $manage ),
+			array( 'PUT', array( __CLASS__, 'put_table_rules' ), $manage ),
 		) );
 		self::route( '/admin/modules/(?P<id>\d+)/bookings', array(
 			array( 'GET', array( __CLASS__, 'list_bookings' ), $work ),
@@ -286,11 +313,11 @@ final class AdminController {
 			global $wpdb;
 			$spec  = self::SPECS[ $key ];
 			$m     = self::module_or_404( (int) $r['id'] );
-			$where = 'staff' === $key ? " AND type = 'staff'" : '';
-			$order = in_array( $key, array( 'services', 'staff' ), true ) ? 'sort_order, id' : ( 'days-off' === $key ? 'start_date, id' : ( 'products' === $key ? 'name, id' : 'id' ) );
+			$where = self::type_where( $spec );
+			$order = in_array( $key, array( 'services', 'staff', 'tables' ), true ) ? 'sort_order, id' : ( 'days-off' === $key ? 'start_date, id' : ( 'products' === $key ? 'name, id' : 'id' ) );
 			$rows  = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . Schema::table( $spec['table'] ) . " WHERE module_id = %d$where ORDER BY $order", $m['id'] ), ARRAY_A );
 			return array_map( static function ( $row ) use ( $spec ) {
-				return Fields::row( $spec['fields'], $row );
+				return self::row_out( $spec, $row );
 			}, $rows );
 		} );
 	}
@@ -300,11 +327,13 @@ final class AdminController {
 			global $wpdb;
 			$spec = self::SPECS[ $key ];
 			$m    = self::module_or_404( (int) $r['id'] );
-			$in   = Fields::clean( $spec['fields'], $r->get_json_params() ?: array(), false );
-			self::check_refs( $key, $in, $m['id'] );
+			$body  = $r->get_json_params() ?: array();
+			$in    = Fields::clean( $spec['fields'], $body, false );
+			$attrs = isset( $spec['attributes'] ) ? Fields::clean( $spec['attributes'], $body, true ) : array();
+			self::check_refs( $key, $in + array( 'attributes' => $attrs ), $m['id'] );
 			$in['module_id'] = $m['id'];
-			if ( 'staff' === $key ) {
-				$in += array( 'type' => 'staff', 'attributes' => '{}' );
+			if ( isset( $spec['resource_type'] ) ) {
+				$in += array( 'type' => $spec['resource_type'], 'attributes' => wp_json_encode( (object) $attrs ) );
 			}
 			if ( $spec['timestamps'] ?? true ) {
 				$in['created_utc'] = Db::now_sql();
@@ -321,8 +350,15 @@ final class AdminController {
 			global $wpdb;
 			$spec = self::SPECS[ $key ];
 			$row  = self::child_or_404( $key, (int) $r['id'] );
-			$in   = Fields::clean( $spec['fields'], $r->get_json_params() ?: array(), true );
-			self::check_refs( $key, $in + $row, (int) $row['module_id'] );
+			$body = $r->get_json_params() ?: array();
+			$in   = Fields::clean( $spec['fields'], $body, true );
+			if ( isset( $spec['attributes'] ) ) {
+				$attrs = array_merge( self::attributes( $row ), Fields::clean( $spec['attributes'], $body, true ) );
+				self::check_refs( $key, $in + array( 'attributes' => $attrs ) + $row, (int) $row['module_id'] );
+				$in['attributes'] = wp_json_encode( (object) $attrs );
+			} else {
+				self::check_refs( $key, $in + $row, (int) $row['module_id'] );
+			}
 			if ( $spec['timestamps'] ?? true ) {
 				$in['updated_utc'] = Db::now_sql();
 			}
@@ -335,7 +371,7 @@ final class AdminController {
 	}
 
 	/**
-	 * Services and staff with bookings are deactivated rather than deleted, so past bookings keep their names; a module's
+	 * Services, staff and tables with bookings are deactivated rather than deleted, so past bookings keep their names; a module's
 	 * default policy cannot be deleted.
 	 */
 	public static function delete_child( string $key, \WP_REST_Request $r ) {
@@ -344,7 +380,7 @@ final class AdminController {
 			$spec = self::SPECS[ $key ];
 			$row  = self::child_or_404( $key, (int) $r['id'] );
 			$id   = (int) $row['id'];
-			if ( 'services' === $key || 'staff' === $key ) {
+			if ( 'services' === $key || isset( $spec['resource_type'] ) ) {
 				$used = 'services' === $key
 					? $wpdb->get_var( $wpdb->prepare( 'SELECT 1 FROM ' . Schema::table( 'booking_items' ) . ' WHERE service_id = %d LIMIT 1', $id ) )
 					: $wpdb->get_var( $wpdb->prepare( 'SELECT 1 FROM ' . Schema::table( 'booking_allocations' ) . ' WHERE resource_id = %d LIMIT 1', $id ) );
@@ -365,7 +401,7 @@ final class AdminController {
 				$wpdb->update( Schema::table( 'services' ), array( 'policy_id' => null ), array( 'policy_id' => $id ) );
 			}
 			Db::transaction( static function () use ( $wpdb, $key, $spec, $id ) {
-				if ( 'staff' === $key ) {
+				if ( isset( $spec['resource_type'] ) ) {
 					$wpdb->delete( Schema::table( 'shifts' ), array( 'resource_id' => $id ) );
 					$wpdb->delete( Schema::table( 'service_resources' ), array( 'resource_id' => $id ) );
 					$wpdb->delete( Schema::table( 'days_off' ), array( 'resource_id' => $id ) );
@@ -471,6 +507,126 @@ final class AdminController {
 		} );
 	}
 
+	// ------------------------------------------------------------------ restaurant: seating times and open-table rules
+
+	const SEATING_FIELDS = array(
+		'booking_mode'          => array( 'type' => 'enum', 'required' => true, 'values' => array( 'flexible', 'fixed' ) ),
+		'slot_duration_minutes' => array( 'type' => 'int', 'required' => true, 'min' => 15, 'max' => 600 ),
+		'slot_interval_minutes' => array( 'type' => 'int', 'required' => true, 'min' => 5, 'max' => 240 ),
+		'first_slot_time'       => array( 'type' => 'time', 'required' => true ),
+		'last_slot_time'        => array( 'type' => 'time', 'required' => true ),
+		'buffer_minutes'        => array( 'type' => 'int', 'min' => 0, 'max' => 240 ),
+		'allow_table_selection' => array( 'type' => 'bool' ),
+		'policy_id'             => array( 'type' => 'int', 'nullable' => true ),
+	);
+
+	const TABLE_RULE_FIELDS = array(
+		'weekday'       => array( 'type' => 'int', 'nullable' => true, 'min' => 0, 'max' => 6 ),
+		'specific_date' => array( 'type' => 'date', 'nullable' => true ),
+		'table_type'    => array( 'type' => 'enum', 'values' => array( 'normal', 'vip' ) ),
+		'open_tables'   => array( 'type' => 'int', 'required' => true, 'min' => 0, 'max' => 1000 ),
+	);
+
+	public static function get_seating( \WP_REST_Request $r ) {
+		return Rest::run( static function () use ( $r ) {
+			return self::seating_out( self::restaurant_or_fail( (int) $r['id'] )['id'] );
+		} );
+	}
+
+	/** Creates or replaces the module's seating-time setting (flexible or fixed grid, duration, interval, buffer, table choice). */
+	public static function put_seating( \WP_REST_Request $r ) {
+		return Rest::run( static function () use ( $r ) {
+			global $wpdb;
+			$m  = self::restaurant_or_fail( (int) $r['id'] );
+			$in = Fields::clean( self::SEATING_FIELDS, $r->get_json_params() ?: array(), false ) + array( 'buffer_minutes' => 0, 'allow_table_selection' => 0, 'policy_id' => null );
+			if ( null !== $in['policy_id'] ) {
+				self::owned_or_fail( 'policies', (int) $in['policy_id'], $m['id'], 'policy_id' );
+			}
+			$t = Schema::table( 'slot_settings' );
+			if ( $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $t WHERE module_id = %d", $m['id'] ) ) ) {
+				$wpdb->update( $t, $in, array( 'module_id' => $m['id'] ) );
+			} else {
+				$wpdb->insert( $t, $in + array( 'module_id' => $m['id'] ) );
+			}
+			Db::check();
+			return self::seating_out( $m['id'] );
+		} );
+	}
+
+	public static function get_table_rules( \WP_REST_Request $r ) {
+		return Rest::run( static function () use ( $r ) {
+			return self::table_rules_out( self::restaurant_or_fail( (int) $r['id'] )['id'] );
+		} );
+	}
+
+	/**
+	 * Replaces all open-table rules. Body: { "rules": [ { weekday | specific_date, table_type, open_tables } ] }.
+	 * Each rule has a weekday or a date (not both, not neither), no duplicates, and open_tables at most the active tables of its class.
+	 */
+	public static function put_table_rules( \WP_REST_Request $r ) {
+		return Rest::run( static function () use ( $r ) {
+			global $wpdb;
+			$m      = self::restaurant_or_fail( (int) $r['id'] );
+			$totals = array( 'normal' => 0, 'vip' => 0 );
+			foreach ( ( new WpScheduleSource() )->tables( $m['id'] ) as $t ) {
+				if ( 'active' === $t['status'] ) {
+					$totals[ $t['is_vip'] ? 'vip' : 'normal' ]++;
+				}
+			}
+			$rows = array();
+			$seen = array();
+			foreach ( (array) ( $r->get_json_params()['rules'] ?? array() ) as $i => $raw ) {
+				$rule = Fields::clean( self::TABLE_RULE_FIELDS, (array) $raw, false ) + array( 'weekday' => null, 'specific_date' => null, 'table_type' => 'normal' );
+				if ( ( null === $rule['weekday'] ) === ( null === $rule['specific_date'] ) ) {
+					Fields::fail( "rules[$i]", 'needs a weekday or a specific_date, not both' );
+				}
+				$k = $rule['table_type'] . '|' . $rule['weekday'] . '|' . $rule['specific_date'];
+				if ( isset( $seen[ $k ] ) ) {
+					Fields::fail( "rules[$i]", 'repeats a rule for the same table type and weekday or date' );
+				}
+				$seen[ $k ] = true;
+				if ( $rule['open_tables'] > $totals[ $rule['table_type'] ] ) {
+					Fields::fail( "rules[$i]", sprintf( 'opens %d tables but only %d %s tables are active', $rule['open_tables'], $totals[ $rule['table_type'] ], $rule['table_type'] ) );
+				}
+				$rows[] = $rule;
+			}
+			Db::transaction( static function () use ( $wpdb, $m, $rows ) {
+				$wpdb->delete( Schema::table( 'table_open_rules' ), array( 'module_id' => $m['id'] ) );
+				foreach ( $rows as $rule ) {
+					$wpdb->insert( Schema::table( 'table_open_rules' ), $rule + array( 'module_id' => $m['id'] ) );
+					Db::check();
+				}
+			} );
+			return self::table_rules_out( $m['id'] );
+		} );
+	}
+
+	private static function restaurant_or_fail( int $id ): array {
+		$m = self::module_or_404( $id );
+		if ( 'restaurant' !== $m['type'] ) {
+			throw new EngineError( EngineError::VALIDATION, 'Seating times and table rules are only for restaurant modules.' );
+		}
+		return $m;
+	}
+
+	private static function seating_out( int $module_id ): ?array {
+		$s = ( new WpScheduleSource() )->slot_settings( $module_id );
+		if ( null === $s ) {
+			return null;
+		}
+		$s['first_slot_time'] = substr( $s['first_slot_time'], 0, 5 );
+		$s['last_slot_time']  = substr( $s['last_slot_time'], 0, 5 );
+		return $s;
+	}
+
+	private static function table_rules_out( int $module_id ): array {
+		global $wpdb;
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . Schema::table( 'table_open_rules' ) . ' WHERE module_id = %d ORDER BY table_type, specific_date, weekday, id', $module_id ), ARRAY_A );
+		return array_map( static function ( $row ) {
+			return Fields::row( self::TABLE_RULE_FIELDS, $row );
+		}, $rows );
+	}
+
 	// ------------------------------------------------------------------ bookings
 
 	/** ?from=YYYY-MM-DD&to=YYYY-MM-DD (site dates, inclusive; default today and the next 30 days) &status=a,b */
@@ -488,6 +644,9 @@ final class AdminController {
 			$st    = array_values( array_intersect( array_filter( explode( ',', (string) $r['status'] ) ), Schema::BOOKING_STATUSES ) );
 			if ( $st ) {
 				$sql .= $wpdb->prepare( ' AND status IN (' . implode( ',', array_fill( 0, count( $st ), '%s' ) ) . ')', $st );
+			}
+			if ( in_array( $r['table_type'], array( 'normal', 'vip' ), true ) ) {
+				$sql .= $wpdb->prepare( ' AND table_type = %s', $r['table_type'] );
 			}
 			if ( $r['schedule_conflict'] ) {
 				$sql .= ' AND schedule_conflict = 1';
@@ -614,7 +773,7 @@ final class AdminController {
 	private static function child_or_404( string $key, int $id ): array {
 		global $wpdb;
 		$spec  = self::SPECS[ $key ];
-		$where = 'staff' === $key ? " AND type = 'staff'" : '';
+		$where = self::type_where( $spec );
 		$row   = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . Schema::table( $spec['table'] ) . " WHERE id = %d$where", $id ), ARRAY_A );
 		if ( ! $row ) {
 			throw new EngineError( EngineError::NOT_FOUND, 'Not found.' );
@@ -622,8 +781,37 @@ final class AdminController {
 		return $row;
 	}
 
+	/** " AND type = 'table'" for specs over the resources table; the type is a constant of this class, never input. */
+	private static function type_where( array $spec ): string {
+		return isset( $spec['resource_type'] ) ? " AND type = '" . $spec['resource_type'] . "'" : '';
+	}
+
+	/** @return array<string,mixed> */
+	private static function attributes( array $row ): array {
+		$a = json_decode( (string) ( $row['attributes'] ?? '' ), true );
+		return is_array( $a ) ? $a : array();
+	}
+
+	/** A row cast to JSON types, with the spec's attribute fields lifted out of the attributes JSON. */
+	private static function row_out( array $spec, array $row ): array {
+		$out = Fields::row( $spec['fields'], $row );
+		if ( isset( $spec['attributes'] ) ) {
+			$a = self::attributes( $row );
+			foreach ( $spec['attributes'] as $field => $s ) {
+				$v = $a[ $field ] ?? null;
+				if ( 'bool' === $s['type'] ) {
+					$v = (bool) $v;
+				} elseif ( 'decimal' === $s['type'] ) {
+					$v = number_format( (float) ( $v ?? 0 ), 2, '.', '' );
+				}
+				$out[ $field ] = $v;
+			}
+		}
+		return $out;
+	}
+
 	private static function child_out( string $key, int $id ): array {
-		return Fields::row( self::SPECS[ $key ]['fields'], self::child_or_404( $key, $id ) );
+		return self::row_out( self::SPECS[ $key ], self::child_or_404( $key, $id ) );
 	}
 
 	/** References inside a row must point at things of the same module. */
@@ -640,6 +828,14 @@ final class AdminController {
 			}
 			if ( isset( $in['start_date'], $in['end_date'] ) && $in['end_date'] < $in['start_date'] ) {
 				Fields::fail( 'end_date', 'must be on or after start_date' );
+			}
+		}
+		if ( 'tables' === $key ) {
+			if ( 'restaurant' !== Catalog::module( $module_id )['type'] ) {
+				Fields::fail( 'tables', 'are only for restaurant modules' );
+			}
+			if ( (float) ( $in['attributes']['minimum_spend'] ?? 0 ) > 0 && empty( $in['attributes']['is_vip'] ) ) {
+				Fields::fail( 'minimum_spend', 'is only for VIP tables' );
 			}
 		}
 		if ( 'staff' === $key && ! empty( $in['wp_user_id'] ) && ! get_userdata( (int) $in['wp_user_id'] ) ) {

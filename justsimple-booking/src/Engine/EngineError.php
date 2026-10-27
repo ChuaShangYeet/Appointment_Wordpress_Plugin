@@ -19,8 +19,10 @@ class EngineError extends \RuntimeException {
 	const BUSY               = 'busy';               // 503
 	const INSUFFICIENT_STOCK = 'insufficient_stock'; // 409
 	const FORBIDDEN          = 'forbidden';          // 403
+	const MINIMUM_SPEND      = 'minimum_spend_not_accepted'; // 422
 
 	const STATUS = array(
+		self::MINIMUM_SPEND      => 422,
 		self::INSUFFICIENT_STOCK => 409,
 		self::FORBIDDEN          => 403,
 		self::SLOT_UNAVAILABLE   => 409,

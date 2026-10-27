@@ -4,7 +4,10 @@ namespace JustSimple\Booking\Rest;
 use JustSimple\Booking\Booking\BookingService;
 use JustSimple\Booking\Data\Catalog;
 use JustSimple\Booking\Data\Schema;
+use JustSimple\Booking\Data\WpScheduleSource;
 use JustSimple\Booking\Engine\EngineError;
+use JustSimple\Booking\Engine\MinimumSpend;
+use JustSimple\Booking\Engine\RestaurantAllocator;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -94,6 +97,7 @@ final class PublicController {
 				'staff'    => array_map( static function ( $s ) {
 					return array( 'id' => (int) $s['id'], 'name' => $s['name'] );
 				}, $staff ),
+				'restaurant' => 'restaurant' === $m['type'] ? self::restaurant_info( $m['id'] ) : null,
 				'policy'   => $policy ? array(
 					'needs_approval'            => 'pending' === $policy['default_status'],
 					'min_notice_booking_minutes' => (int) $policy['min_notice_booking_minutes'],
@@ -102,6 +106,57 @@ final class PublicController {
 				) : null,
 			);
 		} );
+	}
+
+	/**
+	 * What a restaurant can seat, per table class: the biggest party one table takes and the biggest with separate seating
+	 * (its 6 largest tables together). The tables themselves are listed only when customers may choose one.
+	 */
+	private static function restaurant_info( int $module_id ): array {
+		$source  = new WpScheduleSource();
+		$setting = $source->slot_settings( $module_id );
+		$choose  = $setting && $setting['allow_table_selection'];
+		$active  = array_values( array_filter( $source->tables( $module_id ), static function ( $t ) {
+			return 'active' === $t['status'];
+		} ) );
+		$out = array( 'table_selection' => $choose );
+		foreach ( array( 'normal' => false, 'vip' => true ) as $class => $vip ) {
+			$caps = array_column( array_filter( $active, static function ( $t ) use ( $vip ) {
+				return $t['is_vip'] === $vip;
+			} ), 'capacity' );
+			rsort( $caps );
+			$out[ $class ] = array(
+				'largest_table'          => $caps ? $caps[0] : 0,
+				'largest_separate_party' => array_sum( array_slice( $caps, 0, RestaurantAllocator::MAX_COMBINED_TABLES ) ),
+			);
+		}
+		if ( $choose ) {
+			$out['tables'] = array_map( static function ( $t ) {
+				return array(
+					'id'            => $t['id'],
+					'name'          => $t['name'],
+					'capacity'      => $t['capacity'],
+					'table_type'    => $t['is_vip'] ? 'vip' : 'normal',
+					'minimum_spend' => $t['minimum_spend'] > 0 ? MinimumSpend::format( $t['minimum_spend'] ) : null,
+				);
+			}, $active );
+		}
+		return $out;
+	}
+
+	/** Party parameters of an availability query: party_size, table_type, separate (the engine checks them). */
+	private static function party_query( \WP_REST_Request $r ): array {
+		return array(
+			'party_size'             => null === $r['party_size'] || '' === $r['party_size'] ? null : (int) $r['party_size'],
+			'table_type'             => $r['table_type'] ? (string) $r['table_type'] : 'normal',
+			'allow_separate_seating' => in_array( $r['separate'], array( true, 1, '1', 'true' ), true ),
+		);
+	}
+
+	/** The staff member or table a query names. */
+	private static function named( \WP_REST_Request $r ): ?int {
+		$id = $r['staff'] ?: $r['table'];
+		return $id ? (int) $id : null;
 	}
 
 	/** Retail products: name, price and stock status only, never the count or SKU. */
@@ -123,7 +178,7 @@ final class PublicController {
 
 	public static function availability( \WP_REST_Request $r ) {
 		return Rest::run( static function () use ( $r ) {
-			return BookingService::availability( (int) $r['id'], (string) $r['date'], Rest::ids( $r['services'] ), $r['staff'] ? (int) $r['staff'] : null );
+			return BookingService::availability( (int) $r['id'], (string) $r['date'], Rest::ids( $r['services'] ), self::named( $r ), self::party_query( $r ) );
 		} );
 	}
 
@@ -133,7 +188,7 @@ final class PublicController {
 			if ( ! preg_match( '/^\d{4}-(0[1-9]|1[0-2])$/', $month ) ) {
 				throw new EngineError( EngineError::VALIDATION, 'Give the month as YYYY-MM.', array( 'field' => 'month' ) );
 			}
-			return BookingService::month_availability( (int) $r['id'], $month, Rest::ids( $r['services'] ), $r['staff'] ? (int) $r['staff'] : null );
+			return BookingService::month_availability( (int) $r['id'], $month, Rest::ids( $r['services'] ), self::named( $r ), self::party_query( $r ) );
 		} );
 	}
 
@@ -151,6 +206,13 @@ final class PublicController {
 			'idempotency_key' => $r['idempotency_key'] ?? $r->get_header( 'idempotency_key' ),
 			'health_notes'    => $r['health_notes'],
 			'source'          => 'widget',
+			// restaurant
+			'party_size'             => $r['party_size'],
+			'table_type'             => $r['table_type'] ?? 'normal',
+			'allow_separate_seating' => $r['allow_separate_seating'],
+			'table_id'               => $r['table_id'] ? (int) $r['table_id'] : null,
+			'accept_minimum_spend'   => $r['accept_minimum_spend'],
+			'accepted_minimum_spend' => $r['accepted_minimum_spend'],
 		);
 		$created = null;
 		$resp    = Rest::run( static function () use ( $r, $in, &$created ) {

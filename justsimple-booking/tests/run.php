@@ -26,7 +26,10 @@ use JustSimple\Booking\Engine\Clock;
 use JustSimple\Booking\Engine\EngineError;
 use JustSimple\Booking\Engine\Interval;
 use JustSimple\Booking\Engine\IntervalMath;
+use JustSimple\Booking\Engine\MinimumSpend;
 use JustSimple\Booking\Engine\Policy;
+use JustSimple\Booking\Engine\RestaurantSource;
+use JustSimple\Booking\Engine\RestaurantAllocator;
 use JustSimple\Booking\Engine\ScheduleSource;
 use JustSimple\Booking\Engine\StaffAllocator;
 use JustSimple\Booking\Engine\StatusFlow;
@@ -93,13 +96,16 @@ function same_intervals( array $expected, array $actual, string $what = '' ) {
 }
 
 /** In-memory stand-in for the jsb_ tables. */
-final class MemSource implements ScheduleSource {
+final class MemSource implements RestaurantSource {
 	public $days_off = array();
 	public $hours    = array();
 	public $staff    = array(); // id => true (active)
 	public $links    = array(); // service id => [resource ids]
 	public $shifts   = array();
 	public $alloc    = array(); // [resource_id, start, end, state, hold_expires|null]
+	public $tables   = array(); // restaurant: [id, name, capacity, status, is_vip, minimum_spend (cents)]
+	public $seating  = null;    // restaurant: the seating-time setting
+	public $rules    = array(); // restaurant: [table_type, weekday|null, specific_date|null, open_tables]
 
 	public function days_off( int $module_id ): array {
 		return $this->days_off;
@@ -135,6 +141,18 @@ final class MemSource implements ScheduleSource {
 			}
 		}
 		return $out;
+	}
+
+	public function tables( int $module_id ): array {
+		return $this->tables;
+	}
+	public function slot_settings( int $module_id ): ?array {
+		return $this->seating;
+	}
+	public function open_rules( int $module_id, string $table_type ): array {
+		return array_values( array_filter( $this->rules, static function ( $r ) use ( $table_type ) {
+			return $r['table_type'] === $table_type;
+		} ) );
 	}
 
 	/** A staff member working 09:00-18:00 with a 13:00-14:00 break every day (conftest.add_staff). */
@@ -624,12 +642,327 @@ test( 'with no stylist chosen the least loaded one is assigned', function () {
 	$src->book( 1, at( D, 10 ), at( D, 10, 45 ) );
 	eq( 2, ( new SalonAllocator() )->allocate( $src, req( D, null, null, null, null, array( CUT, GEL ) ), at( D, 15 ) )[0]->resource_id );
 } );
-test( 'the allocator factory knows staff and salon only', function () {
+test( 'the allocator factory knows the types built so far', function () {
 	ok( Allocators::for_type( 'salon' ) instanceof SalonAllocator, 'salon' );
 	ok( Allocators::for_type( 'staff' ) instanceof StaffAllocator, 'staff' );
+	ok( Allocators::for_type( 'restaurant' ) instanceof RestaurantAllocator, 'restaurant' );
 	throws( EngineError::VALIDATION, function () {
-		Allocators::for_type( 'restaurant' );
+		Allocators::for_type( 'workshop' );
 	} );
+} );
+
+// ------------------------------------------------------------------ restaurant (test_restaurant.py)
+
+/** A table for the pure solver tests; the id is fixed by the name, like uuid5 in the original. */
+function tbl( string $name, int $cap ): array {
+	return array( 'id' => crc32( $name ), 'name' => $name, 'capacity' => $cap );
+}
+function tnames( ?array $tables ): ?array {
+	if ( null === $tables ) {
+		return null;
+	}
+	$n = array_column( $tables, 'name' );
+	sort( $n );
+	return $n;
+}
+
+test( 'smallest single table that fits', function () {
+	$tables = array( tbl( 'a', 6 ), tbl( 'b', 2 ), tbl( 'c', 4 ), tbl( 'd', 2 ) );
+	eq( array( 'b' ), tnames( RestaurantAllocator::solve_seating( $tables, 2, false ) ), '2-top, not the 4 or 6' );
+	eq( array( 'c' ), tnames( RestaurantAllocator::solve_seating( $tables, 3, false ) ) );
+	eq( array( 'a' ), tnames( RestaurantAllocator::solve_seating( $tables, 5, false ) ) );
+} );
+test( 'equal capacity is deterministic by name', function () {
+	eq( array( 'b' ), tnames( RestaurantAllocator::solve_seating( array( tbl( 'z', 2 ), tbl( 'm', 2 ), tbl( 'b', 2 ) ), 2, false ) ) );
+} );
+test( 'no single fit and separate seating not allowed means none', function () {
+	eq( null, RestaurantAllocator::solve_seating( array( tbl( 'a', 4 ), tbl( 'b', 4 ) ), 7, false ) );
+} );
+test( 'separate seating uses fewest tables', function () {
+	eq( array( 'c', 'd' ), tnames( RestaurantAllocator::solve_seating( array( tbl( 'a', 2 ), tbl( 'b', 2 ), tbl( 'c', 4 ), tbl( 'd', 4 ) ), 7, true ) ), '4+4 beats 4+2+2' );
+} );
+test( 'separate seating tie prefers least spare capacity', function () {
+	eq( array( 'a', 'c' ), tnames( RestaurantAllocator::solve_seating( array( tbl( 'a', 3 ), tbl( 'b', 3 ), tbl( 'c', 5 ), tbl( 'd', 5 ) ), 7, true ) ), '3+5=8 rather than 5+5=10' );
+} );
+test( 'single table always preferred over combining', function () {
+	eq( array( 'c' ), tnames( RestaurantAllocator::solve_seating( array( tbl( 'a', 4 ), tbl( 'b', 4 ), tbl( 'c', 8 ) ), 8, true ) ) );
+} );
+test( 'separate seating impossible when total capacity too small', function () {
+	eq( null, RestaurantAllocator::solve_seating( array( tbl( 'a', 2 ), tbl( 'b', 2 ) ), 5, true ) );
+} );
+test( 'combination size is bounded', function () {
+	$ones = array();
+	for ( $i = 0; $i < 7; $i++ ) {
+		$ones[] = tbl( "t$i", 1 );
+	}
+	eq( null, RestaurantAllocator::solve_seating( $ones, 7, true, 6 ) );
+	eq( 6, count( RestaurantAllocator::solve_seating( $ones, 6, true, 6 ) ?? array() ) );
+} );
+test( 'solver result is independent of input order', function () {
+	$tables = array( tbl( 'a', 3 ), tbl( 'b', 3 ), tbl( 'c', 5 ), tbl( 'd', 5 ), tbl( 'e', 2 ) );
+	eq( tnames( RestaurantAllocator::solve_seating( $tables, 7, true ) ), tnames( RestaurantAllocator::solve_seating( array_reverse( $tables ), 7, true ) ) );
+} );
+test( 'max concurrency counts overlap but not touching', function () {
+	$win = iv( 18, 0, 21, 0 );
+	eq( 1, RestaurantAllocator::max_concurrency( array( iv( 18, 0, 19, 0 ), iv( 19, 0, 20, 0 ) ), $win ), 'back to back' );
+	eq( 3, RestaurantAllocator::max_concurrency( array( iv( 18, 0, 19, 30 ), iv( 19, 0, 20, 0 ), iv( 19, 15, 19, 45 ) ), $win ) );
+	eq( 0, RestaurantAllocator::max_concurrency( array( iv( 10, 0, 12, 0 ) ), $win ), 'outside the window' );
+	eq( 1, RestaurantAllocator::max_concurrency( array( iv( 17, 0, 18, 30 ), iv( 20, 30, 22, 0 ) ), $win ), 'clipped to the window' );
+} );
+function grid( string $mode, ?array $windows = null, string $first = '11:00', string $last = '20:30', int $interval = 30 ): array {
+	$starts = RestaurantAllocator::candidate_starts( $mode, $windows ?? array( iv( 11, 0, 22, 0 ) ), D, $GLOBALS['KL'], 90 * 60, $interval * 60, $first, $last );
+	return array_map( 'hhmm', $starts );
+}
+test( 'flexible mode runs from opening to closing minus duration', function () {
+	$s = grid( 'flexible' );
+	eq( array( '11:00', '20:30', 20 ), array( $s[0], end( $s ), count( $s ) ) );
+} );
+test( 'flexible mode anchors at opening time', function () {
+	eq( array( '17:15', '17:45', '18:15' ), array_slice( grid( 'flexible', array( iv( 17, 15, 20, 0 ) ) ), 0, 3 ) );
+} );
+test( 'fixed mode uses first to last slot time', function () {
+	eq( array( '12:00', '13:00', '14:00' ), grid( 'fixed', null, '12:00', '14:00', 60 ) );
+} );
+test( 'fixed mode drops starts that do not fit before closing', function () {
+	eq( array( '12:00', '13:00' ), grid( 'fixed', array( iv( 11, 0, 14, 30 ) ), '12:00', '15:00', 60 ), '14:00 + 90 min would run past 14:30' );
+} );
+test( 'fixed slots can run past midnight', function () {
+	$late = Clock::window_on( D, '18:00', '02:00', $GLOBALS['KL'] );
+	$s    = RestaurantAllocator::candidate_starts( 'fixed', array( $late ), D, $GLOBALS['KL'], 60 * 60, 3600, '22:00', '01:00' );
+	eq( array( '22:00', '23:00', '00:00', '01:00' ), array_map( 'hhmm', $s ) );
+	eq( Clock::add_days( D, 1 ), Clock::local_date( end( $s ), $GLOBALS['KL'] ), 'the last seating is on the next date' );
+} );
+
+test( 'the minimum spend rule', function () {
+	$cases = array( // spend, accept, accepted, ok (test_minimum_spend_rule)
+		array( '0', false, null, true ), array( '0', false, '0', true ),
+		array( '300', false, null, false ), array( '300', true, null, true ),
+		array( '300', false, '300', true ), array( '300', false, '299.99', false ), array( '200', false, '500', true ),
+		array( '300', true, '299', false ),
+	);
+	foreach ( $cases as $k ) {
+		list( $spend, $accept, $accepted, $want ) = $k;
+		$c = null === $accepted ? null : MinimumSpend::to_cents( $accepted );
+		try {
+			MinimumSpend::ensure_accepted( MinimumSpend::to_cents( $spend ), $accept, $c );
+			eq( true, $want, "$spend/$accepted accepted" );
+		} catch ( EngineError $e ) {
+			eq( false, $want, "$spend/$accepted refused" );
+			eq( EngineError::MINIMUM_SPEND, $e->error_code );
+			eq( MinimumSpend::format( MinimumSpend::to_cents( $spend ) ), $e->data['minimum_spend'] );
+			eq( null === $accepted ? null : MinimumSpend::format( $c ), $e->data['accepted_minimum_spend'] ?? null, 'the accepted amount is echoed only when sent' );
+		}
+	}
+} );
+test( 'amounts are parsed strictly', function () {
+	eq( array( 30000, 30050, 30050, 0, 1999 ), array( MinimumSpend::to_cents( '300' ), MinimumSpend::to_cents( '300.5' ), MinimumSpend::to_cents( 300.5 ), MinimumSpend::to_cents( 0 ), MinimumSpend::to_cents( '19.99' ) ) );
+	foreach ( array( '-1', 'abc', true, '1.234', '', array() ) as $bad ) {
+		eq( null, MinimumSpend::to_cents( $bad ), var_export( $bad, true ) );
+	}
+} );
+
+/** test_restaurant.py's restaurant: 11:00-22:00 daily, 90 min seatings every 30 min + 15 min buffer, 2-tops a2 b2, c4, d6, VIP v4 ($300) and v2 ($200). */
+function restaurant(): MemSource {
+	$src = new MemSource();
+	for ( $d = 0; $d < 7; $d++ ) {
+		$src->hours[] = array( 'weekday' => $d, 'open_time' => '11:00', 'close_time' => '22:00' );
+	}
+	$src->seating = array( 'booking_mode' => 'flexible', 'slot_duration_minutes' => 90, 'slot_interval_minutes' => 30, 'first_slot_time' => '11:00', 'last_slot_time' => '20:30', 'buffer_minutes' => 15, 'allow_table_selection' => false, 'policy_id' => null );
+	$id = 100;
+	foreach ( array( array( 'a2', 2, false, 0 ), array( 'b2', 2, false, 0 ), array( 'c4', 4, false, 0 ), array( 'd6', 6, false, 0 ), array( 'v4', 4, true, 30000 ), array( 'v2', 2, true, 20000 ) ) as $t ) {
+		$src->tables[] = array( 'id' => ++$id, 'name' => $t[0], 'capacity' => $t[1], 'status' => 'active', 'is_vip' => $t[2], 'minimum_spend' => $t[3] );
+	}
+	return $src;
+}
+function tid( MemSource $src, string $name ): int {
+	foreach ( $src->tables as $t ) {
+		if ( $t['name'] === $name ) {
+			return $t['id'];
+		}
+	}
+	throw new Exception( "no table $name" );
+}
+function party( int $size, string $type = 'normal', bool $separate = false, ?int $table = null ): AvailabilityRequest {
+	$r                         = req( D, $table, null, null, null, array() );
+	$r->party_size             = $size;
+	$r->table_type             = $type;
+	$r->allow_separate_seating = $separate;
+	return $r;
+}
+function seat( MemSource $src, AvailabilityRequest $r, int $h, int $m = 0 ): array {
+	$a = ( new RestaurantAllocator() )->allocate( $src, $r, at( D, $h, $m ) );
+	foreach ( $a as $x ) {
+		$src->book( $x->resource_id, $x->start, $x->end );
+	}
+	return $a;
+}
+function table_names( MemSource $src, array $ids ): array {
+	$n = array_map( static function ( $id ) use ( $src ) {
+		foreach ( $src->tables as $t ) {
+			if ( $t['id'] === $id ) {
+				return $t['name'];
+			}
+		}
+	}, $ids );
+	sort( $n );
+	return $n;
+}
+
+test( 'a party gets the smallest fitting normal table', function () {
+	$src = restaurant();
+	foreach ( array( 2 => 'a2', 3 => 'c4', 5 => 'd6' ) as $size => $name ) {
+		$ids = array();
+		foreach ( ( new RestaurantAllocator() )->find_slots( $src, party( $size ) ) as $s ) {
+			$ids = array_merge( $ids, $s->resource_ids );
+		}
+		eq( array( $name ), array_values( array_unique( table_names( $src, $ids ) ) ), "party of $size" );
+	}
+} );
+test( 'the slot grid and occupancy follow the seating setting', function () {
+	$s = ( new RestaurantAllocator() )->find_slots( restaurant(), party( 2 ) );
+	eq( array( '11:00', '20:30' ), array( hhmm( $s[0]->start ), hhmm( end( $s )->start ) ), 'closing 22:00 - 90 min' );
+	eq( 105 * 60, $s[0]->end - $s[0]->start, '90 duration + 15 buffer' );
+	$arr = $s[0]->to_array( $GLOBALS['KL'] );
+	ok( isset( $arr['table_ids'] ) && false === $arr['combined'] && null === $arr['minimum_spend'] && ! isset( $arr['staff_ids'] ), 'slot names tables, not staff' );
+} );
+test( 'separate seating combines the fewest tables only when allowed', function () {
+	$src = restaurant();
+	eq( array(), ( new RestaurantAllocator() )->find_slots( $src, party( 8 ) ), 'no single table seats 8' );
+	$combos = ( new RestaurantAllocator() )->find_slots( $src, party( 8, 'normal', true ) );
+	eq( array( 'a2', 'd6' ), table_names( $src, $combos[0]->resource_ids ), '6 + 2' );
+	ok( true === $combos[0]->to_array( $GLOBALS['KL'] )['combined'], 'marked combined' );
+	throws( EngineError::SLOT_UNAVAILABLE, function () use ( $src ) {
+		seat( $src, party( 8 ), 19 );
+	} );
+	eq( array( 'a2', 'd6' ), table_names( $src, array_column( array_map( 'get_object_vars', seat( $src, party( 8, 'normal', true ), 19 ) ), 'resource_id' ) ) );
+} );
+test( 'vip and normal pools are never mixed', function () {
+	$src = restaurant();
+	$vip = array( tid( $src, 'v4' ), tid( $src, 'v2' ) );
+	foreach ( ( new RestaurantAllocator() )->find_slots( $src, party( 2 ) ) as $s ) {
+		ok( ! array_intersect( $s->resource_ids, $vip ), 'normal party never offered a VIP table' );
+	}
+	eq( array(), ( new RestaurantAllocator() )->find_slots( $src, party( 5, 'vip' ) ), 'VIP alone cannot seat 5 singly, and must not borrow the 6-top' );
+	$combo = ( new RestaurantAllocator() )->find_slots( $src, party( 5, 'vip', true ) );
+	eq( array( 'v2', 'v4' ), table_names( $src, $combo[0]->resource_ids ) );
+	eq( 50000, $combo[0]->minimum_spend, 'combined VIP minimum spend is the sum' );
+	eq( array(), ( new RestaurantAllocator() )->find_slots( $src, party( 15, 'normal', true ) ), 'normal tables seat 14; VIP must not top them up' );
+	ok( count( ( new RestaurantAllocator() )->find_slots( $src, party( 12, 'normal', true ) ) ) > 0, '6 + 4 + 2 within the normal pool' );
+} );
+test( 'tables fill smallest first then overflow upward', function () {
+	$src = restaurant();
+	$got = array();
+	for ( $i = 0; $i < 4; $i++ ) {
+		$got[] = table_names( $src, array( seat( $src, party( 2 ), 19 )[0]->resource_id ) )[0];
+	}
+	eq( array( 'a2', 'b2', 'c4', 'd6' ), $got );
+	throws( EngineError::SLOT_UNAVAILABLE, function () use ( $src ) {
+		seat( $src, party( 2 ), 19 );
+	} );
+} );
+test( 'occupancy blocks the table but the next free grid start is fine', function () {
+	$src = restaurant();
+	seat( $src, party( 6 ), 18 ); // 18:00-19:45
+	foreach ( array( array( 19, 0 ), array( 19, 30 ), array( 19, 45 ) ) as $hm ) {
+		throws( EngineError::SLOT_UNAVAILABLE, function () use ( $src, $hm ) {
+			seat( $src, party( 6 ), $hm[0], $hm[1] );
+		} );
+	}
+	seat( $src, party( 6 ), 20 );
+} );
+test( 'the open table rule caps tables in use at the same time', function () {
+	$src          = restaurant();
+	$src->rules[] = array( 'table_type' => 'normal', 'weekday' => Clock::weekday_index( D ), 'specific_date' => null, 'open_tables' => 2 );
+	seat( $src, party( 2 ), 12 ); // 12:00-13:45
+	seat( $src, party( 2 ), 12 );
+	throws( EngineError::SLOT_UNAVAILABLE, function () use ( $src ) {
+		seat( $src, party( 2 ), 12 );
+	} ); // 4 normal tables exist, only 2 open
+	throws( EngineError::SLOT_UNAVAILABLE, function () use ( $src ) {
+		seat( $src, party( 2 ), 13 );
+	} ); // still overlaps both
+	seat( $src, party( 2 ), 14 ); // after both have finished
+} );
+test( 'a date rule overrides the weekday rule, and 0 closes the day', function () {
+	$src   = restaurant();
+	$wd    = Clock::weekday_index( D );
+	$src->rules = array(
+		array( 'table_type' => 'normal', 'weekday' => $wd, 'specific_date' => null, 'open_tables' => 4 ),
+		array( 'table_type' => 'normal', 'weekday' => null, 'specific_date' => D, 'open_tables' => 1 ),
+	);
+	seat( $src, party( 2 ), 19 );
+	throws( EngineError::SLOT_UNAVAILABLE, function () use ( $src ) {
+		seat( $src, party( 2 ), 19 );
+	} );
+	$src->rules[1]['open_tables'] = 0;
+	eq( array(), ( new RestaurantAllocator() )->find_slots( $src, party( 2 ) ) );
+	eq( true, count( ( new RestaurantAllocator() )->find_slots( $src, party( 2, 'vip' ) ) ) > 0, 'a normal-table rule leaves VIP tables alone' );
+} );
+test( 'closed days, holidays and table leave', function () {
+	$src        = restaurant();
+	$src->hours = array_values( array_filter( $src->hours, static function ( $h ) {
+		return $h['weekday'] !== Clock::weekday_index( D );
+	} ) );
+	eq( array(), ( new RestaurantAllocator() )->find_slots( $src, party( 2 ) ), 'not an opening day' );
+	$src->hours = array();
+	eq( array(), ( new RestaurantAllocator() )->find_slots( $src, party( 2 ) ), 'no opening hours at all: closed' );
+	$src             = restaurant();
+	$src->days_off[] = array( 'resource_id' => tid( $src, 'd6' ), 'start_date' => D, 'end_date' => D, 'repeat_yearly' => 0 );
+	eq( array(), ( new RestaurantAllocator() )->find_slots( $src, party( 5 ) ), 'the only 5-seat table is out of service' );
+	$src->days_off[] = array( 'resource_id' => null, 'start_date' => D, 'end_date' => D, 'repeat_yearly' => 0 );
+	eq( array(), ( new RestaurantAllocator() )->find_slots( $src, party( 2 ) ), 'holiday' );
+} );
+test( 'input validation and missing configuration', function () {
+	$src = restaurant();
+	throws( EngineError::VALIDATION, function () use ( $src ) {
+		( new RestaurantAllocator() )->find_slots( $src, party( 0 ) );
+	} );
+	throws( EngineError::VALIDATION, function () use ( $src ) {
+		( new RestaurantAllocator() )->find_slots( $src, party( 2, 'terrace' ) );
+	} );
+	$src->seating = null;
+	throws( EngineError::VALIDATION, function () use ( $src ) {
+		( new RestaurantAllocator() )->find_slots( $src, party( 2 ) );
+	} );
+} );
+test( 'choosing a table follows the setting and its rules', function () {
+	$src = restaurant();
+	throws( EngineError::VALIDATION, function () use ( $src ) {
+		( new RestaurantAllocator() )->find_slots( $src, party( 2, 'normal', false, tid( $src, 'c4' ) ) );
+	} ); // off by default: refused, not ignored
+	$src->seating['allow_table_selection'] = true;
+	$a                                     = seat( $src, party( 2, 'normal', false, tid( $src, 'c4' ) ), 19 );
+	eq( tid( $src, 'c4' ), $a[0]->resource_id, 'the customer gets the table they chose' );
+	throws( EngineError::SLOT_UNAVAILABLE, function () use ( $src ) {
+		seat( $src, party( 2, 'normal', false, tid( $src, 'c4' ) ), 19 );
+	} ); // taken
+	seat( $src, party( 2 ), 19 ); // others stay bookable
+	eq( array(), ( new RestaurantAllocator() )->find_slots( $src, party( 5, 'normal', false, tid( $src, 'c4' ) ) ), 'too small' );
+	throws( EngineError::VALIDATION, function () use ( $src ) {
+		( new RestaurantAllocator() )->find_slots( $src, party( 2, 'normal', false, tid( $src, 'v2' ) ) );
+	} ); // other class
+	throws( EngineError::NOT_FOUND, function () use ( $src ) {
+		( new RestaurantAllocator() )->find_slots( $src, party( 2, 'normal', false, 999 ) );
+	} );
+	throws( EngineError::VALIDATION, function () use ( $src ) {
+		( new RestaurantAllocator() )->find_slots( $src, party( 2, 'normal', true, tid( $src, 'd6' ) ) );
+	} ); // never combined
+	$src->days_off[] = array( 'resource_id' => tid( $src, 'd6' ), 'start_date' => D, 'end_date' => D, 'repeat_yearly' => 0 );
+	eq( array(), ( new RestaurantAllocator() )->find_slots( $src, party( 2, 'normal', false, tid( $src, 'd6' ) ) ), 'chosen table out of service' );
+} );
+test( 'an after midnight seating is booked on the business day before', function () {
+	$src        = restaurant();
+	$src->hours = array();
+	for ( $d = 0; $d < 7; $d++ ) {
+		$src->hours[] = array( 'weekday' => $d, 'open_time' => '18:00', 'close_time' => '02:00' );
+	}
+	$src->seating = array_merge( $src->seating, array( 'booking_mode' => 'fixed', 'slot_duration_minutes' => 60, 'slot_interval_minutes' => 60, 'first_slot_time' => '19:00', 'last_slot_time' => '01:00', 'buffer_minutes' => 0 ) );
+	$start        = at( Clock::add_days( D, 1 ), 0, 0 );
+	$r            = party( 2 );
+	$r->day       = Clock::add_days( D, 1 );
+	list( $a, $day ) = Availability::allocate_on_business_day( new RestaurantAllocator(), $src, $r, $start );
+	eq( D, $day );
+	eq( $start, $a[0]->start );
 } );
 
 // ------------------------------------------------------------------ run

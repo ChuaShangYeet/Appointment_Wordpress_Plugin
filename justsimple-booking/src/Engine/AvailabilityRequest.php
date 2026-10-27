@@ -26,6 +26,12 @@ final class AvailabilityRequest {
 	public $step = 900;
 	/** @var array|null services that decide who qualifies; null = all of `services` (salon: the base service only) */
 	public $qualifying_services = null;
+	/** @var int|null restaurant: the party to seat (required there, ignored elsewhere) */
+	public $party_size = null;
+	/** @var string restaurant: 'normal' | 'vip' */
+	public $table_type = 'normal';
+	/** @var bool restaurant: the customer accepts sitting at several tables */
+	public $allow_separate_seating = false;
 
 	public function __construct( int $module_id, \DateTimeZone $tz, array $services, Policy $policy, string $day, ?int $resource_id, int $now ) {
 		$this->module_id   = $module_id;

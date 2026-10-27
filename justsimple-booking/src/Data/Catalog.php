@@ -79,6 +79,21 @@ final class Catalog {
 	}
 
 	/**
+	 * A restaurant's policy: the seating-time setting's own policy, else the module default.
+	 *
+	 * @throws EngineError validation when none is configured
+	 */
+	public static function resolve_restaurant_policy( array $module, ?int $setting_policy_id ): Policy {
+		global $wpdb;
+		$id  = $setting_policy_id ?? ( $module['default_policy_id'] ? (int) $module['default_policy_id'] : null );
+		$row = null === $id ? null : $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . Schema::table( 'policies' ) . ' WHERE id = %d AND module_id = %d', $id, (int) $module['id'] ), ARRAY_A );
+		if ( ! $row ) {
+			throw new EngineError( EngineError::VALIDATION, 'This booking page has no booking policy yet.' );
+		}
+		return Policy::from_row( $row );
+	}
+
+	/**
 	 * Each service's own policy, else the module default; several distinct policies merge into the strictest.
 	 *
 	 * @throws EngineError validation when no policy is configured

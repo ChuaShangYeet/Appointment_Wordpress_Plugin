@@ -10,8 +10,12 @@ final class SlotOption {
 	public $start;
 	/** @var int */
 	public $end;
-	/** @var int[] sorted */
+	/** @var int[] sorted for staff (any of them may serve); in seating order for tables (all of them are used) */
 	public $resource_ids;
+	/** @var bool restaurant: the slot seats the party at proposed tables, not at a choice of staff */
+	public $tables = false;
+	/** @var int restaurant: minimum spend of the proposed tables, in cents */
+	public $minimum_spend = 0;
 
 	public function __construct( int $start, int $end, array $resource_ids ) {
 		sort( $resource_ids );
@@ -20,11 +24,27 @@ final class SlotOption {
 		$this->resource_ids = $resource_ids;
 	}
 
+	/** @param int[] $table_ids */
+	public static function seating( int $start, int $end, array $table_ids, int $minimum_spend ): self {
+		$s                = new self( $start, $end, array() );
+		$s->resource_ids  = array_values( $table_ids );
+		$s->tables        = true;
+		$s->minimum_spend = $minimum_spend;
+		return $s;
+	}
+
 	public function to_array( \DateTimeZone $tz ): array {
-		return array(
-			'start'     => Clock::format( $this->start, $tz ),
-			'end'       => Clock::format( $this->end, $tz ),
-			'staff_ids' => $this->resource_ids,
+		$out = array(
+			'start' => Clock::format( $this->start, $tz ),
+			'end'   => Clock::format( $this->end, $tz ),
+		);
+		if ( ! $this->tables ) {
+			return $out + array( 'staff_ids' => $this->resource_ids );
+		}
+		return $out + array(
+			'table_ids'     => $this->resource_ids,
+			'combined'      => count( $this->resource_ids ) > 1,
+			'minimum_spend' => $this->minimum_spend > 0 ? MinimumSpend::format( $this->minimum_spend ) : null,
 		);
 	}
 }
