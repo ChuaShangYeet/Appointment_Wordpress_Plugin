@@ -5,6 +5,7 @@ use JustSimple\Booking\Admin\Menu;
 use JustSimple\Booking\Booking\HoldSweeper;
 use JustSimple\Booking\Booking\Mailer;
 use JustSimple\Booking\Data\Schema;
+use JustSimple\Booking\Front\Front;
 use JustSimple\Booking\Rest\AdminController;
 use JustSimple\Booking\Rest\PublicController;
 
@@ -25,6 +26,7 @@ final class Plugin {
 		add_action( 'rest_api_init', array( AdminController::class, 'register' ) );
 		add_action( Activator::CRON_SWEEP, array( HoldSweeper::class, 'cron' ) );
 		Mailer::register();
+		Front::register();
 
 		if ( is_admin() ) {
 			Menu::register();

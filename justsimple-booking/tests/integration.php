@@ -1185,6 +1185,30 @@ check( (bool) array_filter( mails(), static function ( $x ) {
 	return false !== strpos( $x->message, 'Visit at: 1 Jalan Test' );
 } ), 'the emails say where the visit is' );
 
+echo "== widget: look, map and the shortcode\n";
+as_user( 1 );
+foreach ( array( array( 'accent' => 'red' ), array( 'font' => 'comic' ), array( 'currency' => 'RINGGITMYR' ), array( 'page_url' => 'javascript:alert(1)' ) ) as $bad ) {
+	list( $s, $d ) = call( 'PATCH', "/admin/modules/{$fp['id']}", array( 'settings' => $bad ) );
+	check( 422 === $s, 'settings.' . key( $bad ) . ' refused', $d );
+}
+list( $s ) = call( 'PATCH', "/admin/modules/{$fp['id']}", array( 'settings' => array( 'accent' => '#AA3355', 'font' => 'dm-sans', 'currency' => 'MYR', 'phone' => '+60 3-1234 5678', 'map_picker' => false ) ) );
+as_user( 0 );
+list( , $pm ) = call( 'GET', "/modules/{$fp['id']}" );
+check( 200 === $s && array( 'accent' => '#aa3355', 'font' => 'dm-sans', 'currency' => 'MYR', 'phone' => '+60 3-1234 5678' ) === $pm['look'], 'the look reaches the public module', $pm['look'] );
+check( array( 'enabled' => false, 'center' => array( 3.14, 101.69 ) ) === $pm['map'], 'the map picker can be switched off; its centre is rounded to about 1 km', $pm['map'] );
+list( , $sm ) = call( 'GET', "/modules/$mid" );
+check( null === $sm['map'] && '#4f6238' === $sm['look']['accent'], 'other kinds carry no map and the default colour', $sm );
+$html = JustSimple\Booking\Front\Front::render( $fp['id'] );
+check( false !== strpos( $html, '<jsb-booking module="' . $fp['id'] . '"' ) && false !== strpos( $html, 'href="tel:+60312345678"' ), 'the shortcode prints the widget with a call-to-book fallback', $html );
+check( wp_script_is( 'jsb-booking', 'enqueued' ) && wp_style_is( 'jsb-dm-sans', 'enqueued' ), 'the widget script and the chosen font are enqueued' );
+check( false !== strpos( apply_filters( 'script_loader_tag', '<script src="x"></script>', 'jsb-booking', 'x' ), 'type="module"' ), 'the widget loads as an ES module' );
+check( '' === JustSimple\Booking\Front\Front::render( 999999 ), 'a missing or switched-off module prints nothing for visitors' );
+as_user( 1 );
+check( false !== strpos( JustSimple\Booking\Front\Front::render( 999999 ), 'not switched on' ), 'and tells the owner why' );
+call( 'PATCH', "/admin/modules/{$fp['id']}", array( 'settings' => array( 'page_url' => 'http://localhost/jsb-test/book-here/' ) ) );
+check( 'http://localhost/jsb-test/book-here/?jsb_booking=ABC123&jsb_token=t0k' === apply_filters( 'jsb_manage_url', '', 'ABC123', 't0k', $fp['id'] ), 'manage links point at the page that shows the widget' );
+call( 'PATCH', "/admin/modules/{$fp['id']}", array( 'settings' => array( 'accent' => '#4f6238', 'font' => 'theme', 'map_picker' => true, 'page_url' => '' ) ) );
+
 echo "== field race fixture\n";
 $frace = array( 'day' => ( new DateTimeImmutable( 'today +3 days', $tz ) )->format( 'Y-m-d' ), 'near' => NEARP );
 $one   = $practice( 'Race practice one', array( 'Dr A' ), array( '08:00', '18:00' ), $day_shift );

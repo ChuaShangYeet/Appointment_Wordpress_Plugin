@@ -1,0 +1,15 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "justsimple/booking",
+	"title": "Booking",
+	"category": "widgets",
+	"icon": "calendar-alt",
+	"description": "Shows one of your booking pages so visitors can book.",
+	"keywords": [ "booking", "appointment", "reservation" ],
+	"textdomain": "justsimple-booking",
+	"attributes": {
+		"module": { "type": "number", "default": 0 }
+	},
+	"supports": { "html": false, "align": [ "wide" ] }
+}

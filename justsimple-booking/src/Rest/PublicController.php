@@ -106,6 +106,17 @@ final class PublicController {
 					return array( 'id' => (int) $s['id'], 'name' => $s['name'] );
 				}, $staff ),
 				'restaurant' => 'restaurant' === $m['type'] ? self::restaurant_info( $m['id'] ) : null,
+				'look'       => array(
+					'accent'   => $m['settings']['accent'],
+					'font'     => $m['settings']['font'],
+					'currency' => $m['settings']['currency'],
+					'phone'    => $m['settings']['phone'],
+				),
+				// field: the optional map picker starts near the business (rounded to about 1 km; the exact point stays private)
+				'map'        => 'field' === $m['type'] ? array(
+					'enabled' => (bool) $m['settings']['map_picker'],
+					'center'  => null === $m['settings']['latitude'] ? null : array( round( (float) $m['settings']['latitude'], 2 ), round( (float) $m['settings']['longitude'], 2 ) ),
+				) : null,
 				'policy'   => $policy ? array(
 					'needs_approval'            => 'pending' === $policy['default_status'],
 					'min_notice_booking_minutes' => (int) $policy['min_notice_booking_minutes'],

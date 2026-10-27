@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "mapId": "justsimple-wp-plugin",
-  "revision": 6,
+  "revision": 7,
   "language": "en",
   "project": {
     "id": "justsimple-booking-wp",
@@ -228,7 +228,7 @@
       "role": "frontend",
       "name": "Booking widget",
       "kind": "local",
-      "responsibility": "Shortcode and block that render a module's booking flow inside any theme, scoped so the theme's CSS cannot break it. Planned for phase 7.",
+      "responsibility": "Shortcode [justsimple_booking id] and block justsimple/booking print <jsb-booking>, a shadow-DOM web component (no build step) with per-kind steps choose, when, details, done, plus a manage view from the email link. The owner sets colour, font, currency, phone and the OpenStreetMap picker per module.",
       "ownership": [
         {
           "kind": "directory",
@@ -237,18 +237,36 @@
         {
           "kind": "directory",
           "path": "justsimple-booking/assets/front"
+        },
+        {
+          "kind": "directory",
+          "path": "justsimple-booking/assets/fonts"
+        },
+        {
+          "kind": "directory",
+          "path": "justsimple-booking/blocks"
         }
       ],
       "evidence": [
         {
-          "path": "WP_PLUGIN_PLAN.md",
-          "note": "Section 2, public layer: shortcode, Gutenberg block, web component."
+          "path": "justsimple-booking/src/Front/Front.php",
+          "note": "Shortcode, block render, module script tag, manage-link filter."
+        },
+        {
+          "path": "justsimple-booking/assets/front/jsb-booking.js",
+          "note": "The web component and its RestSource."
+        },
+        {
+          "path": "justsimple-booking/assets/front/map-picker.js",
+          "note": "Optional OSM picker, loaded on demand."
+        },
+        {
+          "path": "justsimple-booking/tests/integration.php",
+          "note": "Section \"widget: look, map and the shortcode\" (13 checks)."
         }
       ],
-      "status": "uncertain",
-      "openQuestions": [
-        "Not built yet: the visual and interaction thesis come first."
-      ],
+      "status": "supported",
+      "openQuestions": [],
       "layout": {
         "row": 0,
         "column": 1
@@ -662,34 +680,30 @@
       "label": "opens a module's booking page",
       "evidence": [
         {
-          "path": "WP_PLUGIN_PLAN.md",
-          "note": "Section 2 diagram."
+          "path": "justsimple-booking/src/Front/Front.php",
+          "note": "render(): the page a visitor opens."
         }
       ],
       "kind": "request",
       "visibility": "overview",
-      "status": "uncertain",
-      "openQuestions": [
-        "Planned; no widget code yet."
-      ]
+      "status": "supported",
+      "openQuestions": []
     },
     {
       "id": "widget-rest",
       "from": "front-widget",
       "to": "rest-api",
-      "label": "fetches free times, submits the booking",
+      "label": "fetches free times, submits and cancels bookings (public routes, no cookie)",
       "evidence": [
         {
-          "path": "WP_PLUGIN_PLAN.md",
-          "note": "Section 2 diagram: fetch with nonce."
+          "path": "justsimple-booking/assets/front/jsb-booking.js",
+          "note": "RestSource: module, vehicles, availability, month, book, show, cancel."
         }
       ],
       "kind": "request",
       "visibility": "overview",
-      "status": "uncertain",
-      "openQuestions": [
-        "Planned; route shapes not fixed."
-      ]
+      "status": "supported",
+      "openQuestions": []
     },
     {
       "id": "rest-engine",

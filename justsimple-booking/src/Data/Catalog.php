@@ -19,6 +19,13 @@ final class Catalog {
 		'latitude'          => null,
 		'longitude'         => null,
 		'service_radius_km' => null,
+		// the booking widget's look and fallbacks
+		'accent'            => '#4f6238', // one colour; the widget computes its tints
+		'font'              => 'theme',   // 'theme' (inherit the site's font) or 'dm-sans' (bundled)
+		'currency'          => 'RM',
+		'phone'             => '',        // shown when the widget cannot run (no script) and for on-site help
+		'map_picker'        => true,      // field: allow the optional OpenStreetMap picker
+		'page_url'          => '',        // the page the widget is on, for manage links in emails
 	);
 
 	/** @return array<string,mixed>|null with `settings` decoded */

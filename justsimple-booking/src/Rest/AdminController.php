@@ -908,6 +908,34 @@ final class AdminController {
 		if ( array_key_exists( 'notify_email', $in ) ) {
 			$out['notify_email'] = '' === $in['notify_email'] ? '' : Fields::clean( array( 'notify_email' => array( 'type' => 'email' ) ), $in, true )['notify_email'];
 		}
+		// the widget's look
+		if ( array_key_exists( 'accent', $in ) ) {
+			if ( ! is_string( $in['accent'] ) || ! preg_match( '/^#[0-9a-fA-F]{6}$/', $in['accent'] ) ) {
+				Fields::fail( 'settings.accent', 'must be a colour as #rrggbb' );
+			}
+			$out['accent'] = strtolower( $in['accent'] );
+		}
+		if ( array_key_exists( 'font', $in ) ) {
+			if ( ! in_array( $in['font'], array( 'theme', 'dm-sans' ), true ) ) {
+				Fields::fail( 'settings.font', 'must be theme or dm-sans' );
+			}
+			$out['font'] = $in['font'];
+		}
+		foreach ( array( 'currency' => 8, 'phone' => 32 ) as $k => $max ) {
+			if ( array_key_exists( $k, $in ) ) {
+				$v = sanitize_text_field( (string) $in[ $k ] );
+				if ( mb_strlen( $v ) > $max ) {
+					Fields::fail( "settings.$k", "must be at most $max characters" );
+				}
+				$out[ $k ] = $v;
+			}
+		}
+		if ( array_key_exists( 'map_picker', $in ) ) {
+			$out['map_picker'] = in_array( $in['map_picker'], array( true, 1, '1', 'true' ), true );
+		}
+		if ( array_key_exists( 'page_url', $in ) ) {
+			$out['page_url'] = '' === $in['page_url'] ? '' : Fields::clean( array( 'page_url' => array( 'type' => 'url' ) ), $in, true )['page_url'];
+		}
 		// field: the business location and how far it travels; null clears a value
 		foreach ( array( 'latitude' => array( -90, 90 ), 'longitude' => array( -180, 180 ), 'service_radius_km' => array( 0, 500 ) ) as $k => $range ) {
 			if ( ! array_key_exists( $k, $in ) ) {
