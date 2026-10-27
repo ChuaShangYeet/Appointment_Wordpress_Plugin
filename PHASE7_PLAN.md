@@ -1,6 +1,6 @@
 # Phase 7 plan: the frontends (booking widget, admin screens, marketing page)
 
-Status: **7a committed (`29ba089`); 7b confirmed (Part 4, with the recommended staff view and two halves); 7b-1 committed (`33ce3e3`), 7b-2 built and checked; 7c next.** Map: `.birdview/architecture.json` revision 9. Branch `standalone-wp-plugin`.
+Status: **7a committed (`29ba089`); 7b confirmed (Part 4, with the recommended staff view and two halves); 7b committed (`33ce3e3`, `4edade7`); 7c built and checked (Part 5), not committed.** Map: `.birdview/architecture.json` revision 9. Branch `standalone-wp-plugin`.
 
 The engine is finished: five module types and 43 REST paths (71 path-and-method pairs), all tested. Phase 7 gives it faces: the **booking widget** customers use on an owner's site, the **admin screens** owners and staff work in, and the **marketing page** that sells the free plugin. It is three pieces of work, so it runs as **three sub-phases (7a widget, 7b admin, 7c marketing)**, each built and checked before the next. The design below is settled once, for all three.
 
@@ -290,3 +290,59 @@ ES modules, no build step, as in 7a.
    - **Recommended:** the whole day board, so they can see the shop's day, with **their own row first**. Other people's bookings show time, service and the customer's first name only; phone, email and actions appear only on their own.
    - **Strict:** only their own bookings anywhere (the board shows just their row; the list is filtered on the server).
 2. **Build order:** **two halves, each checked before the next (recommended):** 7b-1 Today, Bookings and the detail sheet; then 7b-2 Modules and Setup. Or all of 7b at once.
+
+---
+
+## Part 5. 7c scope plan: the marketing page
+
+The design is settled in 1.5 (direction "The sentence is the layout", seed 228969607, sand and moss, DM Sans; the one signature motion is the shutter on the hero slot). This part pins down what gets built and from what.
+
+### 5.1 What it is made of
+
+- **Real photographs:** the project's six Unsplash photos in `localsite/web/img` (salon, spa, restaurant, workshop, home services, welcome), credits already recorded. Used as the world of each kind, never as "our customers".
+- **The product's own interface as pictures** (the sheet's rule for software): the real 7a widget and crops of the real 7b day board, as HTML marked `data-ui`, filled from the demo salon day (`tests/seed-demo.php`) and one day per other kind.
+- **One moving picture:** an openly licensed clip if the skill's `assets.mjs --video` finds an honest one (a salon or a workshop at work); otherwise a slow drift on the restaurant photograph.
+- **No invented proof:** no customers, quotes, logos or star ratings. The only figures are the product's own: five kinds, PHP 7.4+, "1 of 10" from the race test.
+
+### 5.2 The live thing: the real widget in demo mode
+
+The showcase line ("Table for 8, Friday 8pm") feeds **the real 7a widget**, with its `source` swapped for a `DemoSource` that replays **answers recorded from the real engine**: a small script asks the test site's REST routes for each demo scenario (five kinds, a few days each) and saves the JSON beside the page. Same widget code, same rules shown, no server needed. Booking in demo mode ends on a done screen that says "Demo: nothing was booked".
+
+Keywords pick the kind (table, party → restaurant; haircut, colour → salon; brake, car, plate → workshop; at my place, aircon → field); anything else shows the five example buttons.
+
+### 5.3 Sections (blueprints as dealt)
+
+| Section | Claim | Proof |
+| :--- | :--- | :--- |
+| Hero: title in the sky, line on the horizon | It books the thing your business has | "Book any [slot] online." with the slot cycling five real widget/board crops; the shutter opens it once |
+| Showcase: headline you can type | Each kind's rules really work | The typed line drives the demo widget |
+| List: statement, table pushed right | Five kinds, each with its rule | Five rows with the kind's photograph |
+| How it works: stages as one bar | Minutes to set up | One bar true to time; the day board crop as its end state |
+| FAQ: wide heading, indented questions | The worries | Six real answers (WordPress.com free plan, where data lives, the last slot, payments, accounts, uninstall) |
+| CTA: the idea inverted | Get it | The headline on the moss field, one button: download |
+| Footer: contact as the headline | Talk to us | The contact address large; photo credits small |
+
+### 5.4 Files
+
+| File | What |
+| :--- | :--- |
+| `marketing/index.html`, `page.css`, `page.js` | The page; no build step, DM Sans from the plugin's own fonts |
+| `marketing/demo/*.json` + `justsimple-booking/assets/front/demo-source.js` | Recorded answers and the replaying source (shipped with the plugin, so the widget's `source` hook stays tested) |
+| `tests/record-demo.php` | Records the demo answers from the test site |
+| `marketing/img/` | The six photos (copied, credited), any clip and its poster |
+| `bin/build-zip.php` (if decision 1 is the zip) | Builds `justsimple-booking.zip` without `tests/` for the download button |
+
+### 5.5 Checks
+
+1. The skill's full page gate: `lint.mjs`, then `inspect.mjs` with **0 FAIL at 1440, 768 and 390**, every screenshot opened; the written critique, three rounds at most; the motion floor (at least 8 moving elements); reduced motion.
+2. A 5-second first-screen test, written down: what is it, and what do I do?
+3. The demo widget: each of the five example lines reaches times and a demo done screen, by keyboard.
+4. The download (if built): the zip installs on the test site as a fresh plugin and activates.
+5. Engine and integration suites stay green.
+
+### 5.6 Decisions for you
+
+1. **Where the page lives and what "Download" gives.**
+   - **Recommended:** a static page in `marketing/` with a build script that makes the plugin zip beside it; the folder can go on any free static host (GitHub Pages, Netlify) later. I also publish it as a private Artifact link so you can review it before it goes anywhere.
+   - Or: the page only, as a private Artifact link, with the download button pointing at a WordPress.org listing to come.
+2. **The contact address for the footer's headline** (an email you want public). Without one, the footer leads with the download instead.

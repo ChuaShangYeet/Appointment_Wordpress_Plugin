@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "mapId": "justsimple-wp-plugin",
-  "revision": 9,
+  "revision": 10,
   "language": "en",
   "project": {
     "id": "justsimple-booking-wp",
@@ -263,6 +263,10 @@
         {
           "path": "justsimple-booking/tests/integration.php",
           "note": "Section \"widget: look, map and the shortcode\" (13 checks)."
+        },
+        {
+          "path": "justsimple-booking/assets/front/demo-source.js",
+          "note": "Replays answers recorded from the real engine (tests/record-demo.php) for the marketing page; preset() fills choices from outside."
         }
       ],
       "status": "supported",

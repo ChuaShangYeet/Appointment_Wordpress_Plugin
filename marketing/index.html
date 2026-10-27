@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JustSimple Booking · a free booking plugin for WordPress</title>
+<meta name="description" content="A free WordPress plugin for salons, clinics, restaurants, workshops and home services. Every booking is worked out on your own site.">
+<link rel="stylesheet" href="fonts/dm-sans.css">
+<link rel="stylesheet" href="page.css">
+<link rel="preload" as="image" href="img/salon.webp">
+</head>
+<body>
+
+<header class="hero" id="top">
+	<img class="hero-bg" src="img/salon.webp" alt="A salon with three styling chairs facing round mirrors on a dark wall" width="2400" height="1666">
+	<nav class="nav" aria-label="Page">
+		<a class="wordmark" href="#top">JustSimple Booking</a>
+		<ul>
+			<li><a href="#try">Try it</a></li>
+			<li><a href="#kinds">Five kinds</a></li>
+			<li><a href="#questions">Questions</a></li>
+		</ul>
+		<a class="paper-btn" href="{{zip}}" download>Download</a>
+	</nav>
+	<h1 class="hero-title">
+		<span class="line">Book any</span>
+		<span class="line two"><span class="slot" role="img" aria-label="table, chair, bay, visit or treatment">
+			<img src="img/restaurant.webp" alt="" width="2400" height="3600" class="on">
+			<img src="img/salon.webp" alt="" width="2400" height="1666">
+			<img src="img/workshop.webp" alt="" width="2400" height="3600">
+			<img src="img/home.webp" alt="" width="2400" height="1350">
+			<img src="img/spa.webp" alt="" width="2400" height="1600">
+		</span> online.</span>
+	</h1>
+	<p class="horizon"><span>A free WordPress plugin for salons, clinics, restaurants, workshops and home services.</span> <span>Every booking is worked out on your own site.</span></p>
+	<a class="paper-btn phone-only" href="{{zip}}" download>Download the plugin</a>
+</header>
+
+<main>
+
+<section class="showcase" id="try" aria-labelledby="try-label" data-reveal>
+	<label id="try-label" for="ask" class="vh">Describe a booking, and the booking form answers</label>
+	<div class="ask" data-ui>
+		<input id="ask" type="text" value="Table for 8, Friday 8pm" autocomplete="off" spellcheck="false" maxlength="60">
+		<span class="caret" aria-hidden="true"></span>
+	</div>
+	<div class="answer">
+		<p class="answer-note" id="answer-note" aria-live="polite">The plugin's real booking form, answering with times its engine worked out for five demo businesses. Nothing you book here is real.</p>
+		<div class="answer-widget" id="answer-widget" data-ui><p class="hint">Loading the booking form…</p></div>
+	</div>
+	<div class="examples" role="group" aria-label="Try another">
+		<button type="button" data-ask="Haircut and gel, Saturday">Haircut and gel, Saturday</button>
+		<button type="button" data-ask="Brake pads for a 2019 Myvi, Tuesday">Brake pads for a 2019 Myvi, Tuesday</button>
+		<button type="button" data-ask="Aircon check at my place, Monday">Aircon check at my place, Monday</button>
+		<button type="button" data-ask="See the doctor, Thursday">See the doctor, Thursday</button>
+	</div>
+</section>
+
+<figure class="band">
+	<img src="img/welcome.webp" alt="A customer at a salon's front desk while the receptionist checks the booking on a tablet" width="2400" height="1600" decoding="async">
+	<figcaption>The front desk, with the bookings already in.</figcaption>
+</figure>
+
+<section class="kinds" id="kinds" aria-labelledby="kinds-h" data-reveal>
+	<h2 id="kinds-h" class="kinds-h"><span>Five kinds of booking,</span> <span>each with its own rule</span></h2>
+	<div class="kinds-body">
+		<figure class="kinds-pic"><img src="img/restaurant.webp" alt="Fried fish and a curry of prawns on blue and white plates, with chillies and lime" width="2400" height="3600" decoding="async"></figure>
+		<p class="kinds-word">Kinds</p>
+		<table class="kinds-table">
+			<caption class="vh">What each kind of booking page books, and the rule it keeps</caption>
+			<thead class="vh"><tr><th scope="col">Kind</th><th scope="col">Books</th><th scope="col">The rule</th></tr></thead>
+			<tbody>
+				<tr><th scope="row">Appointments</th><td>one person</td><td>Times show only where that person, or anyone, is free.</td></tr>
+				<tr><th scope="row">Salon</th><td>a stylist</td><td>An add-on makes the booking longer, and starts that no longer fit drop out.</td></tr>
+				<tr><th scope="row">Restaurant</th><td>tables</td><td>A party of 8 is seated across tables that are free together.</td></tr>
+				<tr><th scope="row">Workshop</th><td>a mechanic and a bay</td><td>Both must be free for every service; a part on order is shown before booking.</td></tr>
+				<tr class="group"><th scope="row">Home services</th><td>a visit</td><td>Travel time is held either side, only inside the area you cover.</td></tr>
+			</tbody>
+		</table>
+	</div>
+</section>
+
+<section class="how" aria-labelledby="how-h" data-reveal>
+	<h2 id="how-h" class="how-h">Set up in minutes</h2>
+	<ol class="bar" data-ui>
+		<li style="--grow:1"><b>One minute</b><span><em>First,</em> upload the zip under Plugins › Add New, like any plugin.</span></li>
+		<li style="--grow:5"><b>Five minutes</b><span><em>Then</em> make a booking page: what you offer, who does it, your hours.</span></li>
+		<li style="--grow:0.2"><b>Seconds</b><span><em>Next,</em> paste its shortcode onto any page of your site.</span></li>
+		<li style="--grow:60"><b>All day, every day</b><span><em>After that</em> it takes bookings while you work, and shows your day.</span></li>
+	</ol>
+</section>
+
+<section class="faq" id="questions" aria-labelledby="faq-h" data-reveal>
+	<h2 id="faq-h" class="faq-h">What people ask first</h2>
+	<div class="faq-list">
+		<details><summary>Does it work on WordPress.com's free plan?</summary><p>No. WordPress.com's free plan does not let you add plugins. It runs on any WordPress you install yourself (most web hosts set it up for you), with WordPress 6.2 and PHP 7.4 or newer.</p></details>
+		<details><summary>Where are the bookings kept?</summary><p>In your own site's database, in tables the plugin makes. Nothing is sent to us or to anyone else, and there is no account to make.</p></details>
+		<details><summary>What if two people book the last free time at once?</summary><p>One gets it, and the other is shown the times that are still free. Every booking is checked again under a lock in the database. We sent 10 bookings for the same time at the same moment: exactly one went through.</p></details>
+		<details><summary>Does it take payments?</summary><p>No. It books and confirms; payment stays at your counter. Where a VIP table has a minimum spend, the customer sees it and accepts it before booking.</p></details>
+		<details><summary>Do customers need an account?</summary><p>No. They book with a name and a phone number, get a booking code, and change or cancel through the link in their email.</p></details>
+		<details><summary>What happens if I remove it?</summary><p>Your booking pages and bookings stay in the database, so installing it again picks up where you left off. To remove everything, tick “Also delete every module, booking and customer it stored” under Booking › Settings first.</p></details>
+	</div>
+</section>
+
+<section class="cta" id="get" aria-labelledby="cta-h" data-reveal>
+	<h2 id="cta-h" class="cta-h"><span>Let it book</span> <span>while you work.</span></h2>
+	<div class="cta-row">
+		<p>Free and open source (GPL). For WordPress 6.2+ and PHP 7.4+. One zip, no account.</p>
+		<a class="accent-btn" href="{{zip}}" download>Download the plugin</a>
+	</div>
+</section>
+
+</main>
+
+<footer class="foot">
+	<div class="foot-top">
+		<ul>
+			<li><b>JustSimple Booking</b></li>
+			<li>A free booking plugin for WordPress</li>
+			<li>Version {{version}} · GPL-2.0-or-later</li>
+		</ul>
+		<a href="#top">Back to top</a>
+	</div>
+	<a class="foot-line" href="{{zip}}" download><span>justsimple-booking-</span><span>{{version}}.zip</span></a>
+	<div class="foot-meta">
+		<p><a href="#try">Try it</a> · <a href="#kinds">Five kinds</a> · <a href="#questions">Questions</a></p>
+		<p>Photographs from Unsplash: <a href="https://unsplash.com/photos/jsuWg7IXx1k">salon</a>, <a href="https://unsplash.com/photos/Ec3-1H0k3qY">restaurant</a>, <a href="https://unsplash.com/photos/UZUzvJEvKnI">workshop</a>, <a href="https://unsplash.com/photos/VsjNRXO_c2w">home services</a>, <a href="https://unsplash.com/photos/ZbzYDboN7fg">spa</a>. Type: DM Sans (OFL).</p>
+		<p>2026</p>
+	</div>
+</footer>
+
+<script type="module" src="page.js"></script>
+</body>
+</html>

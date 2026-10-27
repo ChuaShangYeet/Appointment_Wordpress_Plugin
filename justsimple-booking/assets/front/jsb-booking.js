@@ -122,7 +122,7 @@ class JsbBooking extends HTMLElement {
 	// ---------------------------------------------------------------- loading
 
 	async start() {
-		const p = new URLSearchParams( location.search );
+		const p = new URLSearchParams( this.src.demo ? '' : location.search ); // a demo has no bookings to manage
 		if ( p.get( 'jsb_booking' ) && p.get( 'jsb_token' ) ) {
 			try {
 				const b = await this.src.show( p.get( 'jsb_booking' ), p.get( 'jsb_token' ) );
@@ -198,6 +198,11 @@ class JsbBooking extends HTMLElement {
 			result: null,
 		};
 		this.render();
+		if ( this._preset ) {
+			const o = this._preset;
+			this._preset = null;
+			this.preset( o );
+		}
 	}
 
 	// ---------------------------------------------------------------- what the module needs
@@ -547,11 +552,56 @@ class JsbBooking extends HTMLElement {
 		this.render( focusSel );
 	}
 
-	open( step ) {
+	open( step, { focus = true } = {} ) {
 		this.st.step = step;
 		this.st.opening = step;
 		this.st.openedAt = performance.now();
-		this.render( `#step-${ step } h3`, true );
+		this.render( focus ? `#step-${ step } h3` : null, focus );
+	}
+
+	/**
+	 * Fill the choices from outside and show the free times, without taking focus: the marketing page's typed line drives the
+	 * demo this way. { service, services: [ids], addons: [ids], party, tableType, separate, car: { model, year, plate },
+	 * loc: { lat, lon }, day: 'Y-m-d' or a weekday name }. Waits for the booking page's data if it is still loading.
+	 */
+	preset( o ) {
+		if ( ! this.st || this.st.mode !== 'book' ) {
+			this._preset = o;
+			return;
+		}
+		const st = this.st;
+		const c = st.choice;
+		[ 'service', 'party', 'tableType', 'separate' ].forEach( ( k ) => o[ k ] !== undefined && ( c[ k ] = o[ k ] ) );
+		if ( o.services ) {
+			c.services = o.services;
+		}
+		if ( o.addons ) {
+			c.addons = o.addons;
+		}
+		if ( o.car ) {
+			c.car = Object.assign( { model: '', year: '', plate: '' }, o.car );
+		}
+		if ( o.loc ) {
+			c.loc = { lat: o.loc.lat, lon: o.loc.lon, how: 'map' };
+		}
+		st.slot = null;
+		st.slots = [];
+		st.monthDates = null;
+		st.msg = null;
+		const days = this.stripDays();
+		const names = days.map( ( d ) => fmtDay( d, { weekday: 'long' } ).toLowerCase() );
+		const want = o.day ? ( days.includes( o.day ) ? o.day : days[ names.indexOf( String( o.day ).toLowerCase() ) ] ) : null;
+		const problem = this.chooseProblem();
+		if ( problem ) {
+			st.step = 'choose';
+			st.msg = { type: 'error', text: problem, where: 'choose' };
+			this.render( null );
+			return;
+		}
+		st.day = want || days[ 0 ];
+		this.open( 'when', { focus: false } );
+		this.loadMonths();
+		this.loadDay( st.day );
 	}
 
 	// ---------------------------------------------------------------- location (field service)
@@ -1050,9 +1100,11 @@ class JsbBooking extends HTMLElement {
 		const pending = bk.status === 'pending';
 		const body = `<p class="summary" style="margin-top:0">${ pending ? 'Request sent. The business will confirm it' + ( bk.hold_expires ? ' by ' + esc( hm( bk.hold_expires ) ) : '' ) + '.' : 'You are booked.' } Your booking code:</p>` +
 			`<p class="done-code" aria-label="Booking code ${ esc( bk.code.split( '' ).join( ' ' ) ) }">${ esc( bk.code ) }</p>` +
-			`<p class="hint" style="margin-top:0">Quote it if you call.${ this.st.details.email ? ' We have emailed it to you.' : '' }</p>` +
+			( this.src.demo
+				? `<p class="msg accent" style="margin-top:0">This is the demo: nothing was booked. On your own site the customer gets this code by email, with a link to change or cancel.</p>`
+				: `<p class="hint" style="margin-top:0">Quote it if you call.${ this.st.details.email ? ' We have emailed it to you.' : '' }</p>` ) +
 			this.factsHtml( bk ) +
-			`<div class="actions"><a class="btn secondary" href="${ esc( this.manageLink( bk.code, r.manage_token ) ) }">Change or cancel</a><button type="button" class="link" data-act="again">Make another booking</button></div>`;
+			`<div class="actions">${ this.src.demo ? '' : `<a class="btn secondary" href="${ esc( this.manageLink( bk.code, r.manage_token ) ) }">Change or cancel</a>` }<button type="button" class="link" data-act="again">Make another booking</button></div>`;
 		return `<section class="step opening" id="step-done"><div class="step-head"><h3>${ pending ? 'Request sent' : 'Booked' }</h3></div><div class="step-body">${ body }</div></section>`;
 	}
 

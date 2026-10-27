@@ -147,3 +147,94 @@ if ( ! $user ) {
 call( 'PATCH', "/admin/staff/{$staff['Priya']}", array( 'wp_user_id' => $uid ) );
 
 echo 'module ', $mid, ' on ', $day->format( 'Y-m-d' ), ', ', (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . Schema::table( 'bookings' ) . ' WHERE module_id = %d', $mid ) ), " bookings\n";
+
+// ------------------------------------------------------------------ the other four kinds, for the marketing page's demo
+
+/** A fresh demo page of this title: the old one's live bookings are cancelled and it is deleted first. */
+function demo_page( string $title, string $type, array $settings = array() ): array {
+	global $wpdb;
+	foreach ( $wpdb->get_col( $wpdb->prepare( 'SELECT id FROM ' . Schema::table( 'modules' ) . ' WHERE title = %s', $title ) ) as $old ) {
+		$wpdb->query( $wpdb->prepare( 'UPDATE ' . Schema::table( 'bookings' ) . " SET status = 'cancelled' WHERE module_id = %d AND status IN ('pending','confirmed','in-progress','waiting-for-parts')", $old ) );
+		call( 'DELETE', "/admin/modules/$old" );
+	}
+	$m = call( 'POST', '/admin/modules', array( 'title' => $title, 'type' => $type ) );
+	call( 'PATCH', "/admin/modules/{$m['id']}", array( 'status' => 'active', 'settings' => $settings ) );
+	return $m;
+}
+function hours( int $id, string $open, string $close, array $days = array( 0, 1, 2, 3, 4, 5, 6 ) ) {
+	call( 'PUT', "/admin/modules/$id/hours", array( 'hours' => array_map( static function ( $d ) use ( $open, $close ) {
+		return array( 'weekday' => $d, 'open_time' => $open, 'close_time' => $close );
+	}, $days ) ) );
+}
+function person( int $id, string $name, array $sh, array $days = array( 1, 2, 3, 4, 5, 6 ), array $extra = array() ): int {
+	$r = call( 'POST', "/admin/modules/$id/staff", array( 'name' => $name ) + $extra );
+	call( 'PUT', "/admin/staff/{$r['id']}/shifts", array( 'shifts' => array_map( static function ( $d ) use ( $sh ) {
+		return array( 'weekday' => $d, 'start_time' => $sh[0], 'end_time' => $sh[1], 'break_start' => $sh[2] ?? null, 'break_end' => $sh[3] ?? null );
+	}, $days ) ) );
+	return $r['id'];
+}
+
+// the week the marketing demo replays: the Monday two weeks ahead, kept so tests/record-demo.php captures the same days
+$ref = new DateTimeImmutable( 'monday next week', $tz );
+$ref = $ref->modify( '+7 days' );
+update_option( 'jsb_demo_ref_monday', $ref->format( 'Y-m-d' ) );
+$on  = static function ( int $day, string $hm ) use ( $ref ) {
+	return $ref->modify( "+$day days" )->format( 'Y-m-d' ) . 'T' . $hm . ':00' . $ref->format( 'P' );
+};
+$book_at = static function ( int $mid, array $body ) {
+	call( 'POST', "/modules/$mid/bookings", $body + array( 'customer' => array( 'name' => 'Demo guest', 'phone' => '+60 12-000 0000' ) ) );
+};
+
+// appointments: a clinic
+$k  = demo_page( 'Klinik Dr Wong', 'staff', array( 'phone' => '+60 3-2142 8810' ) );
+hours( $k['id'], '09:00', '18:00', array( 1, 2, 3, 4, 5, 6 ) );
+$ks = array();
+foreach ( array( array( 'General consultation', 15, '45.00' ), array( 'Follow-up visit', 10, '30.00' ), array( 'Vaccination', 15, '80.00' ) ) as $x ) {
+	$ks[] = call( 'POST', "/admin/modules/{$k['id']}/services", array( 'name' => $x[0], 'duration_minutes' => $x[1], 'price' => $x[2] ) )['id'];
+}
+$wong = person( $k['id'], 'Dr Wong', array( '09:00', '18:00', '13:00', '14:00' ) );
+person( $k['id'], 'Dr Aisyah', array( '09:00', '13:00' ) );
+$book_at( $k['id'], array( 'service_ids' => array( $ks[0] ), 'staff_id' => $wong, 'start' => $on( 1, '09:30' ) ) );
+$book_at( $k['id'], array( 'service_ids' => array( $ks[0] ), 'staff_id' => $wong, 'start' => $on( 1, '10:15' ) ) );
+
+// a restaurant with a VIP room
+$r = demo_page( 'Rumah Makan Seri', 'restaurant', array( 'phone' => '+60 3-9284 1177' ) );
+hours( $r['id'], '11:00', '22:30' );
+foreach ( array( array( 'A1', 2 ), array( 'A2', 2 ), array( 'A3', 2 ), array( 'B1', 4 ), array( 'B2', 4 ), array( 'B3', 4 ), array( 'C1', 6 ), array( 'C2', 6 ) ) as $t ) {
+	call( 'POST', "/admin/modules/{$r['id']}/tables", array( 'name' => $t[0], 'capacity' => $t[1] ) );
+}
+call( 'POST', "/admin/modules/{$r['id']}/tables", array( 'name' => 'Teratai', 'capacity' => 10, 'is_vip' => true, 'minimum_spend' => '800.00' ) );
+call( 'PUT', "/admin/modules/{$r['id']}/seating", array( 'booking_mode' => 'flexible', 'slot_duration_minutes' => 90, 'slot_interval_minutes' => 30, 'first_slot_time' => '11:30', 'last_slot_time' => '21:00', 'buffer_minutes' => 15 ) );
+$book_at( $r['id'], array( 'party_size' => 6, 'table_type' => 'normal', 'start' => $on( 4, '20:00' ) ) );
+$book_at( $r['id'], array( 'party_size' => 6, 'table_type' => 'normal', 'start' => $on( 4, '19:30' ) ) );
+
+// a workshop: mechanics, bays, the cars it services, a part on order
+$w  = demo_page( 'Bengkel Ah Kow', 'workshop', array( 'phone' => '+60 3-7956 4402' ) );
+hours( $w['id'], '08:30', '18:00', array( 1, 2, 3, 4, 5, 6 ) );
+$ws = array();
+foreach ( array( array( 'Oil and filter change', 45, '120.00' ), array( 'Brake pads, front', 90, '260.00' ), array( 'Aircon gas top-up', 60, '150.00' ) ) as $x ) {
+	$ws[] = call( 'POST', "/admin/modules/{$w['id']}/services", array( 'name' => $x[0], 'duration_minutes' => $x[1], 'price' => $x[2] ) )['id'];
+}
+person( $w['id'], 'Ah Kow', array( '08:30', '18:00', '12:30', '13:30' ) );
+person( $w['id'], 'Ravi', array( '08:30', '17:00' ) );
+call( 'POST', "/admin/modules/{$w['id']}/bays", array( 'name' => 'Bay 1' ) );
+call( 'POST', "/admin/modules/{$w['id']}/bays", array( 'name' => 'Bay 2' ) );
+$cars = array();
+foreach ( array( array( 'Perodua', 'Myvi', 2011, 2024 ), array( 'Perodua', 'Axia', 2014, 2024 ), array( 'Proton', 'Saga', 2016, 2024 ), array( 'Honda', 'City', 2014, 2024 ), array( 'Toyota', 'Vios', 2013, 2024 ) ) as $v ) {
+	$cars[ $v[1] ] = call( 'POST', "/admin/modules/{$w['id']}/supported-vehicles", array( 'make' => $v[0], 'model' => $v[1], 'year_from' => $v[2], 'year_to' => $v[3] ) )['id'];
+}
+$pads = call( 'POST', "/admin/modules/{$w['id']}/products", array( 'name' => 'Brake pads (front set)', 'stock_status' => 'available_on_order', 'estimated_lead_time_days' => 3, 'price' => '140.00', 'stock_qty' => 0 ) );
+call( 'PUT', "/admin/services/{$ws[1]}/parts", array( 'product_ids' => array( $pads['id'] ) ) );
+$book_at( $w['id'], array( 'service_ids' => array( $ws[0] ), 'start' => $on( 2, '09:00' ), 'vehicle' => array( 'plate_no' => 'WXY 1234', 'supported_vehicle_id' => $cars['Myvi'], 'year' => 2019 ) ) );
+
+// home services: visits at the customer's place, online calls
+$f  = demo_page( 'CoolAir Services', 'field', array( 'phone' => '+60 12-388 4120', 'latitude' => 3.139, 'longitude' => 101.6869, 'service_radius_km' => 25 ) );
+hours( $f['id'], '09:00', '18:00', array( 1, 2, 3, 4, 5, 6 ) );
+call( 'POST', "/admin/modules/{$f['id']}/services", array( 'name' => 'Aircon check at your place', 'duration_minutes' => 45, 'price' => '60.00', 'location_type' => 'on_site', 'service_category' => 'inspection', 'travel_buffer_minutes' => 30 ) );
+call( 'POST', "/admin/modules/{$f['id']}/services", array( 'name' => 'Aircon servicing', 'duration_minutes' => 90, 'price' => '150.00', 'location_type' => 'on_site', 'travel_buffer_minutes' => 30 ) );
+call( 'POST', "/admin/modules/{$f['id']}/services", array( 'name' => 'Video call: is it worth fixing?', 'duration_minutes' => 20, 'price' => '0.00', 'location_type' => 'virtual' ) );
+person( $f['id'], 'Faizal', array( '09:00', '18:00', '13:00', '14:00' ), array( 1, 2, 3, 4, 5, 6 ), array( 'meeting_link' => 'https://meet.example.test/faizal' ) );
+person( $f['id'], 'Mei Yee', array( '10:00', '18:00' ), array( 1, 2, 3, 4, 5 ) );
+
+echo 'demo week from ', $ref->format( 'Y-m-d' ), ": clinic {$k['id']}, restaurant {$r['id']}, workshop {$w['id']}, home services {$f['id']}\n";
+

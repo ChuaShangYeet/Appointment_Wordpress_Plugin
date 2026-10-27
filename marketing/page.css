@@ -1,0 +1,259 @@
+/*
+ * JustSimple Booking, the marketing page. Direction "The sentence is the layout" (seed 228969607): sand ground, charcoal ink,
+ * moss only on the actions, one deep-leaf field to close. DM Sans throughout, the same face as the plugin's screens.
+ * The idea: the thing each business books (a table, a chair, a bay, a visit) sits inside the headline where the word would be.
+ */
+:root {
+	--bg: #ddd6c6;
+	--surface: #d2cab8;
+	--ink: #2a2a26;
+	--muted: #59574e;
+	--accent: #4f6238;
+	--accent-ink: #ffffff;
+	--field: #3f5a2a;
+	--field-ink: #ffffff;
+	--paper: #ddd6c6;
+
+	--step-small: clamp(0.8125rem, 0.79rem + 0.1vw, 0.875rem);
+	--step-body: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
+	--step-lead: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
+	--margin: clamp(16px, 2.2vw, 32px);
+	--gutter: clamp(12px, 1.6vw, 24px);
+	--col: calc((100vw - 2 * var(--margin) - 11 * var(--gutter)) / 12);
+	--ease: cubic-bezier(.2, .7, .2, 1);
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+	margin: 0; background: var(--bg); color: var(--ink);
+	font: 400 var(--step-body)/1.5 "DM Sans", system-ui, sans-serif;
+	-webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+a { color: inherit; text-underline-offset: 0.18em; }
+img { display: block; max-width: 100%; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.vh { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.phone-only { display: none !important; }
+h1, h2 { margin: 0; font-weight: 600; letter-spacing: -0.04em; line-height: 0.95; }
+
+/* ---- buttons: press, hover, focus ---- */
+.paper-btn, .accent-btn {
+	display: inline-flex; align-items: center; justify-content: center; text-decoration: none; font-weight: 600;
+	border-radius: 2px; transition: transform 90ms ease-out, background-color 160ms, color 160ms;
+}
+.paper-btn { background: var(--paper); color: var(--ink); height: 44px; padding: 0 20px; font-size: 17px; }
+.paper-btn:hover { background: #fff; }
+.accent-btn { background: var(--accent); color: var(--accent-ink); height: 56px; padding: 0 28px; font-size: 17px; }
+.accent-btn:hover { background: #3f5030; }
+.paper-btn:active, .accent-btn:active { transform: scale(.98); }
+
+/* ---- hero: title in the sky, line on the horizon ---- */
+.hero { position: relative; height: 100svh; min-height: 640px; overflow: hidden; color: var(--paper); background: #191917; }
+/* the frame is the dark wall, the counter and the chairs: the bright shelf on the right stays outside it */
+.hero-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 0% 60%; transform: scale(1.32); transform-origin: 0% 58%; }
+/* a flat neutral scrim: the sand type reads over the mirrors and the light from the window */
+.hero::after { content: ""; position: absolute; inset: 0; z-index: 1; background: rgba(20, 20, 18, 0.38); pointer-events: none; }
+.nav { position: relative; z-index: 2; display: grid; grid-template-columns: repeat(12, 1fr); column-gap: var(--gutter); align-items: center; padding: 32px var(--margin) 0; }
+.wordmark { grid-column: 1 / 5; font-weight: 700; font-size: 20px; text-decoration: none; letter-spacing: -0.01em; }
+.nav ul { grid-column: 9 / 12; display: flex; gap: 24px; margin: 0; padding: 0; list-style: none; font-size: 17px; }
+.nav ul a { text-decoration: none; }
+.nav ul a:hover { text-decoration: underline; }
+.nav .paper-btn { grid-column: 12 / 13; justify-self: end; }
+
+.hero-title {
+	position: relative; z-index: 2; margin: 0 auto; padding-top: 72px; text-align: center;
+	font-size: clamp(72px, 7.2vw, 112px); line-height: 0.9;
+}
+.hero-title .line { display: block; }
+/* the slot: one line tall, sitting on the baseline, holding the thing being booked */
+.slot {
+	position: relative; display: inline-block; vertical-align: -0.12em; width: 2.4em; height: 0.78em; margin: 0 0.06em 0 0;
+	border-radius: 0.16em; overflow: hidden; background: #2a2a26;
+	clip-path: inset(0 0 0 0 round 0.16em);
+}
+.slot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 600ms var(--ease); }
+.slot img.on { opacity: 1; }
+.slot img:nth-child(1) { object-position: 50% 30%; }
+.slot img:nth-child(3) { object-position: 50% 45%; }
+/* the one loud moment: the slot opens from the left, its picture settling */
+.js .slot { animation: shutter 1.1s var(--ease) 0.25s both; }
+.js .slot img.on { animation: settle 1.4s var(--ease) 0.25s both; }
+@keyframes shutter { from { clip-path: inset(0 100% 0 0 round 0.16em); } to { clip-path: inset(0 0 0 0 round 0.16em); } }
+@keyframes settle { from { transform: scale(1.12); } to { transform: none; } }
+
+.horizon {
+	position: absolute; z-index: 2; left: var(--margin); right: var(--margin); top: 52%; margin: 0;
+	display: grid; grid-template-columns: repeat(12, 1fr); column-gap: var(--gutter); font-size: 20px; line-height: 1.35;
+}
+.horizon span:first-child { grid-column: 1 / 6; text-align: right; }
+.horizon span:last-child { grid-column: 8 / 13; }
+
+/* ---- showcase: the headline you can type ---- */
+section { padding: 160px var(--margin) 0; }
+.showcase { min-height: 88svh; display: grid; grid-template-columns: repeat(12, 1fr); column-gap: var(--gutter); align-content: start; }
+.ask { grid-column: 1 / -1; position: relative; display: flex; align-items: baseline; }
+.ask input {
+	width: 100%; min-width: 0; border: 0; padding: 0; margin: 0; background: none; color: var(--ink); caret-color: transparent;
+	font: 600 clamp(48px, 7.2vw, 112px)/1 "DM Sans", system-ui, sans-serif; letter-spacing: -0.045em;
+}
+.ask input:focus { outline: none; }
+.ask:focus-within { box-shadow: 0 3px 0 var(--accent); } /* taste-skill-ignore: the typed line's focus mark, a 3px rule, not elevation */
+.caret { position: absolute; top: 0.12em; width: 0.08em; height: 0.85em; background: var(--ink); font-size: clamp(48px, 7.2vw, 112px); animation: blink 1.06s steps(1) infinite; pointer-events: none; }
+@keyframes blink { 50% { opacity: 0; } }
+.answer { grid-column: 1 / 7; margin-top: 48px; max-width: 560px; }
+.answer-note { margin: 0 0 16px; font-size: var(--step-small); color: var(--muted); max-width: 52ch; }
+.answer-widget { min-height: 420px; }
+.answer-widget jsb-booking { --jsb-font: "DM Sans", system-ui, sans-serif; }
+.examples { grid-column: 8 / 13; align-self: end; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding-bottom: 8px; }
+.examples button {
+	border: 0; background: none; padding: 4px 0; font: inherit; font-size: 17px; color: var(--ink); cursor: pointer;
+	text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--ink) 35%, transparent); text-underline-offset: 0.25em;
+	transition: text-decoration-color 160ms;
+}
+.examples button:hover { text-decoration-color: var(--ink); }
+.examples button[aria-pressed="true"] { font-weight: 600; text-decoration-color: var(--accent); }
+
+/* ---- the slot, opened to full width: the front desk ---- */
+.band { margin: 160px 0 0; position: relative; }
+.band img { width: 100%; height: 78svh; min-height: 420px; object-fit: cover; object-position: 50% 62%; }
+.band figcaption { padding: 14px var(--margin) 0; font-size: 14px; color: var(--muted); }
+
+/* ---- the five kinds: statement, table pushed right ---- */
+.kinds-h { font-size: clamp(40px, 4.5vw, 68px); line-height: 0.98; }
+.kinds-h span { display: block; }
+.kinds-h span:first-child { padding-left: 3vw; }
+.kinds-body { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: var(--gutter); margin-top: 96px; align-items: end; }
+.kinds-pic { grid-column: 1 / 5; margin: 0; aspect-ratio: 4 / 5; overflow: hidden; border-radius: 2px; }
+.kinds-pic img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 60%; animation: drift 24s ease-in-out infinite alternate; }
+@keyframes drift { from { transform: scale(1.04) translate(-1%, 0); } to { transform: scale(1.1) translate(1.5%, -1.5%); } }
+.kinds-word { grid-column: 7 / 8; align-self: start; margin: 0; font-size: 14px; color: var(--muted); }
+.kinds-table { grid-column: 8 / 13; align-self: start; border-collapse: separate; border-spacing: 0 26px; margin-top: -26px; font-size: 17px; }
+.kinds-table th, .kinds-table td { padding: 0; vertical-align: top; text-align: left; }
+.kinds-table th { font-weight: 600; width: 30%; }
+.kinds-table td:nth-child(2) { color: var(--muted); width: 22%; padding-right: 12px; }
+.kinds-table tr.group th, .kinds-table tr.group td { padding-top: 18px; }
+
+/* ---- how it works: the stages as one bar ---- */
+.how-h { font-size: clamp(48px, 7.2vw, 112px); margin-bottom: 64px; }
+.bar { display: flex; gap: 6px; height: 22vh; min-height: 180px; margin: 0; padding: 0; list-style: none; }
+.bar li { position: relative; flex: var(--grow) 1 0; min-width: 12%; padding: 20px; border-radius: 2px; }
+.bar li:nth-child(1) { background: var(--surface); }
+.bar li:nth-child(2) { background: #c4bba6; }
+.bar li:nth-child(3) { background: var(--accent); color: var(--accent-ink); }
+.bar li:nth-child(4) { background: var(--ink); color: var(--paper); }
+.bar b { display: block; font-size: clamp(20px, 2vw, 29px); font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
+.bar span { position: absolute; top: calc(100% + 16px); left: 0; width: 22ch; max-width: 100%; font-size: 17px; line-height: 1.4; color: var(--ink); }
+.bar li:nth-child(4) span { max-width: 32ch; }
+.bar em { font-style: normal; font-weight: 600; }
+.how { padding-bottom: 140px; }
+
+/* ---- questions: wide heading, indented questions ---- */
+.faq-h { font-size: clamp(40px, 4.5vw, 68px); }
+.faq { overflow-x: clip; } /* the open question's tile bleeds 24px past the text, never past the screen */
+.faq-list { margin: 80px 0 0 calc(4 * (var(--col) + var(--gutter))); }
+.faq details { margin: 0 -24px 36px; padding: 0 24px; border-radius: 2px; transition: background-color 200ms; }
+.faq details[open] { background: var(--surface); padding-top: 24px; padding-bottom: 24px; }
+.faq summary {
+	display: flex; justify-content: space-between; gap: 24px; align-items: center; cursor: pointer; list-style: none;
+	font-size: 20px; line-height: 1.3;
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after {
+	content: ""; flex: 0 0 12px; height: 12px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+	transform: translateY(-3px) rotate(45deg); transition: transform 200ms var(--ease);
+}
+.faq details[open] summary::after { transform: translateY(3px) rotate(-135deg); }
+.faq details p { margin: 16px 0 0; font-size: 17px; max-width: 48ch; }
+.faq { padding-bottom: 120px; }
+
+/* ---- the close, inverted ---- */
+.cta { background: var(--ink); color: var(--bg); min-height: 90svh; display: flex; flex-direction: column; justify-content: space-between; padding-top: 120px; padding-bottom: 40px; }
+.cta-h { font-size: clamp(64px, 10vw, 160px); line-height: 0.9; }
+.cta-h span { display: block; }
+.cta-row { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: var(--gutter); align-items: end; margin-top: 120px; }
+.cta-row p { grid-column: 1 / 6; margin: 0; font-size: 20px; line-height: 1.4; }
+.cta-row .accent-btn { grid-column: 10 / 13; justify-self: end; }
+
+/* ---- footer: the download is the headline ---- */
+.foot { background: var(--field); color: var(--field-ink); min-height: 90svh; display: flex; flex-direction: column; padding: 40px var(--margin) 32px; }
+.foot-top { display: flex; justify-content: space-between; gap: 24px; font-size: 14px; }
+.foot-top ul { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 8px 32px; }
+.foot-line {
+	margin-top: auto; display: block; text-decoration: none; font-weight: 600; letter-spacing: -0.045em; line-height: 0.95;
+	font-size: clamp(40px, 10vw, 160px); transition: opacity 160ms;
+}
+.foot-line span { display: inline; }
+.foot-line:hover { text-decoration: underline; text-decoration-thickness: 0.04em; }
+.foot-meta { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 24px; margin-top: 40px; font-size: 14px; }
+.foot-meta p { margin: 0; }
+.foot-meta p:nth-child(2) { text-align: center; }
+.foot-meta p:last-child { text-align: right; }
+
+/* ---- entrances: heading, text and picture rise once, 70 ms apart ---- */
+.js [data-reveal].wait > * { opacity: 0; transform: translateY(24px); transition: opacity 700ms var(--ease), transform 700ms var(--ease); }
+.js [data-reveal].wait > *:nth-child(2) { transition-delay: 70ms; }
+.js [data-reveal].wait > *:nth-child(3) { transition-delay: 140ms; }
+.js [data-reveal].wait > *:nth-child(4) { transition-delay: 210ms; }
+.js [data-reveal].wait.in > * { opacity: 1; transform: none; }
+
+/* ---- phone ---- */
+@media (max-width: 760px) {
+	.phone-only { display: inline-flex !important; }
+	.nav ul { display: none; }
+	.nav .paper-btn { display: none; }
+	.wordmark { grid-column: 1 / -1; }
+	.hero-bg { object-position: 22% 50%; transform: none; }
+	.hero-title { padding-top: 96px; font-size: 11vw; }
+	.slot { display: block; margin: 0.08em auto; width: 3.2em; height: 1.1em; }
+	/* directly under the headline, on the dark wall */
+	.horizon { position: relative; top: auto; left: auto; right: auto; display: block; padding: 24px var(--margin) 0; text-align: center; font-size: 20px; }
+	.band { margin-top: 112px; }
+	.band img { height: 56svh; min-height: 320px; }
+	.horizon span { display: block; text-align: center !important; }
+	.hero .phone-only { position: absolute; z-index: 2; left: 20px; right: 20px; bottom: 24px; height: 56px; }
+	section { padding-top: 112px; }
+	.showcase { display: block; min-height: 0; }
+	.ask input, .caret { font-size: 11vw; }
+	.answer { margin-top: 28px; max-width: none; }
+	.examples { flex-direction: row; flex-wrap: wrap; margin-top: 24px; }
+	.examples button { min-height: 44px; padding: 0 14px; background: var(--surface); text-decoration: none; border-radius: 2px; font-size: 17px; }
+	.kinds-h { font-size: 10vw; }
+	.kinds-h span:first-child { padding-left: 0; }
+	.kinds-body { display: block; margin-top: 48px; }
+	.kinds-word { display: none; }
+	.kinds-table { width: 100%; }
+	.kinds-table tr { display: grid; grid-template-columns: 1fr auto; padding: 0 0 22px; }
+	.kinds-table th { width: auto; }
+	.kinds-table td:nth-child(2) { width: auto; text-align: right; padding: 0; }
+	.kinds-table td:nth-child(3) { grid-column: 1 / -1; color: var(--ink); }
+	.kinds-pic { width: 60%; margin: 24px 0 0 auto; }
+	.how-h { font-size: 11vw; margin-bottom: 32px; }
+	.bar { flex-direction: column; height: 70svh; min-height: 520px; }
+	.bar li { min-width: 0; min-height: 72px; padding: 16px; flex: var(--grow) 0 auto; } /* never shorter than its words; the day still takes most of it */
+	.bar span { position: static; display: block; margin-top: 6px; width: auto; max-width: none; font-size: 17px; color: inherit; }
+	.bar b { font-size: 22px; }
+	.how { padding-bottom: 80px; }
+	.faq-h { font-size: 10vw; }
+	.faq-list { margin: 48px 0 0; }
+	.faq details { margin: 0 calc(-1 * var(--margin)) 28px; padding: 0 var(--margin); }
+	.faq summary { font-size: 20px; }
+	.faq details p { font-size: 17px; }
+	.cta { min-height: 80svh; padding-top: 80px; }
+	.cta-h { font-size: 13vw; }
+	.cta-row { display: block; }
+	.cta-row p { font-size: 17px; margin-bottom: 24px; }
+	.cta-row .accent-btn { display: flex; width: 100%; }
+	.foot-top { flex-direction: column; }
+	.foot-top ul { flex-direction: column; }
+	.foot-line { font-size: 8.6vw; } /* "justsimple-booking-" fills the width on one line */
+	.foot-line span { display: block; }
+	.foot-meta { grid-template-columns: 1fr; gap: 8px; font-size: 14px; }
+	.foot-meta p, .foot-meta p:nth-child(2), .foot-meta p:last-child { text-align: left; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	html { scroll-behavior: auto; }
+	.js .slot, .js .slot img.on, .kinds-pic img, .caret { animation: none; }
+	.slot img { transition: none; }
+	.js [data-reveal].wait > * { opacity: 1; transform: none; transition: none; }
+}

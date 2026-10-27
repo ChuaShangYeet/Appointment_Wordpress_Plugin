@@ -19,5 +19,9 @@ localsite/data/
 .impeccable/mocks/
 .taste-skill/
 
+# The built marketing page (php marketing/build.php)
+marketing/dist/
+marketing/dist-artifact/
+
 # Local test-site credentials
 dev/
