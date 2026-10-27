@@ -4,6 +4,7 @@ namespace JustSimple\Booking\Rest;
 use JustSimple\Booking\Activator;
 use JustSimple\Booking\Booking\Access;
 use JustSimple\Booking\Booking\BookingService;
+use JustSimple\Booking\Booking\DayBoard;
 use JustSimple\Booking\Booking\FieldService;
 use JustSimple\Booking\Booking\Parts;
 use JustSimple\Booking\Booking\Upsell;
@@ -235,6 +236,9 @@ final class AdminController {
 		) );
 		self::route( '/admin/modules/(?P<id>\d+)/bookings', array(
 			array( 'GET', array( __CLASS__, 'list_bookings' ), $work ),
+		) );
+		self::route( '/admin/modules/(?P<id>\d+)/day', array(
+			array( 'GET', array( __CLASS__, 'day' ), $work ),
 		) );
 		self::route( '/admin/bookings/(?P<id>\d+)', array(
 			array( 'GET', array( __CLASS__, 'get_booking' ), $work ),
@@ -708,16 +712,44 @@ final class AdminController {
 			if ( $r['schedule_conflict'] ) {
 				$sql .= ' AND schedule_conflict = 1';
 			}
-			$ids = $wpdb->get_col( $sql . ' ORDER BY start_utc, id LIMIT 500' );
-			return array_map( static function ( $id ) {
-				return BookingService::view( (int) $id, true );
-			}, $ids );
+			// q: a booking code, a customer's name, or phone digits
+			$q = trim( (string) $r['q'] );
+			if ( '' !== $q ) {
+				$digits = preg_replace( '/\D/', '', $q );
+				$like   = '%' . $wpdb->esc_like( $q ) . '%';
+				$sql   .= $wpdb->prepare( ' AND (code LIKE %s OR customer_id IN (SELECT id FROM ' . Schema::table( 'customers' ) . ' WHERE name LIKE %s', $wpdb->esc_like( strtoupper( $q ) ) . '%', $like );
+				if ( strlen( $digits ) >= 3 ) {
+					$sql .= $wpdb->prepare( " OR REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '.', '') LIKE %s", '%' . $wpdb->esc_like( $digits ) . '%' );
+				}
+				$sql .= '))';
+			}
+			$ids  = $wpdb->get_col( $sql . ' ORDER BY start_utc, id LIMIT 500' );
+			$user = get_current_user_id();
+			$out  = array();
+			foreach ( $ids as $id ) {
+				$v = Access::view_for( BookingService::view( (int) $id, true ), $user );
+				// a colleague's booking is found only by what its row shows: the customer's first name
+				if ( '' !== $q && ! $v['mine'] && false === stripos( $v['customer']['name'], $q ) ) {
+					continue;
+				}
+				$out[] = $v;
+			}
+			return $out;
 		} );
 	}
 
 	public static function get_booking( \WP_REST_Request $r ) {
 		return Rest::run( static function () use ( $r ) {
-			return BookingService::view( (int) $r['id'], true );
+			return Access::view_for( BookingService::view( (int) $r['id'], true ), get_current_user_id() );
+		} );
+	}
+
+	/** The day board: GET /admin/modules/{id}/day?date=Y-m-d (default today). */
+	public static function day( \WP_REST_Request $r ) {
+		return Rest::run( static function () use ( $r ) {
+			$m   = self::module_or_404( (int) $r['id'] );
+			$day = $r['date'] ? Fields::clean( array( 'date' => array( 'type' => 'date' ) ), array( 'date' => $r['date'] ), false )['date'] : Clock::local_date( time(), wp_timezone() );
+			return DayBoard::build( $m, $day, get_current_user_id() );
 		} );
 	}
 
@@ -792,6 +824,7 @@ final class AdminController {
 	public static function get_job_parts( \WP_REST_Request $r ) {
 		return Rest::run( static function () use ( $r ) {
 			BookingService::view( (int) $r['id'], true ); // 404 when missing
+			Access::assert_can_work( get_current_user_id(), (int) $r['id'] ); // a colleague's job is time and service only
 			return array( 'parts' => Parts::lines( (int) $r['id'] ) );
 		} );
 	}
@@ -845,6 +878,7 @@ final class AdminController {
 		return Rest::run( static function () use ( $r ) {
 			global $wpdb;
 			BookingService::view( (int) $r['id'], true ); // 404 when missing
+			Access::assert_can_work( get_current_user_id(), (int) $r['id'] );
 			$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . Schema::table( 'status_history' ) . ' WHERE booking_id = %d ORDER BY id', (int) $r['id'] ), ARRAY_A );
 			$tz   = wp_timezone();
 			return array_map( static function ( $h ) use ( $tz ) {

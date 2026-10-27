@@ -1,6 +1,6 @@
 # Phase 7 plan: the frontends (booking widget, admin screens, marketing page)
 
-Status: **waiting for confirmation**, design first (Birdview step 3). Map: `.birdview/architecture.json` revision 6. Branch `standalone-wp-plugin` (phases 1-6 committed; last commit `376e252`).
+Status: **7a committed (`29ba089`); 7b confirmed (Part 4, with the recommended staff view and two halves); 7b-1 built and checked, 7b-2 next.** Map: `.birdview/architecture.json` revision 8. Branch `standalone-wp-plugin`.
 
 The engine is finished: five module types and 43 REST paths (71 path-and-method pairs), all tested. Phase 7 gives it faces: the **booking widget** customers use on an owner's site, the **admin screens** owners and staff work in, and the **marketing page** that sells the free plugin. It is three pieces of work, so it runs as **three sub-phases (7a widget, 7b admin, 7c marketing)**, each built and checked before the next. The design below is settled once, for all three.
 
@@ -229,3 +229,64 @@ Each sub-phase gets its own planned → editing → verifying → completed even
 2. **The on-site location in the widget.** Phase 6 needs map coordinates for at-your-place services, and there's no geocoding.
    - **Recommended:** a **"Use my location" button** (the browser's own, free, no outside service). Then an **optional map**, loaded only when the customer taps "Pick on a map". It uses OpenStreetMap tiles with attribution, and the owner can switch it off. Loading tiles sends the visitor's IP address to OpenStreetMap; the usage policy allows light use.
    - **Strict alternative:** location button only, with no map at all. A customer whose browser can't share location (or who is booking for another address) can't book an on-site visit online and is shown the business's phone number.
+
+---
+
+## Part 4. 7b scope plan: the admin screens
+
+The design is settled in 1.4. This part pins down what gets built, what the server must add, and how it is checked.
+
+### 4.1 What exists and what is missing
+
+- **Exists:** 25 admin routes cover modules, services, staff, policies, days off, tables, bays, vehicles, products, shifts, hours, seating, table rules, booking list/detail/status/items/parts/resume/meeting link/follow-up/actual duration/history. The setup screen and the booking detail need nothing new.
+- **Missing 1, the day board.** `GET /admin/modules/{id}/bookings` returns one span per booking. The board needs each resource's own bars (a mechanic per service, a visit with its travel padding) and each resource's working hours that day, and shifts are readable only by managers.
+- **Missing 2, search.** The bookings list filters by status, date, table class and clash, but cannot find "Tan" or "0123" or a code.
+- **Missing 3, readiness.** "2 of 4 done" must come from the server (one rule per kind, testable), not be guessed in the page.
+- **Today's admin page** is phase 1's placeholder ("Creating modules arrives in the next release").
+
+### 4.2 Server additions (small, read-only)
+
+| Addition | Shape | Notes |
+| :--- | :--- | :--- |
+| `GET /admin/modules/{id}/day?date=` | `{ date, now, hours: [open, close], resources: [{ id, kind, name, mine, working: [[from, to]...] }], bars: [{ booking_id, resource_id, start, end, service_start, service_end, status, label, clash }], needs_you: [...], counts: {...} }` | `working` is shifts minus breaks minus days off. `needs_you`: pending requests (with hold expiry), clashes, jobs waiting for parts. Capability `jsb_work_bookings` |
+| `q` on `GET /admin/modules/{id}/bookings` | code, customer name or phone (digits only compared) | Prefix match on code; `LIKE` on name; limit stays 500 |
+| `readiness` on `GET /admin/modules/{id}` | `[{ key, done, label, link }]` | New `src/Data/Readiness.php`. Staff/salon: a service, a staff member with hours, each service someone can do. Restaurant: tables, seating times. Workshop: services, a mechanic with hours, a bay, a supported car. Field: services, a professional with hours, the business location if any service is at the customer's place. All kinds: the module is on, and its shortcode is on a page (`page_url`) |
+
+No schema change. The engine is untouched.
+
+### 4.3 Screens and files
+
+WordPress's menu stays the sidebar: **Booking › Today · Bookings · Modules · Settings · System status**. `admin.php?page=jsb` becomes Today (it was the placeholder), so old links still land in the plugin.
+
+| File | What |
+| :--- | :--- |
+| `src/Admin/Menu.php` | Pages, capability per page, one mount `<div id="jsb-admin" data-screen>` per page, config (REST root, timezone, today, the user's linked staff ids, capabilities). Settings and System status keep their WordPress forms and take the tokens |
+| `assets/admin/admin.css` | The moss ladder, DM Sans, tabular figures, status pills, board, sheet, table |
+| `assets/admin/app.js` | Shared: `wp.apiFetch` wrapper, module tabs, finding line, states (empty, loading, error), in-place confirm, keyboard map |
+| `assets/admin/today.js` | The day board + the "Needs you" rail; the phone shows one resource at a time |
+| `assets/admin/bookings.js` + `detail.js` | The table (status tabs, search, date range, filters), and the side sheet with only the actions the status and kind allow |
+| `assets/admin/modules.js` + `setup.js` | Module rows with shortcode copy; the two-column setup with the readiness list, sections by kind, the widget's look settings with a live preview of the 7a widget |
+
+ES modules, no build step, as in 7a.
+
+### 4.4 Interaction thesis (from 1.4, made concrete)
+
+- **Nothing changes before the server answers.** The button shows its pending state, then the row updates in place with a 160 ms tint flash. A refused change (409/422) shows the engine's own sentence beside the control.
+- The detail sheet slides in from the right in 220 ms; the list behind stays usable. `Esc` closes it and focus returns to the row.
+- `j`/`k` move through bookings, `Enter` opens one. Destructive actions (reject, cancel, delete a module) ask in place, never in a modal.
+- The board scrolls to "now" once on load; it never animates bars. Reduced motion: no slide, the sheet just appears.
+
+### 4.5 Checks
+
+1. Integration: the day route per kind (bars per resource, travel padding, working spans with a break and a day off, needs-you), search, readiness per kind, and a linked staff member's view.
+2. The skill's `lint.mjs --app` and `inspect.mjs --app` at 1440, 768 and 390, with every screenshot opened; the seven app-screen questions answered in writing for each screen, three rounds at most.
+3. Every state seen: a new empty module, loading, an error (server stopped), a zero day.
+4. Two roles walked through by keyboard in the built-in browser: the owner, and a stylist linked to a staff member (test user saved to `dev/local-test-site.env`).
+5. Engine and integration suites stay green.
+
+### 4.6 Decisions for you
+
+1. **What a staff member linked to one person sees** (phase 3 already limits their *changes* to their own appointments):
+   - **Recommended:** the whole day board, so they can see the shop's day, with **their own row first**. Other people's bookings show time, service and the customer's first name only; phone, email and actions appear only on their own.
+   - **Strict:** only their own bookings anywhere (the board shows just their row; the list is filtered on the server).
+2. **Build order:** **two halves, each checked before the next (recommended):** 7b-1 Today, Bookings and the detail sheet; then 7b-2 Modules and Setup. Or all of 7b at once.

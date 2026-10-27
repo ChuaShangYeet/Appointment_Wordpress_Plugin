@@ -1,0 +1,254 @@
+/*
+ * The admin screens: the "accent ladder" app style (seed 1367479260) built in moss, the plugin's one hue. The full hue only on
+ * small marks (the filled button, the bar in progress, "now", the active tab's underline); its tints carry the areas.
+ * No shadows at rest, one 24px gap, DM Sans with tabular figures on every number. Everything is scoped to .jsb-admin, so
+ * wp-admin's own screens are untouched.
+ */
+.jsb-admin {
+	--ground: #f8f9f6;
+	--surface: #ffffff;
+	--raised: #f1f3ee;
+	--off: #eceee8;
+	--border: #e3e6df;
+	--rule: #eff1ec;
+	--control: #cfd4ca;
+	--text: #1c211b;
+	--muted: #5c6358;
+	--accent: #4f6238;
+	--accent-soft: #eef2e8;
+	--accent-track: #dde5d3;
+	--accent-ink: #2e3a20;
+	--negative: #b42318;
+	--warning: #8a4b06;
+	--pill-positive-bg: #e3f1e6; --pill-positive-ink: #1f5130;
+	--pill-negative-bg: #fdecea; --pill-negative-ink: #7f1d17;
+	--pill-warning-bg: #fff6e5; --pill-warning-ink: #7a4206;
+	--pill-neutral-bg: #eef0eb; --pill-neutral-ink: #3d443a;
+	--pill-accent-bg: #eef2e8; --pill-accent-ink: #2e3a20;
+	--radius-card: 8px;
+	--radius-control: 6px;
+	--gap: 24px;
+	--row: 44px;
+	--names: 168px;
+	--ease: cubic-bezier(.2, .7, .2, 1);
+
+	margin: 20px 20px 0 0;
+	color: var(--text);
+	font: 14px/1.5 "DM Sans", system-ui, sans-serif;
+	font-variant-numeric: tabular-nums;
+}
+body:has(.jsb-admin) { background: #f8f9f6; } /* the ground one step toward the moss tint */
+.jsb-wrap { margin: 0; }
+.jsb-admin *, .jsb-admin *::before, .jsb-admin *::after { box-sizing: border-box; }
+.jsb-admin h2, .jsb-admin h3 { color: var(--text); font-family: inherit; margin: 0; }
+.jsb-admin p { font-size: 14px; margin: 0; }
+.jsb-admin a { color: var(--accent-ink); }
+.jsb-admin :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: none; }
+.jsb-admin h2[tabindex="-1"]:focus, .jsb-admin h3[tabindex="-1"]:focus { outline: none; } /* headings take focus as landing points, not as controls */
+
+/* ---- title row ---- */
+.jsb-title { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+.jsb-title h2 { font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -.01em; }
+.jsb-finding { margin-top: 6px !important; color: var(--muted); font-size: 15px !important; max-width: 70ch; }
+.jsb-finding strong { color: var(--text); font-weight: 600; }
+.jsb-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+/* ---- module tabs: underlines on one full-width rule; a select when there are many ---- */
+.jsb-tabs { display: flex; gap: 24px; margin: 16px 0 0; border-bottom: 1px solid var(--border); overflow-x: auto; overflow-y: hidden; }
+.jsb-tabs a { padding: 10px 0; text-decoration: none; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; font-weight: 500; }
+.jsb-tabs a[aria-current="page"] { color: var(--text); border-bottom-color: var(--accent); }
+.jsb-tabs a:hover { color: var(--text); }
+.jsb-modpick { display: flex; align-items: center; gap: 8px; margin-top: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+
+/* ---- controls ---- */
+.jsb-admin .jsb-btn {
+	display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 0 14px;
+	border: 1px solid var(--control); border-radius: var(--radius-control); background: var(--surface); color: var(--text);
+	font: inherit; font-weight: 500; cursor: pointer; text-decoration: none; white-space: nowrap;
+	transition: background-color 120ms, transform 90ms ease-out;
+}
+.jsb-admin .jsb-btn:hover { background: var(--raised); }
+.jsb-admin .jsb-btn:active { transform: scale(.98); }
+.jsb-admin .jsb-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.jsb-admin .jsb-btn.primary:hover { background: var(--accent-ink); }
+.jsb-admin .jsb-btn.danger { color: var(--negative); }
+.jsb-admin .jsb-btn[aria-busy="true"] { cursor: progress; opacity: .7; }
+.jsb-admin .jsb-btn.icon { width: 32px; padding: 0; }
+.jsb-admin input[type="search"], .jsb-admin input[type="date"], .jsb-admin input[type="number"], .jsb-admin input[type="url"], .jsb-admin select {
+	min-height: 32px; border: 1px solid var(--control); border-radius: var(--radius-control); background: var(--surface);
+	color: var(--text); font: inherit; padding: 0 10px; box-shadow: none; line-height: 30px;
+}
+.jsb-admin select { padding-right: 28px; }
+.jsb-link { border: 0; background: none; padding: 0; font: inherit; color: var(--accent-ink); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+/* ---- layout: the board and its rail ---- */
+.jsb-grid { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: var(--gap); margin-top: var(--gap); align-items: start; }
+.jsb-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); }
+.jsb-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 16px 20px 0; }
+.jsb-card-head h3 { font-size: 16px; font-weight: 600; }
+.jsb-card-head .count { color: var(--muted); }
+.jsb-rail h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+
+/* ---- the day board ---- */
+.jsb-board { position: relative; padding: 8px 0 12px; overflow-x: auto; }
+.jsb-board-inner { position: relative; }
+.jsb-axis, .jsb-lane { display: grid; grid-template-columns: var(--names) minmax(0, 1fr); }
+.jsb-axis { height: 28px; color: var(--muted); font-size: 12px; }
+.jsb-axis .ticks { position: relative; }
+.jsb-axis .ticks span { position: absolute; top: 6px; transform: translateX(-50%); }
+.jsb-lane { min-height: var(--row); border-top: 1px solid var(--rule); }
+.jsb-lane .who { display: flex; flex-direction: column; justify-content: center; padding: 4px 12px 4px 20px; line-height: 1.25; min-width: 0; }
+/* the names stay put while the hours scroll under them */
+.jsb-lane .who, .jsb-axis > span:first-child { position: sticky; left: 0; z-index: 4; background: var(--surface); }
+.jsb-lane .who b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jsb-lane .who small { color: var(--muted); font-size: 12px; }
+.jsb-lane.mine .who b::after { content: " · you"; color: var(--muted); font-weight: 400; }
+.jsb-lane .track { position: relative; background: var(--off); margin-right: 20px; }
+.jsb-lane .work { position: absolute; top: 0; bottom: 0; background: var(--surface); }
+.jsb-lane .hour { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--rule); }
+.jsb-now { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--accent); z-index: 3; pointer-events: none; }
+.jsb-now::before { content: attr(data-label); position: absolute; top: -2px; left: 4px; font-size: 12px; color: var(--accent-ink); font-weight: 600; background: var(--surface); padding: 0 2px; }
+
+.jsb-bar {
+	position: absolute; top: 9px; height: 26px; z-index: 2; display: flex; align-items: stretch;
+	border: 0; padding: 0; background: none; font: inherit; cursor: pointer; text-align: left; min-width: 6px;
+}
+.jsb-bar .pad { flex: 0 0 auto; background: repeating-linear-gradient(90deg, var(--accent-track) 0 2px, transparent 2px 4px); border-radius: 4px; } /* taste-skill-ignore: a hatch mark (hard stops), the timeline's own encoding for travel and waiting, not a colour fade */
+.jsb-bar .body {
+	flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: 4px;
+	background: var(--accent-soft); color: var(--accent-ink); border: 1px solid var(--accent-track); font-size: 12px; line-height: 1;
+	overflow: hidden; white-space: nowrap;
+}
+.jsb-bar .body b { font-weight: 600; flex-shrink: 0; } /* the name keeps its width; the service gives way */
+.jsb-bar .body span { color: inherit; opacity: .8; overflow: hidden; text-overflow: ellipsis; }
+.jsb-bar.pending .body { background: var(--surface); border: 1px dashed var(--accent); }
+.jsb-bar.in-progress .body { background: var(--accent); border-color: var(--accent); color: #fff; }
+.jsb-bar.waiting-for-parts .body { background: repeating-linear-gradient(135deg, var(--pill-warning-bg) 0 5px, #fbe7c4 5px 6px); border-color: #e9c98f; color: var(--pill-warning-ink); } /* taste-skill-ignore: a hatch mark (hard stops), the timeline's own encoding for travel and waiting, not a colour fade */
+.jsb-bar.completed .body { background: var(--surface); border-color: var(--control); color: var(--muted); } /* white, so it never reads as time off */
+.jsb-bar.no-show .body { background: var(--surface); border-color: var(--control); color: var(--muted); text-decoration: line-through; }
+.jsb-bar.clash .body { border: 2px solid var(--negative); }
+.jsb-bar:hover .body { filter: brightness(.97); }
+.jsb-bar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.jsb-bar.flash .body { animation: jsb-flash 160ms ease-out; }
+
+.jsb-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 4px 20px 16px; color: var(--muted); font-size: 12px; }
+.jsb-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.jsb-legend i { display: inline-block; width: 22px; height: 12px; border-radius: 3px; border: 1px solid transparent; }
+/* each swatch is its bar's mark, scaled down */
+.jsb-legend .sw.confirmed { background: var(--accent-soft); border-color: var(--accent-track); }
+.jsb-legend .sw.pending { background: var(--surface); border: 1px dashed var(--accent); }
+.jsb-legend .sw.in-progress { background: var(--accent); }
+.jsb-legend .sw.waiting-for-parts { background: repeating-linear-gradient(135deg, var(--pill-warning-bg) 0 3px, #e9c98f 3px 4px); border-color: #e9c98f; } /* taste-skill-ignore: a hatch mark (hard stops), the timeline's own encoding for travel and waiting, not a colour fade */
+.jsb-legend .sw.completed { background: var(--surface); border-color: var(--control); }
+.jsb-legend .sw.no-show { background: var(--surface); border-color: var(--control); }
+.jsb-legend .sw.travel { background: repeating-linear-gradient(90deg, var(--accent-track) 0 2px, transparent 2px 4px); } /* taste-skill-ignore: a hatch mark (hard stops), the timeline's own encoding for travel and waiting, not a colour fade */
+.jsb-legend .sw.clash { border: 2px solid var(--negative); }
+.jsb-legend .sw.off { background: var(--off); }
+
+/* the phone: one person at a time, their day as a list */
+.jsb-agenda { padding: 8px 16px 16px; }
+.jsb-agenda-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 8px; }
+.jsb-agenda-nav b { font-weight: 600; text-align: center; }
+.jsb-agenda ol { margin: 0; padding: 0; list-style: none; }
+.jsb-agenda li { border-top: 1px solid var(--rule); }
+.jsb-agenda li button { display: grid; grid-template-columns: 92px 1fr auto; gap: 8px; width: 100%; padding: 12px 0; border: 0; background: none; font: inherit; color: var(--text); text-align: left; cursor: pointer; min-height: 44px; }
+.jsb-agenda .when { font-weight: 600; }
+.jsb-agenda .off { color: var(--muted); padding: 12px 0; }
+
+/* ---- needs you ---- */
+.jsb-needs { list-style: none; margin: 0; padding: 0; }
+.jsb-needs li { padding: 12px 16px; border-top: 1px solid var(--rule); }
+.jsb-needs li:first-child { border-top: 0; }
+.jsb-needs .line { display: flex; justify-content: space-between; gap: 8px; }
+.jsb-needs .line b { font-weight: 600; }
+.jsb-needs .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.jsb-needs .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.jsb-needs-empty { padding: 16px; color: var(--muted); }
+
+/* ---- pills ---- */
+.jsb-pill { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 11px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.jsb-pill.pending { background: var(--pill-neutral-bg); color: var(--pill-neutral-ink); outline: 1px dashed var(--control); outline-offset: -1px; }
+.jsb-pill.confirmed { background: var(--pill-accent-bg); color: var(--pill-accent-ink); }
+.jsb-pill.in-progress { background: var(--accent); color: #fff; }
+.jsb-pill.waiting-for-parts { background: var(--pill-warning-bg); color: var(--pill-warning-ink); }
+.jsb-pill.completed { background: var(--pill-positive-bg); color: var(--pill-positive-ink); }
+.jsb-pill.cancelled, .jsb-pill.rejected, .jsb-pill.no-show { background: var(--pill-neutral-bg); color: var(--muted); }
+.jsb-pill.clash { background: var(--pill-negative-bg); color: var(--pill-negative-ink); }
+
+/* ---- the bookings list ---- */
+.jsb-states { display: flex; gap: 24px; margin-top: 16px; border-bottom: 1px solid var(--border); overflow-x: auto; overflow-y: hidden; }
+.jsb-states button { padding: 10px 0; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; font: inherit; font-weight: 500; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.jsb-states button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.jsb-states .n { color: var(--muted); font-weight: 400; margin-left: 4px; }
+.jsb-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 20px; }
+.jsb-toolbar input[type="search"] { width: 300px; max-width: 100%; }
+.jsb-toolbar .spacer { flex: 1; }
+.jsb-toolbar .total { color: var(--muted); }
+.jsb-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+.jsb-table th { text-align: left; font-size: 12px; font-weight: 500; color: var(--muted); padding: 8px 12px; }
+.jsb-table td { padding: 0 12px; height: 52px; border-top: 1px solid var(--border); vertical-align: middle; }
+.jsb-table tbody tr { cursor: pointer; }
+.jsb-table tbody tr:hover, .jsb-table tbody tr[aria-selected="true"] { background: var(--accent-soft); }
+.jsb-table tbody tr.flash { animation: jsb-flash 160ms ease-out; }
+.jsb-table .who b { font-weight: 600; display: block; }
+.jsb-table .who small, .jsb-table .what small { color: var(--muted); font-size: 12px; display: block; }
+.jsb-table .when { white-space: nowrap; }
+.jsb-table .num { text-align: right; }
+.jsb-table .act { text-align: right; white-space: nowrap; }
+.jsb-more { margin-top: 12px; color: var(--muted); }
+
+/* ---- the detail sheet ---- */
+.jsb-sheet {
+	position: fixed; top: 32px; right: 0; bottom: 0; z-index: 9990; width: min(480px, 100vw);
+	background: var(--surface); border-left: 1px solid var(--border); overflow-y: auto;
+	animation: jsb-sheet-in 220ms var(--ease);
+}
+.jsb-sheet-head { position: sticky; top: 0; background: var(--surface); padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; z-index: 1; }
+.jsb-sheet-head h2 { font-size: 20px; font-weight: 600; }
+.jsb-sheet-head .meta { grid-column: 1 / 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); }
+.jsb-sheet-body { padding: 20px 24px 32px; }
+.jsb-facts { display: grid; grid-template-columns: 120px 1fr; gap: 10px 16px; margin: 0; }
+.jsb-facts dt { color: var(--muted); }
+.jsb-facts dd { margin: 0; overflow-wrap: anywhere; }
+.jsb-sheet section { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--rule); }
+.jsb-sheet section h3 { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+.jsb-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.jsb-ask { margin-top: 12px; padding: 12px 14px; border-radius: var(--radius-control); background: var(--pill-warning-bg); color: var(--pill-warning-ink); }
+.jsb-ask .jsb-actions { margin-top: 10px; }
+.jsb-inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.jsb-history { list-style: none; margin: 0; padding: 0; }
+.jsb-history li { display: grid; grid-template-columns: 112px 1fr; gap: 12px; padding: 6px 0; color: var(--muted); }
+.jsb-history li b { color: var(--text); font-weight: 500; }
+
+/* ---- messages and states ---- */
+.jsb-msg { margin-top: 12px; padding: 10px 14px; border-radius: var(--radius-control); background: var(--raised); }
+.jsb-msg.error { background: var(--pill-negative-bg); color: var(--pill-negative-ink); }
+.jsb-msg.ok { background: var(--pill-accent-bg); color: var(--pill-accent-ink); }
+.jsb-empty { padding: 32px 20px; color: var(--muted); }
+.jsb-empty b { display: block; color: var(--text); font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+.jsb-slow { color: var(--muted); padding: 12px 20px; }
+.jsb-loading { opacity: .45; pointer-events: none; transition: opacity 120ms; }
+.jsb-vh { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@keyframes jsb-flash { from { background-color: var(--accent-track); } }
+@keyframes jsb-sheet-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+@media (max-width: 1100px) {
+	.jsb-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 782px) {
+	.jsb-admin { margin: 12px 12px 0 0; }
+	.jsb-sheet { top: 46px; width: 100vw; border-left: 0; }
+	.jsb-table thead { display: none; }
+	.jsb-table tr { display: grid; grid-template-columns: 1fr auto; padding: 10px 0; border-top: 1px solid var(--border); }
+	.jsb-table td { height: auto; border: 0; padding: 2px 4px; }
+	.jsb-table td.what, .jsb-table td.with { grid-column: 1 / 2; color: var(--muted); font-size: 13px; }
+	.jsb-table td.act { grid-column: 2; grid-row: 1 / 3; align-self: center; }
+	.jsb-toolbar input[type="search"] { width: 100%; }
+	.jsb-facts { grid-template-columns: 1fr; gap: 0; }
+	.jsb-facts dd { margin-bottom: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+	.jsb-sheet { animation: none; }
+	.jsb-admin *, .jsb-sheet * { transition-duration: 0ms !important; animation-duration: 0ms !important; }
+}

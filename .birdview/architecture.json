@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "mapId": "justsimple-wp-plugin",
-  "revision": 7,
+  "revision": 8,
   "language": "en",
   "project": {
     "id": "justsimple-booking-wp",
@@ -450,7 +450,7 @@
       "role": "frontend",
       "name": "Admin pages",
       "kind": "local",
-      "responsibility": "wp-admin Booking menu: Modules (placeholder until phase 2), Settings (delete data on uninstall) and System status.",
+      "responsibility": "wp-admin Booking menu. Today (the day board and the \"Needs you\" rail) and Bookings (table with search and the detail sheet) are ES-module screens on the REST routes; Modules is still the placeholder until 7b-2; Settings and System status keep WordPress forms.",
       "ownership": [
         {
           "kind": "directory",
@@ -465,7 +465,19 @@
         {
           "path": "justsimple-booking/src/Admin/Menu.php",
           "symbol": "Menu::add_pages",
-          "note": "Registers the three pages with capability checks."
+          "note": "Pages, capabilities, the screen mount and its config."
+        },
+        {
+          "path": "justsimple-booking/assets/admin/today.js",
+          "note": "The day board, finding line and rail."
+        },
+        {
+          "path": "justsimple-booking/assets/admin/bookings.js",
+          "note": "The bookings table, search, filters, keyboard."
+        },
+        {
+          "path": "justsimple-booking/assets/admin/detail.js",
+          "note": "The detail sheet: the next steps the status and kind allow."
         },
         {
           "path": "justsimple-booking/src/Admin/Menu.php",
@@ -474,7 +486,9 @@
         }
       ],
       "status": "supported",
-      "openQuestions": [],
+      "openQuestions": [
+        "Modules and the module setup screen arrive in 7b-2."
+      ],
       "layout": {
         "row": 1,
         "column": 1
@@ -598,6 +612,15 @@
           "path": "justsimple-booking/src/Booking/BookingService.php",
           "symbol": "BookingService::write_booking",
           "note": "One insert path for bookings and follow-ups."
+        },
+        {
+          "path": "justsimple-booking/src/Booking/DayBoard.php",
+          "note": "The day board: working spans from the engine's Clock rules, bars per allocation with travel."
+        },
+        {
+          "path": "justsimple-booking/src/Booking/Access.php",
+          "symbol": "Access::redact",
+          "note": "A colleague's booking as time, service and first name."
         }
       ],
       "status": "supported",
@@ -777,19 +800,18 @@
       "id": "admin-rest",
       "from": "admin-pages",
       "to": "rest-api",
-      "label": "sets up modules, services, staff and works bookings",
+      "label": "reads the day, lists and searches bookings, moves them through their statuses (wp.apiFetch with the nonce)",
       "evidence": [
         {
-          "path": "WP_PLUGIN_PLAN.md",
-          "note": "Section 2: admin screens use the same REST admin routes."
+          "path": "justsimple-booking/assets/admin/app.js",
+          "symbol": "api",
+          "note": "All admin screen requests."
         }
       ],
       "kind": "request",
       "visibility": "detail",
-      "status": "uncertain",
-      "openQuestions": [
-        "The admin screens that will call these routes are phase 7; today tests/integration.php exercises them."
-      ]
+      "status": "supported",
+      "openQuestions": []
     },
     {
       "id": "admin-data",

@@ -2,37 +2,96 @@
 namespace JustSimple\Booking\Admin;
 
 use JustSimple\Booking\Activator;
+use JustSimple\Booking\Booking\Access;
 use JustSimple\Booking\Data\Health;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
- * wp-admin pages. Phase 1 uses WordPress's own admin markup only; the designed admin screens replace the
- * Modules page body later and keep these slugs, so bookmarks and links keep working.
+ * wp-admin pages. WordPress's own menu is the sidebar (Booking › Today, Bookings, Modules, Settings, System status); the
+ * designed screens draw inside the page canvas from assets/admin, as ES modules talking to the plugin's REST routes through
+ * wp.apiFetch, which sends the nonce. Settings and System status keep WordPress's own forms.
  */
 final class Menu {
 
 	const SLUG = 'jsb';
 
+	/** page slug => screen module in assets/admin */
+	const SCREENS = array(
+		'jsb'          => 'today',
+		'jsb-bookings' => 'bookings',
+	);
+
 	public static function register() {
 		add_action( 'admin_menu', array( __CLASS__, 'add_pages' ) );
 		add_action( 'admin_init', array( __CLASS__, 'register_settings' ) );
+		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue' ) );
+		add_filter( 'script_loader_tag', array( __CLASS__, 'module_type' ), 10, 2 );
 		add_filter( 'plugin_action_links_' . plugin_basename( JSB_FILE ), array( __CLASS__, 'action_links' ) );
 	}
 
 	public static function add_pages() {
-		add_menu_page(
-			__( 'Booking', 'justsimple-booking' ),
-			__( 'Booking', 'justsimple-booking' ),
-			Activator::CAP_WORK,
-			self::SLUG,
-			array( __CLASS__, 'render_modules' ),
-			'dashicons-calendar-alt',
-			26
-		);
-		add_submenu_page( self::SLUG, __( 'Booking modules', 'justsimple-booking' ), __( 'Modules', 'justsimple-booking' ), Activator::CAP_WORK, self::SLUG, array( __CLASS__, 'render_modules' ) );
+		add_menu_page( __( 'Booking', 'justsimple-booking' ), __( 'Booking', 'justsimple-booking' ), Activator::CAP_WORK, self::SLUG, array( __CLASS__, 'render_screen' ), 'dashicons-calendar-alt', 26 );
+		add_submenu_page( self::SLUG, __( 'Today', 'justsimple-booking' ), __( 'Today', 'justsimple-booking' ), Activator::CAP_WORK, self::SLUG, array( __CLASS__, 'render_screen' ) );
+		add_submenu_page( self::SLUG, __( 'Bookings', 'justsimple-booking' ), __( 'Bookings', 'justsimple-booking' ), Activator::CAP_WORK, 'jsb-bookings', array( __CLASS__, 'render_screen' ) );
+		add_submenu_page( self::SLUG, __( 'Booking modules', 'justsimple-booking' ), __( 'Modules', 'justsimple-booking' ), Activator::CAP_MANAGE, 'jsb-modules', array( __CLASS__, 'render_modules' ) );
 		add_submenu_page( self::SLUG, __( 'Booking settings', 'justsimple-booking' ), __( 'Settings', 'justsimple-booking' ), Activator::CAP_MANAGE, self::SLUG . '-settings', array( __CLASS__, 'render_settings' ) );
 		add_submenu_page( self::SLUG, __( 'Booking system status', 'justsimple-booking' ), __( 'System status', 'justsimple-booking' ), Activator::CAP_MANAGE, self::SLUG . '-status', array( __CLASS__, 'render_status' ) );
+	}
+
+	private static function current_screen(): ?string {
+		$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- choosing a page, not acting
+		return self::SCREENS[ $page ] ?? null;
+	}
+
+	public static function enqueue() {
+		$screen = self::current_screen();
+		if ( ! $screen ) {
+			return;
+		}
+		wp_enqueue_style( 'jsb-dm-sans', JSB_URL . 'assets/fonts/dm-sans.css', array(), JSB_VERSION );
+		wp_enqueue_style( 'jsb-admin', JSB_URL . 'assets/admin/admin.css', array( 'jsb-dm-sans' ), JSB_VERSION );
+		wp_enqueue_script( 'jsb-admin', JSB_URL . 'assets/admin/' . $screen . '.js', array( 'wp-api-fetch' ), JSB_VERSION, true );
+		$user = get_current_user_id();
+		wp_add_inline_script(
+			'jsb-admin',
+			'window.jsbAdmin = ' . wp_json_encode(
+				array(
+					'screen'   => $screen,
+					'version'  => JSB_VERSION,
+					'timezone' => wp_timezone_string(),
+					'manage'   => current_user_can( Activator::CAP_MANAGE ),
+					'ownStaff' => Access::own_resources( $user ),
+					'urls'     => array(
+						'today'    => admin_url( 'admin.php?page=jsb' ),
+						'bookings' => admin_url( 'admin.php?page=jsb-bookings' ),
+						'modules'  => admin_url( 'admin.php?page=jsb-modules' ),
+					),
+				)
+			) . ';',
+			'before'
+		);
+	}
+
+	/** The screens are ES modules (import/export between assets/admin files). */
+	public static function module_type( $tag, $handle ) {
+		return 'jsb-admin' === $handle ? str_replace( '<script ', '<script type="module" ', $tag ) : $tag;
+	}
+
+	public static function render_screen() {
+		$titles = array(
+			'today'    => __( 'Today', 'justsimple-booking' ),
+			'bookings' => __( 'Bookings', 'justsimple-booking' ),
+		);
+		$screen = self::current_screen();
+		?>
+		<div class="wrap jsb-wrap">
+			<h1 class="screen-reader-text"><?php echo esc_html( $titles[ $screen ] ?? '' ); ?></h1>
+			<div id="jsb-admin" class="jsb-admin" data-screen="<?php echo esc_attr( (string) $screen ); ?>">
+				<noscript><p><?php esc_html_e( 'The booking screens need JavaScript to be switched on.', 'justsimple-booking' ); ?></p></noscript>
+			</div>
+		</div>
+		<?php
 	}
 
 	public static function register_settings() {
@@ -50,7 +109,7 @@ final class Menu {
 	}
 
 	public static function action_links( $links ) {
-		array_unshift( $links, '<a href="' . esc_url( admin_url( 'admin.php?page=' . self::SLUG ) ) . '">' . esc_html__( 'Modules', 'justsimple-booking' ) . '</a>' );
+		array_unshift( $links, '<a href="' . esc_url( admin_url( 'admin.php?page=' . self::SLUG ) ) . '">' . esc_html__( 'Today', 'justsimple-booking' ) . '</a>' );
 		return $links;
 	}
 

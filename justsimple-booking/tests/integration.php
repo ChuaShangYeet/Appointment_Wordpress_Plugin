@@ -1185,6 +1185,69 @@ check( (bool) array_filter( mails(), static function ( $x ) {
 	return false !== strpos( $x->message, 'Visit at: 1 Jalan Test' );
 } ), 'the emails say where the visit is' );
 
+echo "== admin: the day board, search and colleagues' bookings\n";
+as_user( 1 );
+$d4 = ( new DateTimeImmutable( 'today +4 days', $tz ) )->format( 'Y-m-d' );
+$lim = $fp['pro']['Dr Lim'];
+list( $s, $fb ) = call( 'POST', "/modules/{$fp['id']}/bookings", array(
+	'service_ids' => array( $fp['svc']['site'] ),
+	'staff_id'    => $lim,
+	'start'       => ( new DateTimeImmutable( "$d4 10:00", $tz ) )->format( DATE_ATOM ),
+	'customer'    => array( 'name' => 'Farah Board', 'phone' => '+60 12-345 9876' ),
+	'address'     => array( 'line1' => '2 Jalan Board', 'latitude' => NEARP[0], 'longitude' => NEARP[1] ),
+) );
+list( $s, $day ) = call( 'GET', "/admin/modules/{$fp['id']}/day", null, array( 'date' => $d4 ) );
+$row  = array_column( $day['resources'], null, 'id' )[ $lim ] ?? null;
+$hm4  = static function ( $iso ) use ( $tz ) {
+	return ( new DateTimeImmutable( $iso ) )->setTimezone( $tz )->format( 'H:i' );
+};
+check( 200 === $s && $row && array( array( '09:00', '13:00' ), array( '14:00', '18:00' ) ) === array_map( static function ( $w ) use ( $hm4 ) {
+	return array( $hm4( $w[0] ), $hm4( $w[1] ) );
+}, $row['working'] ), 'the board draws a shift with its break, from the engine\'s own rules', $row );
+$bar = current( array_filter( $day['bars'], static function ( $b ) use ( $fb ) {
+	return $b['customer'] === 'Farah Board';
+} ) );
+check( $bar && '10:00' === $hm4( $bar['service_start'] ) && $bar['start'] < $bar['service_start'] && $bar['end'] > $bar['service_end'] && 'Site inspection' === $bar['what'], 'a visit\'s bar carries its travel time either side of the visit', $bar );
+list( , $leave ) = call( 'POST', "/admin/modules/{$fp['id']}/days-off", array( 'name' => 'Leave', 'resource_id' => $lim, 'start_date' => $d4, 'end_date' => $d4 ) );
+list( , $day ) = call( 'GET', "/admin/modules/{$fp['id']}/day", null, array( 'date' => $d4 ) );
+$row = array_column( $day['resources'], null, 'id' )[ $lim ];
+check( 'leave' === $row['off'] && array() === $row['working'], 'a day off empties the row and says why', $row );
+call( 'DELETE', "/admin/days-off/{$leave['id']}" );
+list( $s, $d ) = call( 'GET', "/admin/modules/{$fp['id']}/day", null, array( 'date' => '2026-02-30' ) );
+check( 422 === $s, 'a date that does not exist is refused', $d );
+
+list( , $found ) = call( 'GET', "/admin/modules/{$fp['id']}/bookings", null, array( 'from' => $d4, 'to' => $d4, 'q' => '12345 98' ) );
+check( array( 'Farah Board' ) === array_column( array_column( $found, 'customer' ), 'name' ), 'search finds a phone number however it is spaced', array_column( $found, 'customer' ) );
+list( , $found ) = call( 'GET', "/admin/modules/{$fp['id']}/bookings", null, array( 'from' => $d4, 'to' => $d4, 'q' => substr( $fb['booking']['code'], 0, 5 ) ) );
+check( 1 === count( $found ), 'and a booking code from its first letters' );
+list( , $found ) = call( 'GET', "/admin/modules/{$fp['id']}/bookings", null, array( 'from' => $d4, 'to' => $d4, 'q' => 'nobody-here' ) );
+check( array() === $found, 'and nothing for a name nobody has' );
+
+// the salon's stylist S3 (linked to jsb-stylist) and S4's customer, booked in "own appointments only" ($st is reused later, so the ids are read back)
+$sal = array_map( 'intval', $wpdb->get_col( $wpdb->prepare( 'SELECT id FROM ' . Schema::table( 'resources' ) . " WHERE module_id = %d AND type = 'staff' ORDER BY sort_order, id", $sid ) ) );
+$sday = ( new DateTimeImmutable( '@' . $T ) )->setTimezone( $tz )->format( 'Y-m-d' );
+call( 'PATCH', "/admin/bookings/$c2", array( 'special_request' => 'Allergic to ammonia' ) );
+as_user( $uid );
+list( $s, $day ) = call( 'GET', "/admin/modules/$sid/day", null, array( 'date' => $sday ) );
+check( 200 === $s && $sal[2] === $day['resources'][0]['id'] && $day['resources'][0]['mine'], 'a stylist sees the whole day with their own row first', array_slice( $day['resources'], 0, 2 ) );
+$theirs = array_values( array_filter( $day['bars'], static function ( $b ) use ( $c2 ) {
+	return $c2 === $b['booking_id'];
+} ) );
+check( $theirs && false === $theirs[0]['mine'] && false === strpos( $theirs[0]['customer'], ' ' ), 'a colleague\'s bar shows the customer\'s first name only', $theirs );
+check( 'Farah' === JustSimple\Booking\Booking\Access::first_name( "  Farah \t Board " ) && 'Aisha' === JustSimple\Booking\Booking\Access::first_name( 'Aisha' ), 'a first name is the first word of the name' );
+list( $s, $v ) = call( 'GET', "/admin/bookings/$c2" );
+check( 200 === $s && false === $v['mine'] && ! isset( $v['customer']['phone'], $v['code'], $v['special_request'], $v['vehicle'], $v['address'] ) && array( 'name' ) === array_keys( $v['customer'] ), 'opening a colleague\'s booking gives time, service and first name only', $v );
+list( $s, $v ) = call( 'GET', "/admin/bookings/$c1" );
+check( 200 === $s && true === $v['mine'] && isset( $v['customer']['phone'] ), 'their own booking in full' );
+list( $s ) = call( 'GET', "/admin/bookings/$c2/history" );
+check( 403 === $s, 'a colleague\'s history is refused' );
+list( , $found ) = call( 'GET', "/admin/modules/$sid/bookings", null, array( 'from' => $sday, 'to' => $sday, 'q' => '177000001' ) );
+check( ! in_array( $c2, array_column( $found, 'id' ), true ) && in_array( $c1, array_column( $found, 'id' ), true ), 'search by phone finds only their own customers', array_column( $found, 'id' ) );
+as_user( 1 );
+list( , $day ) = call( 'GET', "/admin/modules/$sid/day", null, array( 'date' => $sday ) );
+$all = array_column( $day['bars'], 'mine' );
+check( $all && ! in_array( false, $all, true ) && $sal[0] === $day['resources'][0]['id'], 'the owner sees every booking in full, in the order they set', $day['resources'][0] );
+
 echo "== widget: look, map and the shortcode\n";
 as_user( 1 );
 foreach ( array( array( 'accent' => 'red' ), array( 'font' => 'comic' ), array( 'currency' => 'RINGGITMYR' ), array( 'page_url' => 'javascript:alert(1)' ) ) as $bad ) {
