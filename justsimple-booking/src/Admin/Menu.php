@@ -20,6 +20,7 @@ final class Menu {
 	const SCREENS = array(
 		'jsb'          => 'today',
 		'jsb-bookings' => 'bookings',
+		'jsb-modules'  => 'modules',
 	);
 
 	public static function register() {
@@ -34,7 +35,7 @@ final class Menu {
 		add_menu_page( __( 'Booking', 'justsimple-booking' ), __( 'Booking', 'justsimple-booking' ), Activator::CAP_WORK, self::SLUG, array( __CLASS__, 'render_screen' ), 'dashicons-calendar-alt', 26 );
 		add_submenu_page( self::SLUG, __( 'Today', 'justsimple-booking' ), __( 'Today', 'justsimple-booking' ), Activator::CAP_WORK, self::SLUG, array( __CLASS__, 'render_screen' ) );
 		add_submenu_page( self::SLUG, __( 'Bookings', 'justsimple-booking' ), __( 'Bookings', 'justsimple-booking' ), Activator::CAP_WORK, 'jsb-bookings', array( __CLASS__, 'render_screen' ) );
-		add_submenu_page( self::SLUG, __( 'Booking modules', 'justsimple-booking' ), __( 'Modules', 'justsimple-booking' ), Activator::CAP_MANAGE, 'jsb-modules', array( __CLASS__, 'render_modules' ) );
+		add_submenu_page( self::SLUG, __( 'Booking pages', 'justsimple-booking' ), __( 'Booking pages', 'justsimple-booking' ), Activator::CAP_MANAGE, 'jsb-modules', array( __CLASS__, 'render_screen' ) );
 		add_submenu_page( self::SLUG, __( 'Booking settings', 'justsimple-booking' ), __( 'Settings', 'justsimple-booking' ), Activator::CAP_MANAGE, self::SLUG . '-settings', array( __CLASS__, 'render_settings' ) );
 		add_submenu_page( self::SLUG, __( 'Booking system status', 'justsimple-booking' ), __( 'System status', 'justsimple-booking' ), Activator::CAP_MANAGE, self::SLUG . '-status', array( __CLASS__, 'render_status' ) );
 	}
@@ -66,10 +67,27 @@ final class Menu {
 						'today'    => admin_url( 'admin.php?page=jsb' ),
 						'bookings' => admin_url( 'admin.php?page=jsb-bookings' ),
 						'modules'  => admin_url( 'admin.php?page=jsb-modules' ),
+						'assets'   => JSB_URL . 'assets/',
+						'rest'     => rest_url( 'justsimple/v1' ),
+						'newPage'  => admin_url( 'post-new.php?post_type=page' ),
 					),
-				)
+				) + ( 'modules' === $screen ? self::setup_config() : array() )
 			) . ';',
 			'before'
+		);
+	}
+
+	/** What the setup screen offers to pick from: logins a staff member can be linked to, and the site's pages. */
+	private static function setup_config(): array {
+		$users = get_users( array( 'capability' => Activator::CAP_WORK, 'fields' => array( 'ID', 'display_name', 'user_login' ), 'number' => 200 ) );
+		$pages = get_pages( array( 'post_status' => 'publish', 'number' => 200 ) );
+		return array(
+			'users' => array_map( static function ( $u ) {
+				return array( 'id' => (int) $u->ID, 'name' => $u->display_name . ' (' . $u->user_login . ')' );
+			}, $users ),
+			'pages' => array_map( static function ( $p ) {
+				return array( 'url' => get_permalink( $p ), 'title' => get_the_title( $p ) );
+			}, $pages ),
 		);
 	}
 
@@ -82,6 +100,7 @@ final class Menu {
 		$titles = array(
 			'today'    => __( 'Today', 'justsimple-booking' ),
 			'bookings' => __( 'Bookings', 'justsimple-booking' ),
+			'modules'  => __( 'Booking pages', 'justsimple-booking' ),
 		);
 		$screen = self::current_screen();
 		?>
@@ -111,16 +130,6 @@ final class Menu {
 	public static function action_links( $links ) {
 		array_unshift( $links, '<a href="' . esc_url( admin_url( 'admin.php?page=' . self::SLUG ) ) . '">' . esc_html__( 'Today', 'justsimple-booking' ) . '</a>' );
 		return $links;
-	}
-
-	public static function render_modules() {
-		?>
-		<div class="wrap">
-			<h1><?php esc_html_e( 'Booking modules', 'justsimple-booking' ); ?></h1>
-			<p><?php esc_html_e( 'A module is one booking page: haircuts, dinner reservations, car servicing or home visits. Each gets its own services, staff or resources, opening hours and a shortcode to place on any page.', 'justsimple-booking' ); ?></p>
-			<p><em><?php esc_html_e( 'Creating modules arrives in the next release.', 'justsimple-booking' ); ?></em></p>
-		</div>
-		<?php
 	}
 
 	public static function render_settings() {

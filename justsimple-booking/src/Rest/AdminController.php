@@ -10,6 +10,7 @@ use JustSimple\Booking\Booking\Parts;
 use JustSimple\Booking\Booking\Upsell;
 use JustSimple\Booking\Data\Catalog;
 use JustSimple\Booking\Data\Db;
+use JustSimple\Booking\Data\Readiness;
 use JustSimple\Booking\Data\Schema;
 use JustSimple\Booking\Data\WpScheduleSource;
 use JustSimple\Booking\Engine\Clock;
@@ -269,15 +270,34 @@ final class AdminController {
 		return Rest::run( static function () {
 			global $wpdb;
 			$ids = $wpdb->get_col( 'SELECT id FROM ' . Schema::table( 'modules' ) . ' ORDER BY id' );
-			return array_map( static function ( $id ) {
-				return self::module_out( Catalog::module( (int) $id ) );
+			// today's bookings per module, in one query (cancelled and turned-down ones do not count)
+			$tz    = wp_timezone();
+			$today = Clock::local_date( time(), $tz );
+			$n     = $wpdb->get_results(
+				$wpdb->prepare(
+					'SELECT module_id, COUNT(*) AS n FROM ' . Schema::table( 'bookings' ) . " WHERE start_utc >= %s AND start_utc < %s AND status NOT IN ('cancelled','rejected') GROUP BY module_id",
+					Db::to_sql( Clock::clock_on( $today, '00:00', $tz ) ),
+					Db::to_sql( Clock::clock_on( Clock::add_days( $today, 1 ), '00:00', $tz ) )
+				),
+				ARRAY_A
+			);
+			$n     = array_column( $n, 'n', 'module_id' );
+			$full  = current_user_can( Activator::CAP_MANAGE ); // readiness is for whoever sets modules up
+			return array_map( static function ( $id ) use ( $n, $full ) {
+				$m   = Catalog::module( (int) $id );
+				$out = self::module_out( $m ) + array( 'today' => (int) ( $n[ $id ] ?? 0 ) );
+				if ( $full ) {
+					$out['readiness'] = Readiness::check( $m );
+				}
+				return $out;
 			}, $ids );
 		} );
 	}
 
 	public static function get_module( \WP_REST_Request $r ) {
 		return Rest::run( static function () use ( $r ) {
-			return self::module_out( self::module_or_404( (int) $r['id'] ) );
+			$m = self::module_or_404( (int) $r['id'] );
+			return self::module_out( $m ) + array( 'readiness' => Readiness::check( $m ) );
 		} );
 	}
 
@@ -338,7 +358,7 @@ final class AdminController {
 			$b    = Schema::table( 'bookings' );
 			$live = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $b WHERE module_id = %d AND status IN ('pending','confirmed','in-progress','waiting-for-parts') AND end_utc > %s", $m['id'], Db::now_sql() ) );
 			if ( $live ) {
-				throw new EngineError( EngineError::VALIDATION, sprintf( 'This module still has %d upcoming bookings. Cancel them or set the module to draft instead.', $live ) );
+				throw new EngineError( EngineError::VALIDATION, sprintf( 'This booking page still has %d upcoming bookings. Cancel them first, or switch the page off instead.', $live ) );
 			}
 			Db::transaction( static function () use ( $wpdb, $m, $b ) {
 				$id         = $m['id'];

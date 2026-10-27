@@ -40,6 +40,7 @@
 body:has(.jsb-admin) { background: #f8f9f6; } /* the ground one step toward the moss tint */
 .jsb-wrap { margin: 0; }
 .jsb-admin *, .jsb-admin *::before, .jsb-admin *::after { box-sizing: border-box; }
+.jsb-admin [hidden] { display: none !important; } /* a class's display must never undo hidden */
 .jsb-admin h2, .jsb-admin h3 { color: var(--text); font-family: inherit; margin: 0; }
 .jsb-admin p { font-size: 14px; margin: 0; }
 .jsb-admin a { color: var(--accent-ink); }
@@ -220,6 +221,84 @@ body:has(.jsb-admin) { background: #f8f9f6; } /* the ground one step toward the 
 .jsb-history li { display: grid; grid-template-columns: 112px 1fr; gap: 12px; padding: 6px 0; color: var(--muted); }
 .jsb-history li b { color: var(--text); font-weight: 500; }
 
+/* ---- booking pages (modules) ---- */
+.jsb-code { font: 13px/1.4 ui-monospace, Consolas, monospace; background: var(--raised); padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+.jsb-ready-n { color: var(--warning); font-weight: 500; }
+.jsb-new { padding: 20px 24px; }
+.jsb-new h3 { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+.jsb-kinds { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.jsb-kind { display: grid; grid-template-columns: auto 1fr; gap: 10px; padding: 12px 14px; border: 1px solid var(--control); border-radius: var(--radius-control); cursor: pointer; background: var(--surface); }
+.jsb-kind:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.jsb-kind input { margin: 3px 0 0; accent-color: var(--accent); }
+.jsb-kind b { display: block; font-weight: 600; }
+.jsb-kind small { display: block; color: var(--muted); font-size: 13px; line-height: 1.4; }
+
+/* ---- setting a page up: label column beside its panel, sections split by one rule ---- */
+.jsb-back { margin: 0 0 12px !important; }
+.jsb-back a { text-decoration: none; font-weight: 500; }
+.jsb-setup { max-width: 1152px; }
+.jsb-ready { margin-top: var(--gap); padding: 20px 24px; }
+.jsb-ready h3 { font-size: 16px; font-weight: 600; }
+.jsb-ready-track { height: 6px; border-radius: 3px; background: var(--accent-track); margin: 10px 0 14px; max-width: 420px; }
+.jsb-ready-track i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+.jsb-ready ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.jsb-ready li { display: flex; align-items: center; gap: 10px; }
+.jsb-ready li .mark { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--control); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; flex: 0 0 auto; }
+.jsb-ready li.done { color: var(--muted); }
+.jsb-ready li.done .mark { background: var(--accent); border-color: var(--accent); }
+.jsb-ready li.done .mark::after { content: ""; width: 5px; height: 9px; border: solid #fff; border-width: 0 2px 2px 0; transform: translateY(-1px) rotate(45deg); } /* a drawn tick, not a glyph */
+.jsb-set { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 24px 48px; padding: 32px 0; border-top: 1px solid var(--border); }
+.jsb-ready + .jsb-set, #jsb-ready + .jsb-set { margin-top: 32px; }
+.jsb-set-label h3 { font-size: 16px; font-weight: 600; margin-top: 6px; }
+.jsb-set-label p { color: var(--muted); margin-top: 6px !important; }
+.jsb-set-label .now { color: var(--text); }
+.jsb-set-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 20px 24px; min-width: 0; }
+.jsb-field { margin: 0 0 16px; border: 0; padding: 0; min-width: 0; }
+.jsb-field > label, .jsb-field > legend, .jsb-field .lab, .jsb-preview .lab { display: block; font-weight: 500; margin-bottom: 6px; padding: 0; }
+.jsb-field.check > label { display: flex; align-items: center; gap: 8px; margin: 0; }
+.jsb-field .hint, .jsb-set .hint { display: block; color: var(--muted); font-size: 13px; margin-top: 4px; }
+.jsb-admin .jsb-field input[type="text"], .jsb-admin .jsb-field input[type="email"], .jsb-admin .jsb-field input[type="url"], .jsb-admin .jsb-field input[type="number"], .jsb-admin .jsb-field input[type="date"], .jsb-admin .jsb-field select, .jsb-admin .jsb-field textarea, .jsb-new input[type="text"] {
+	width: 100%; max-width: 440px; min-height: 40px; border: 1px solid var(--control); border-radius: var(--radius-control); padding: 6px 10px; font: inherit; background: var(--surface); box-shadow: none;
+}
+.jsb-admin input[type="time"] { min-height: 36px; border: 1px solid var(--control); border-radius: var(--radius-control); padding: 0 6px; font: inherit; background: var(--surface); }
+.jsb-admin input[type="time"]:disabled { opacity: .45; }
+.jsb-admin input[type="color"] { width: 44px; height: 40px; padding: 2px; border: 1px solid var(--control); border-radius: var(--radius-control); background: var(--surface); }
+.jsb-admin input[type="checkbox"], .jsb-admin input[type="radio"] { appearance: auto; -webkit-appearance: auto; width: 16px; height: 16px; margin: 0; accent-color: var(--accent); box-shadow: none; } /* wp-admin draws its own blue tick; the native control takes the moss */
+.jsb-admin input[type="checkbox"]::before, .jsb-admin input[type="radio"]::before { content: none !important; }
+.jsb-ferr { display: block; color: var(--negative); font-size: 13px; margin-top: 4px; }
+.jsb-admin [aria-invalid="true"] { border-color: var(--negative) !important; }
+.jsb-pair, .jsb-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+.jsb-grid2 > .jsb-field:not(.half) { grid-column: 1 / -1; }
+.jsb-saved { color: var(--accent-ink); font-weight: 500; }
+.jsb-err:empty { display: none; }
+.jsb-danger { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--rule); }
+.jsb-link.danger, .jsb-admin .jsb-link.danger { color: var(--negative); }
+.jsb-ask-inline { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; color: var(--negative); }
+
+.jsb-rows { list-style: none; margin: 0 0 16px; padding: 0; }
+.jsb-rows > li { border-bottom: 1px solid var(--rule); }
+.jsb-rows > li:first-child { border-top: 1px solid var(--rule); }
+.jsb-rows .line { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 6px 0; }
+.jsb-rows .line b { display: block; font-weight: 500; }
+.jsb-rows .line small { display: block; color: var(--muted); font-size: 13px; }
+.jsb-rowform { padding: 16px 0; }
+.jsb-rows + .jsb-rowform, .jsb-set-panel > .jsb-rowform:first-child { padding-top: 0; }
+.jsb-checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px 16px; }
+.jsb-checks label { display: flex; gap: 8px; align-items: center; }
+
+.jsb-week { display: grid; gap: 6px; }
+.jsb-week .head, .jsb-week .day { display: grid; grid-template-columns: 132px 136px 136px minmax(0, 1fr); gap: 8px; align-items: center; }
+.jsb-week .day > input[type="time"], .jsb-week .brk input { width: 100%; min-width: 0; } /* wide enough for "10:00 AM" in a 12-hour locale */
+.jsb-week .brk { display: grid; grid-template-columns: 1fr auto 1fr; gap: 6px; align-items: center; max-width: 300px; }
+.jsb-week .head { color: var(--muted); font-size: 12px; }
+.jsb-week .day label { display: flex; gap: 8px; align-items: center; }
+
+
+.jsb-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px; border: 1px solid var(--border); }
+.jsb-contrast { margin: 0 0 12px !important; }
+.jsb-contrast:empty { display: none; }
+.jsb-preview { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--rule); }
+
 /* ---- messages and states ---- */
 .jsb-msg { margin-top: 12px; padding: 10px 14px; border-radius: var(--radius-control); background: var(--raised); }
 .jsb-msg.error { background: var(--pill-negative-bg); color: var(--pill-negative-ink); }
@@ -236,7 +315,16 @@ body:has(.jsb-admin) { background: #f8f9f6; } /* the ground one step toward the 
 @media (max-width: 1100px) {
 	.jsb-grid { grid-template-columns: minmax(0, 1fr); }
 }
+@media (max-width: 960px) {
+	.jsb-set { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+}
 @media (max-width: 782px) {
+	.jsb-pair, .jsb-grid2 { grid-template-columns: 1fr; }
+	.jsb-set-panel { padding: 16px; }
+	.jsb-week .head { display: none; }
+	.jsb-week .day { grid-template-columns: 1fr 1fr; }
+	.jsb-week .day label { grid-column: 1 / -1; }
+	.jsb-week .brk { grid-column: 1 / -1; }
 	.jsb-admin { margin: 12px 12px 0 0; }
 	.jsb-sheet { top: 46px; width: 100vw; border-left: 0; }
 	.jsb-table thead { display: none; }

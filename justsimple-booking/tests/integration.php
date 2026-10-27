@@ -1248,6 +1248,38 @@ list( , $day ) = call( 'GET', "/admin/modules/$sid/day", null, array( 'date' => 
 $all = array_column( $day['bars'], 'mine' );
 check( $all && ! in_array( false, $all, true ) && $sal[0] === $day['resources'][0]['id'], 'the owner sees every booking in full, in the order they set', $day['resources'][0] );
 
+echo "== admin: is the booking page ready?\n";
+as_user( 1 );
+$todo = static function ( int $id ) {
+	list( , $m ) = call( 'GET', "/admin/modules/$id" );
+	return array_keys( array_filter( array_column( $m['readiness'], 'done', 'key' ), static function ( $d ) {
+		return ! $d;
+	} ) );
+};
+list( , $rw ) = call( 'POST', '/admin/modules', array( 'title' => 'Readiness garage', 'type' => 'workshop' ) );
+check( array( 'services', 'hours', 'covered', 'bays', 'vehicles', 'on', 'page' ) === $todo( $rw['id'] ), 'a new workshop starts with everything to do, in order', $todo( $rw['id'] ) );
+list( , $rs ) = call( 'POST', "/admin/modules/{$rw['id']}/services", array( 'name' => 'Oil', 'duration_minutes' => 60 ) );
+list( , $m1 ) = call( 'POST', "/admin/modules/{$rw['id']}/staff", array( 'name' => 'M1' ) );
+list( , $m2 ) = call( 'POST', "/admin/modules/{$rw['id']}/staff", array( 'name' => 'M2' ) );
+check( array( 'hours', 'covered', 'bays', 'vehicles', 'on', 'page' ) === $todo( $rw['id'] ), 'a service ticks the first; mechanics without hours do not', $todo( $rw['id'] ) );
+call( 'PUT', "/admin/staff/{$m1['id']}/shifts", array( 'shifts' => array( array( 'weekday' => 1, 'start_time' => '09:00', 'end_time' => '17:00' ) ) ) );
+call( 'PUT', "/admin/staff/{$m2['id']}/services", array( 'service_ids' => array( $rs['id'] ) ) );
+check( in_array( 'covered', $todo( $rw['id'] ), true ) && ! in_array( 'hours', $todo( $rw['id'] ), true ), 'a service only a mechanic with no hours can do is not covered', $todo( $rw['id'] ) );
+call( 'PUT', "/admin/staff/{$m1['id']}/services", array( 'service_ids' => array( $rs['id'] ) ) );
+call( 'POST', "/admin/modules/{$rw['id']}/bays", array( 'name' => 'Bay 1' ) );
+call( 'POST', "/admin/modules/{$rw['id']}/supported-vehicles", array( 'make' => 'Perodua', 'model' => 'Myvi' ) );
+call( 'PATCH', "/admin/modules/{$rw['id']}", array( 'status' => 'active', 'settings' => array( 'page_url' => 'http://localhost/jsb-test/garage/' ) ) );
+check( array() === $todo( $rw['id'] ), 'then it is ready: someone qualified works, a bay, a car, on, on a page', $todo( $rw['id'] ) );
+list( , $m ) = call( 'GET', "/admin/modules/{$fp['id']}" );
+check( in_array( 'location', array_column( $m['readiness'], 'key' ), true ), 'a practice with on-site services is asked where it is' );
+list( , $all ) = call( 'GET', '/admin/modules' );
+$row = array_column( $all, null, 'id' )[ $rw['id'] ];
+check( 0 === $row['today'] && 7 === count( $row['readiness'] ), 'the list of booking pages carries today\'s count and readiness', $row );
+as_user( $uid );
+list( $s, $all ) = call( 'GET', '/admin/modules' );
+check( 200 === $s && ! isset( array_column( $all, null, 'id' )[ $rw['id'] ]['readiness'] ), 'staff see the pages, not how ready they are' );
+as_user( 1 );
+
 echo "== widget: look, map and the shortcode\n";
 as_user( 1 );
 foreach ( array( array( 'accent' => 'red' ), array( 'font' => 'comic' ), array( 'currency' => 'RINGGITMYR' ), array( 'page_url' => 'javascript:alert(1)' ) ) as $bad ) {

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "mapId": "justsimple-wp-plugin",
-  "revision": 8,
+  "revision": 9,
   "language": "en",
   "project": {
     "id": "justsimple-booking-wp",
@@ -450,7 +450,7 @@
       "role": "frontend",
       "name": "Admin pages",
       "kind": "local",
-      "responsibility": "wp-admin Booking menu. Today (the day board and the \"Needs you\" rail) and Bookings (table with search and the detail sheet) are ES-module screens on the REST routes; Modules is still the placeholder until 7b-2; Settings and System status keep WordPress forms.",
+      "responsibility": "wp-admin Booking menu: Today (day board, \"Needs you\"), Bookings (search, detail sheet), Booking pages (list, new, and setup by kind with readiness, sections and a live widget preview). ES-module screens on the REST routes; Settings and System status keep WordPress forms.",
       "ownership": [
         {
           "kind": "directory",
@@ -483,12 +483,18 @@
           "path": "justsimple-booking/src/Admin/Menu.php",
           "symbol": "Menu::render_status",
           "note": "Renders Health::checks()."
+        },
+        {
+          "path": "justsimple-booking/assets/admin/modules.js",
+          "note": "Booking pages list and the new-page form."
+        },
+        {
+          "path": "justsimple-booking/assets/admin/setup.js",
+          "note": "Setup by kind: readiness, sections, hours editor, look with live preview."
         }
       ],
       "status": "supported",
-      "openQuestions": [
-        "Modules and the module setup screen arrive in 7b-2."
-      ],
+      "openQuestions": [],
       "layout": {
         "row": 1,
         "column": 1
@@ -536,6 +542,10 @@
           "path": "justsimple-booking/src/Data/WpScheduleSource.php",
           "symbol": "WpScheduleSource::resources",
           "note": "Names and types for workshop tie-breaks."
+        },
+        {
+          "path": "justsimple-booking/src/Data/Readiness.php",
+          "note": "Is a booking page ready: the engine's own questions, per kind."
         }
       ],
       "status": "supported",

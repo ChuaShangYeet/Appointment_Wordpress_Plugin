@@ -1,6 +1,6 @@
 # Phase 7 plan: the frontends (booking widget, admin screens, marketing page)
 
-Status: **7a committed (`29ba089`); 7b confirmed (Part 4, with the recommended staff view and two halves); 7b-1 built and checked, 7b-2 next.** Map: `.birdview/architecture.json` revision 8. Branch `standalone-wp-plugin`.
+Status: **7a committed (`29ba089`); 7b confirmed (Part 4, with the recommended staff view and two halves); 7b-1 committed (`33ce3e3`), 7b-2 built and checked; 7c next.** Map: `.birdview/architecture.json` revision 9. Branch `standalone-wp-plugin`.
 
 The engine is finished: five module types and 43 REST paths (71 path-and-method pairs), all tested. Phase 7 gives it faces: the **booking widget** customers use on an owner's site, the **admin screens** owners and staff work in, and the **marketing page** that sells the free plugin. It is three pieces of work, so it runs as **three sub-phases (7a widget, 7b admin, 7c marketing)**, each built and checked before the next. The design below is settled once, for all three.
 

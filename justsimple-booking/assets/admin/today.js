@@ -195,7 +195,7 @@ function span( d ) {
 
 function board( d, isToday ) {
 	if ( ! d.resources.length ) {
-		return `<div class="jsb-empty"><b>Nobody to book yet</b>${ cfg.manage ? `Add ${ esc( KIND[ st.m.type ]?.rows || 'staff' ) } to this booking page under <a href="${ esc( cfg.urls.modules ) }">Modules</a>; the day draws them here.` : 'The owner has not added anyone to this booking page yet.' }</div>`;
+		return `<div class="jsb-empty"><b>Nobody to book yet</b>${ cfg.manage ? `Add ${ esc( KIND[ st.m.type ]?.rows || 'staff' ) } to this booking page under <a href="${ esc( cfg.urls.modules ) }">Booking pages</a>; the day draws them here.` : 'The owner has not added anyone to this booking page yet.' }</div>`;
 	}
 	const [ lo, hi ] = span( d );
 	const len = hi - lo;

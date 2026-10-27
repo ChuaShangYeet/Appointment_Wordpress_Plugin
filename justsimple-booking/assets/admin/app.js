@@ -169,4 +169,4 @@ export function moduleChooser( modules, current ) {
 }
 
 export const noModulesHtml = () =>
-	`<div class="jsb-card jsb-empty"><b>No booking pages yet</b>${ cfg.manage ? `Make one under <a href="${ esc( cfg.urls.modules ) }">Modules</a>: a salon, a restaurant, a workshop or home visits. Its bookings show here.` : 'The owner has not made a booking page yet. Its bookings will show here.' }</div>`;
+	`<div class="jsb-card jsb-empty"><b>No booking pages yet</b>${ cfg.manage ? `Make one under <a href="${ esc( cfg.urls.modules ) }">Booking pages</a>: a salon, a restaurant, a workshop or home visits. Its bookings show here.` : 'The owner has not made a booking page yet. Its bookings will show here.' }</div>`;

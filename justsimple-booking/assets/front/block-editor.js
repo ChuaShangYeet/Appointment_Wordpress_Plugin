@@ -43,7 +43,7 @@
 			} else if ( error ) {
 				body = el( 'p', null, error );
 			} else if ( ! modules.length ) {
-				body = el( 'p', null, __( 'Make a booking page first, under Booking › Modules.', 'justsimple-booking' ) );
+				body = el( 'p', null, __( 'Make a booking page first, under Booking › Booking pages.', 'justsimple-booking' ) );
 			} else {
 				body = el( Picker, { value: attributes.module, onChange: pick, modules } );
 			}

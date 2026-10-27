@@ -60,7 +60,7 @@ final class Front {
 		$m = Catalog::module( $module_id );
 		if ( ! $m || 'active' !== $m['status'] ) {
 			// visitors see nothing; someone who can fix it sees why
-			return current_user_can( 'jsb_manage' ) ? '<p><em>' . esc_html__( 'This booking page is not switched on yet (Booking › Modules).', 'justsimple-booking' ) . '</em></p>' : '';
+			return current_user_can( 'jsb_manage' ) ? '<p><em>' . esc_html__( 'This booking page is not switched on yet (Booking › Booking pages).', 'justsimple-booking' ) . '</em></p>' : '';
 		}
 		self::remember_page( $m );
 		if ( ! wp_script_is( self::HANDLE, 'registered' ) ) {
