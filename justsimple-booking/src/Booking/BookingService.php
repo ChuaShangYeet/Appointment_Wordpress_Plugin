@@ -210,7 +210,9 @@ final class BookingService {
 							'minimum_spend_agreed'   => $minimum_spend > 0 ? MinimumSpend::format( $minimum_spend ) : null,
 							'vehicle_id'             => $vehicle_id,
 							'lead_time_acknowledged_utc' => $notice ? Db::to_sql( $now ) : null,
-							'hold_expires_utc'  => $pending ? Db::to_sql( $now + $req->policy->pending_timeout ) : null,
+							'hold_expires_utc'  => $pending ? Db::to_sql( $req->policy->hold_until( $now, min( array_map( static function ( $a ) {
+								return $a->start; // with a visit's travel time: the moment the professional must set off
+							}, $assignments ) ) ) ) : null,
 							'source'            => in_array( $in['source'] ?? '', array( 'widget', 'admin', 'api' ), true ) ? $in['source'] : 'widget',
 							'address_id'        => $address ? Addresses::save( $customer_id, $address ) : null,
 						),

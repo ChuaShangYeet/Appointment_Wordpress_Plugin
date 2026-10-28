@@ -554,6 +554,17 @@ test( 'merged policy is the strictest', function () {
 	eq( $m->snapshot(), Policy::from_snapshot( $m->snapshot() )->snapshot(), 'snapshot round trip' );
 } );
 
+test( 'a request lapses after its timeout, but never after its own start', function () {
+	$p   = new Policy( 1, 'Ask', 'pending', 0, 0, 30 * 86400, 3 * 3600 ); // three hours to answer
+	$now = 1_700_000_000;
+	eq( $now + 3 * 3600, $p->hold_until( $now, $now + 2 * 86400 ), 'days ahead: the full three hours' );
+	eq( $now + 3600, $p->hold_until( $now, $now + 3600 ), 'starting in an hour: it lapses at the start' );
+	eq( $now + Policy::MIN_HOLD, $p->hold_until( $now, $now + 60 ), 'starting in a minute: still five minutes to answer' );
+	eq( $now + Policy::MIN_HOLD, $p->hold_until( $now, $now - 600 ), 'travel already under way: still five minutes' );
+	$short = new Policy( 1, 'Quick', 'pending', 0, 0, 30 * 86400, 120 );
+	eq( $now + 120, $short->hold_until( $now, $now + 3600 ), 'a timeout shorter than five minutes is kept' );
+} );
+
 // ------------------------------------------------------------------ status flow and cancellation (test_customer_cancel.py)
 
 function booking( string $status, int $start, int $cancel_notice_s = 86400 ): array {

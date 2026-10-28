@@ -122,6 +122,20 @@ final class Policy {
 		return array( $now + $this->min_notice_booking, $now + $this->booking_window );
 	}
 
+	/** The least time a business has to answer a request, even one made minutes before it starts. */
+	const MIN_HOLD = 300;
+
+	/**
+	 * When a request waiting for the business lapses: after the pending timeout, but never after the time it holds begins
+	 * (for a visit, when the travel starts), since a request still unanswered then cannot be kept. Never sooner than
+	 * MIN_HOLD from now, so a request made just before its time is not gone the moment it is made.
+	 *
+	 * Not in the original engine, which held every request for the full timeout (a 16:30 request could lapse at 18:16).
+	 */
+	public function hold_until( int $now, int $first_held ): int {
+		return min( $now + $this->pending_timeout, max( $first_held, $now + self::MIN_HOLD ) );
+	}
+
 	/** Immutable copy kept on the booking (same keys as the engine's policy_snapshot). */
 	public function snapshot(): array {
 		$s = array(

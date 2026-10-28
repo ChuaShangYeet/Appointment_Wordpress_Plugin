@@ -1248,6 +1248,27 @@ list( , $day ) = call( 'GET', "/admin/modules/$sid/day", null, array( 'date' => 
 $all = array_column( $day['bars'], 'mine' );
 check( $all && ! in_array( false, $all, true ) && $sal[0] === $day['resources'][0]['id'], 'the owner sees every booking in full, in the order they set', $day['resources'][0] );
 
+echo "== a request lapses no later than its own start\n";
+as_user( 1 );
+list( , $askp ) = call( 'POST', "/admin/modules/$sid/policies", array( 'name' => 'We confirm first', 'default_status' => 'pending', 'pending_timeout_minutes' => 60, 'min_notice_booking_minutes' => 0 ) );
+list( , $asks ) = call( 'POST', "/admin/modules/$sid/services", array( 'name' => 'Consultation (we confirm)', 'duration_minutes' => 15, 'policy_id' => $askp['id'] ) );
+as_user( 0 );
+$hold_of = static function ( array $created ) {
+	return isset( $created['booking']['hold_expires'] ) ? ( new DateTimeImmutable( $created['booking']['hold_expires'] ) )->getTimestamp() : null;
+};
+$t0 = time();
+list( $s, $far ) = call( 'POST', "/modules/$sid/bookings", array( 'service_ids' => array( $asks['id'] ), 'start' => ( new DateTimeImmutable( 'today +2 days 10:00', $tz ) )->format( DATE_ATOM ), 'customer' => array( 'name' => 'Lina Far', 'phone' => '+60177100001' ) ) );
+check( 201 === $s && abs( $hold_of( $far ) - ( $t0 + 3600 ) ) <= 5, 'a request two days ahead has the full hour to be answered', $far );
+$soon = (int) ( ceil( ( time() + 10 * 60 ) / 900 ) * 900 ); // the next quarter hour at least 10 minutes away: under the hour
+list( $s, $near ) = call( 'POST', "/modules/$sid/bookings", array( 'service_ids' => array( $asks['id'] ), 'start' => $iso( $soon ), 'customer' => array( 'name' => 'Lina Near', 'phone' => '+60177100002' ) ) );
+check( 201 === $s && $soon === $hold_of( $near ), 'a request starting in ' . round( ( $soon - $t0 ) / 60 ) . ' minutes lapses at its start, not an hour from now', $near );
+as_user( 1 );
+list( , $day ) = call( 'GET', "/admin/modules/$sid/day", null, array( 'date' => ( new DateTimeImmutable( '@' . $soon ) )->setTimezone( $tz )->format( 'Y-m-d' ) ) );
+$need = current( array_filter( $day['needs_you'], static function ( $n ) {
+	return 'Lina Near' === $n['customer'];
+} ) );
+check( $need && $soon === ( new DateTimeImmutable( $need['hold_expires'] ) )->getTimestamp(), 'and the desk sees the same, earlier, time to answer by', $need );
+
 echo "== admin: is the booking page ready?\n";
 as_user( 1 );
 $todo = static function ( int $id ) {
