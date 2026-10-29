@@ -47,28 +47,25 @@
 			<button type="button" aria-pressed="false">Visit</button>
 			<button type="button" aria-pressed="false">Treatment</button>
 		</div>
-		<p class="doors-try" aria-live="polite"><span>Salons: stylists, chairs and add-ons.</span> <a href="#try" data-try="Haircut and gel, Saturday">Try “Haircut and gel, Saturday”</a></p>
+		<p class="doors-try" aria-live="polite"><span>Salons: stylists, chairs and add-ons.</span> <a href="#try" data-try="salon">Book at Mei Hair Studio</a></p>
 	</div>
 	<a class="paper-btn phone-only" href="{{zip}}" download>Download the plugin</a>
 </header>
 
 <main>
 
-<section class="showcase" id="try" aria-labelledby="try-label" data-reveal>
-	<label id="try-label" for="ask" class="vh">Describe a booking, and the booking form answers</label>
-	<div class="ask" data-ui>
-		<input id="ask" type="text" value="Table for 8, Friday 8pm" autocomplete="off" spellcheck="false" maxlength="60">
-		<span class="caret" aria-hidden="true"></span>
+<section class="showcase" id="try" aria-labelledby="try-h" data-reveal>
+	<h2 id="try-h" class="try-h">Book at five demo businesses.</h2>
+	<div class="biz" role="group" aria-label="Demo businesses">
+		<button type="button" data-kind="salon" data-ask="Haircut and gel, Saturday" aria-pressed="true"><b>Salon</b> <span>Mei Hair Studio · starts on a haircut and gel, Saturday</span></button>
+		<button type="button" data-kind="restaurant" data-ask="Table for 8, Friday 8pm" aria-pressed="false"><b>Restaurant</b> <span>Rumah Makan Seri · starts on a table for 8, Friday 8pm</span></button>
+		<button type="button" data-kind="workshop" data-ask="Brake pads for a 2019 Myvi, Tuesday" aria-pressed="false"><b>Workshop</b> <span>Bengkel Ah Kow · starts on brake pads for a 2019 Myvi, Tuesday</span></button>
+		<button type="button" data-kind="field" data-ask="Aircon check at my place, Monday" aria-pressed="false"><b>Home service</b> <span>CoolAir Services · starts on an aircon check at your place, Monday</span></button>
+		<button type="button" data-kind="staff" data-ask="See the doctor, Thursday" aria-pressed="false"><b>Clinic</b> <span>Klinik Dr Wong · starts on seeing the doctor, Thursday</span></button>
 	</div>
 	<div class="answer">
 		<p class="answer-note" id="answer-note" aria-live="polite">The plugin's real booking form, answering with times its engine worked out for five demo businesses. Nothing you book here is real.</p>
 		<div class="answer-widget" id="answer-widget" data-ui><p class="hint">Loading the booking form…</p></div>
-	</div>
-	<div class="examples" role="group" aria-label="Try another">
-		<button type="button" data-ask="Haircut and gel, Saturday">Haircut and gel, Saturday</button>
-		<button type="button" data-ask="Brake pads for a 2019 Myvi, Tuesday">Brake pads for a 2019 Myvi, Tuesday</button>
-		<button type="button" data-ask="Aircon check at my place, Monday">Aircon check at my place, Monday</button>
-		<button type="button" data-ask="See the doctor, Thursday">See the doctor, Thursday</button>
 	</div>
 </section>
 

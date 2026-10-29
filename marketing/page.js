@@ -1,8 +1,8 @@
 /**
- * The marketing page's behaviour: the headline's slot cycling through what each kind of business books, the sections rising in
- * once, and the one live thing: a typed line ("Table for 8, Friday 8pm") that drives the plugin's real booking form, answering
- * live against the demo site's engine when the Showcase plugin serves this page, and otherwise from times the real engine worked
- * out for five demo businesses (demo/*.json, recorded by tests/record-demo.php).
+ * The marketing page's behaviour: the hero's rooms, one for each kind of business, the sections rising in once, and the one
+ * live thing: five demo businesses, each opening the plugin's real booking form on a starting booking ("Table for 8, Friday
+ * 8pm"), answering live against the demo site's engine when the Showcase plugin serves this page, and otherwise from times the
+ * real engine worked out (demo/*.json, recorded by tests/record-demo.php).
  */
 import { DemoSource } from './widget/demo-source.js';
 import { RestSource } from './widget/jsb-booking.js';
@@ -22,11 +22,11 @@ const rooms = [ ...document.querySelectorAll( '.room' ) ];
 const picks = [ ...document.querySelectorAll( '.doors-pick button' ) ];
 const tryLine = document.querySelector( '.doors-try' );
 const DOORS = [
-	[ 'Salons: stylists, chairs and add-ons.', 'Haircut and gel, Saturday' ],
-	[ 'Restaurants: tables joined for a large party.', 'Table for 8, Friday 8pm' ],
-	[ 'Workshops: bays, mechanics and parts.', 'Brake pads for a 2019 Myvi, Tuesday' ],
-	[ 'Home services: travel time between visits.', 'Aircon check at my place, Monday' ],
-	[ 'Clinics and spas: rooms and practitioners.', 'See the doctor, Thursday' ],
+	[ 'Salons: stylists, chairs and add-ons.', 'salon', 'Mei Hair Studio' ],
+	[ 'Restaurants: tables joined for a large party.', 'restaurant', 'Rumah Makan Seri' ],
+	[ 'Workshops: bays, mechanics and parts.', 'workshop', 'Bengkel Ah Kow' ],
+	[ 'Home services: travel time between visits.', 'field', 'CoolAir Services' ],
+	[ 'Clinics and spas: rooms and practitioners.', 'staff', 'Klinik Dr Wong' ],
 ];
 let room = 0;
 
@@ -43,24 +43,17 @@ function enter( n ) {
 	room = n;
 	frames.forEach( ( f, i ) => f.classList.toggle( 'on', i === n ) );
 	picks.forEach( ( p, i ) => p.setAttribute( 'aria-pressed', String( i === n ) ) );
-	const [ what, line ] = DOORS[ n ];
+	const [ what, kind, name ] = DOORS[ n ];
 	tryLine.firstElementChild.textContent = what;
-	tryLine.lastElementChild.textContent = `Try “${ line }”`;
-	tryLine.lastElementChild.dataset.try = line;
+	tryLine.lastElementChild.textContent = `Book at ${ name }`;
+	tryLine.lastElementChild.dataset.try = kind;
 }
 picks.forEach( ( p, i ) => {
 	p.addEventListener( 'click', () => enter( i ) );
 	p.addEventListener( 'animationend', () => enter( ( i + 1 ) % rooms.length ) );
 } );
 tryLine.lastElementChild.addEventListener( 'click', ( e ) => {
-	const line = e.currentTarget.dataset.try;
-	const example = document.querySelector( `[data-ask="${ line }"]` );
-	if ( example ) {
-		example.click();
-	} else {
-		input.value = line;
-		input.dispatchEvent( new Event( 'input' ) );
-	}
+	document.querySelector( `.biz [data-kind="${ e.currentTarget.dataset.try }"]` ).click();
 } );
 // the line under the word pauses while someone reads the headline, works the words, or has scrolled past
 const hold = ( on ) => hero.classList.toggle( 'held', on );
@@ -95,26 +88,12 @@ document.querySelectorAll( '[data-reveal]' ).forEach( ( s ) => {
 } );
 setTimeout( () => document.querySelectorAll( '[data-reveal].wait:not(.in)' ).forEach( ( s ) => s.classList.add( 'in' ) ), 4000 );
 
-// ------------------------------------------------------------------ the typed line
+// ------------------------------------------------------------------ the demo businesses
 
-const input = document.getElementById( 'ask' );
-const caret = document.querySelector( '.caret' );
 const holder = document.getElementById( 'answer-widget' );
 const note = document.getElementById( 'answer-note' );
 const NOTE = note.textContent;
-
-/** The block caret sits after the last character (the input's own caret is hidden). */
-const measure = document.createElement( 'canvas' ).getContext( '2d' );
-function placeCaret() {
-	const cs = getComputedStyle( input );
-	measure.font = `${ cs.fontWeight } ${ cs.fontSize } ${ cs.fontFamily }`;
-	const ls = parseFloat( cs.letterSpacing ) || 0;
-	const w = measure.measureText( input.value ).width + ls * input.value.length;
-	caret.style.left = Math.min( w + 4, input.clientWidth - 4 ) + 'px';
-}
-input.addEventListener( 'input', placeCaret );
-addEventListener( 'resize', placeCaret );
-document.fonts.ready.then( placeCaret );
+const businesses = [ ...document.querySelectorAll( '.biz button' ) ];
 
 const WEEKDAYS = [ 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday' ];
 const has = ( text, words ) => words.some( ( w ) => text.includes( w ) );
@@ -142,7 +121,7 @@ function dayFrom( text ) {
 	return at( ( i - now + 7 ) % 7 || 7 );
 }
 
-/** What the line asks for: which demo business, and the choices to fill in. */
+/** What a business's starting line asks for: which demo business, and the choices to fill in. */
 function read( raw ) {
 	const t = ' ' + raw.toLowerCase().replace( /[,.!?]/g, ' ' ) + ' ';
 	const day = dayFrom( t );
@@ -235,12 +214,8 @@ async function sourceFor( kind ) {
 const cache = {};
 let shown = null; // { kind, el, how }
 
-async function answer() {
-	const ask = read( input.value );
-	if ( ! ask ) {
-		note.textContent = 'Name what to book: a table, a haircut, a car service, an aircon visit or the doctor, and a day.';
-		return;
-	}
+async function answer( line ) {
+	const ask = read( line );
 	try {
 		cache[ ask.kind ] = cache[ ask.kind ] || sourceFor( ask.kind );
 		const { source, id, data, how } = await cache[ ask.kind ];
@@ -259,20 +234,9 @@ async function answer() {
 	}
 }
 
-let typing;
-input.addEventListener( 'input', () => {
-	clearTimeout( typing );
-	typing = setTimeout( answer, 400 );
-	document.querySelectorAll( '[data-ask]' ).forEach( ( b ) => b.setAttribute( 'aria-pressed', String( b.dataset.ask === input.value ) ) );
-} );
-document.querySelectorAll( '[data-ask]' ).forEach( ( b ) => {
-	b.setAttribute( 'aria-pressed', 'false' );
-	b.addEventListener( 'click', () => {
-		input.value = b.dataset.ask;
-		document.querySelectorAll( '[data-ask]' ).forEach( ( x ) => x.setAttribute( 'aria-pressed', String( x === b ) ) );
-		placeCaret();
-		answer();
-	} );
-} );
-placeCaret();
-answer();
+// each business opens on its own starting line, already filled in; the visitor carries on from there
+businesses.forEach( ( b ) => b.addEventListener( 'click', () => {
+	businesses.forEach( ( x ) => x.setAttribute( 'aria-pressed', String( x === b ) ) );
+	answer( b.dataset.ask );
+} ) );
+answer( ( businesses.find( ( b ) => b.getAttribute( 'aria-pressed' ) === 'true' ) || businesses[ 0 ] ).dataset.ask );

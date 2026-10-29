@@ -1,4 +1,4 @@
-// Keyboard-only check of the marketing page's demo: for each example line, reach its button with Tab, press Enter, then book a
+// Keyboard-only check of the marketing page's demo: for each demo business, reach its button with Tab, press Enter, then book a
 // time in the real widget using Tab, arrow keys, typing and Enter, and read what the widget announces.
 //   php marketing/build.php && node marketing/test-demo.mjs                       the built page, recorded answers
 //   node marketing/test-demo.mjs http://localhost/jsb-test/                      a site whose Showcase serves the page: live
@@ -73,15 +73,17 @@ try {
 			}
 		};
 		try {
-			if ( line.startsWith( 'Table' ) ) {
-				await step( 'the page opens on this line', ( await p.eval( `document.getElementById('ask').value` ) ) === line );
-			} else {
-				await step( 'Tab reaches the example', await tabTo( `[data-ask="${ line }"]` ) );
-				await press( 'Enter' );
-			}
+			await step( 'Tab reaches the business', await tabTo( `.biz [data-ask="${ line }"]` ) );
+			await press( 'Enter' );
+			await step( 'it is the chosen one', ( await p.eval( `document.querySelector('.biz [data-ask="${ line }"]').getAttribute('aria-pressed')` ) ) === 'true' );
 			// wait for the times, as a person would: the live engine takes a second or two a step, the recorded answers almost none
-			for ( let waited = 0; waited < 20000 && ! ( await has( '[data-k="time"]' ) ); waited += 250 ) {
+			// (and until they stop changing: a new business's form loads its first day, then the day asked for)
+			const times = `[...document.querySelector('jsb-booking').shadowRoot.querySelectorAll('[data-k="time"]')].map((t) => t.textContent).join()`;
+			for ( let waited = 0, last = '', same = 0; waited < 20000 && same < 3; waited += 250 ) {
 				await sleep( 250 );
+				const now = ( await has( '[data-k="time"]' ) ) ? await p.eval( times ) : '';
+				same = now && now === last ? same + 1 : 0;
+				last = now;
 			}
 			const shown = await has( '[data-k="time"]' );
 			if ( ! shown ) {
@@ -117,6 +119,8 @@ try {
 			steps.push( '   ' + done.facts.replace( /\n+/g, ' | ' ) );
 		} catch ( e ) {
 			failures++;
+			steps.push( '   the widget says: ' + ( await p.eval( `document.querySelector('jsb-booking').shadowRoot.querySelector('#root').innerText.replace(/\\n+/g, ' | ').slice(0, 400)` ) ) );
+			steps.push( '   focus is on: ' + ( await p.eval( `(() => { const a = ${ DEEP }; return a ? a.tagName + ' ' + ( a.getAttribute('data-k') || a.className || '' ) : 'nothing'; })()` ) ) );
 		}
 		console.log( `== ${ line }\n  ${ steps.join( '\n  ' ) }` );
 	}
