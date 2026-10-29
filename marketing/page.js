@@ -12,23 +12,66 @@ const still = matchMedia( '(prefers-reduced-motion: reduce)' ).matches;
 
 // ------------------------------------------------------------------ the slot: a table, a chair, a bay, a visit, a treatment
 
+// The hero is the room being booked, and the slot in the headline holds the same picture. When the line under the current word
+// has run its length, the next room fades in, in the slot and behind the whole hero together. The words choose a room
+// directly; without motion nothing turns on its own.
+const hero = document.querySelector( '.hero' );
 const slot = document.querySelector( '.slot' );
 const frames = [ ...slot.querySelectorAll( 'img' ) ];
-let frame = 0;
-let paused = false;
-const title = document.querySelector( '.hero-title' );
-title.addEventListener( 'pointerenter', () => ( paused = true ) );
-title.addEventListener( 'pointerleave', () => ( paused = false ) );
-if ( ! still ) {
-	setInterval( () => {
-		if ( paused || document.hidden ) {
-			return;
-		}
-		frames[ frame ].classList.remove( 'on' );
-		frame = ( frame + 1 ) % frames.length;
-		frames[ frame ].classList.add( 'on' );
-	}, 2400 );
+const rooms = [ ...document.querySelectorAll( '.room' ) ];
+const picks = [ ...document.querySelectorAll( '.doors-pick button' ) ];
+const tryLine = document.querySelector( '.doors-try' );
+const DOORS = [
+	[ 'Salons: stylists, chairs and add-ons.', 'Haircut and gel, Saturday' ],
+	[ 'Restaurants: tables joined for a large party.', 'Table for 8, Friday 8pm' ],
+	[ 'Workshops: bays, mechanics and parts.', 'Brake pads for a 2019 Myvi, Tuesday' ],
+	[ 'Home services: travel time between visits.', 'Aircon check at my place, Monday' ],
+	[ 'Clinics and spas: rooms and practitioners.', 'See the doctor, Thursday' ],
+];
+let room = 0;
+
+function enter( n ) {
+	if ( n === room ) {
+		return;
+	}
+	const from = rooms[ room ];
+	const to = rooms[ n ];
+	rooms.forEach( ( r ) => r.classList.remove( 'under' ) );
+	from.classList.add( 'under' );
+	from.classList.remove( 'on' );
+	to.classList.add( 'on' );
+	room = n;
+	frames.forEach( ( f, i ) => f.classList.toggle( 'on', i === n ) );
+	picks.forEach( ( p, i ) => p.setAttribute( 'aria-pressed', String( i === n ) ) );
+	const [ what, line ] = DOORS[ n ];
+	tryLine.firstElementChild.textContent = what;
+	tryLine.lastElementChild.textContent = `Try “${ line }”`;
+	tryLine.lastElementChild.dataset.try = line;
 }
+picks.forEach( ( p, i ) => {
+	p.addEventListener( 'click', () => enter( i ) );
+	p.addEventListener( 'animationend', () => enter( ( i + 1 ) % rooms.length ) );
+} );
+tryLine.lastElementChild.addEventListener( 'click', ( e ) => {
+	const line = e.currentTarget.dataset.try;
+	const example = document.querySelector( `[data-ask="${ line }"]` );
+	if ( example ) {
+		example.click();
+	} else {
+		input.value = line;
+		input.dispatchEvent( new Event( 'input' ) );
+	}
+} );
+// the line under the word pauses while someone reads the headline, works the words, or has scrolled past
+const hold = ( on ) => hero.classList.toggle( 'held', on );
+let pointer = false;
+let away = false;
+const update = () => hold( pointer || away || hero.contains( document.activeElement ) );
+document.querySelector( '.hero-title' ).addEventListener( 'pointerenter', () => ( ( pointer = true ), update() ) );
+document.querySelector( '.hero-title' ).addEventListener( 'pointerleave', () => ( ( pointer = false ), update() ) );
+hero.addEventListener( 'focusin', update );
+hero.addEventListener( 'focusout', () => setTimeout( update ) );
+new IntersectionObserver( ( [ e ] ) => ( ( away = ! e.isIntersecting ), update() ), { threshold: 0.25 } ).observe( hero );
 
 // ------------------------------------------------------------------ sections rise in once
 

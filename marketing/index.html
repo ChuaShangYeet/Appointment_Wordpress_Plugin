@@ -12,7 +12,13 @@
 <body>
 
 <header class="hero" id="top">
-	<img class="hero-bg" src="{{assets}}img/salon.webp" alt="A salon with three styling chairs facing round mirrors on a dark wall" width="2400" height="1666">
+	<div class="rooms">
+		<div class="room on" data-kind="chair"><img src="{{assets}}img/salon.webp" alt="A salon with three styling chairs facing round mirrors on a dark wall" width="2400" height="1666"><span class="scrim"></span></div>
+		<div class="room" data-kind="table"><img src="{{assets}}img/restaurant.webp" alt="Dishes on blue and white plates, laid on a dark cloth among chillies and shallots" width="2400" height="3600" decoding="async"><span class="scrim"></span></div>
+		<div class="room" data-kind="bay"><img src="{{assets}}img/workshop.webp" alt="A mechanic leaning over an open engine bay" width="2400" height="3600" decoding="async"><span class="scrim"></span></div>
+		<div class="room" data-kind="visit"><img src="{{assets}}img/home.webp" alt="Air conditioning units on the white wall of a building" width="2400" height="1350" decoding="async"><span class="scrim"></span></div>
+		<div class="room" data-kind="treatment"><img src="{{assets}}img/spa.webp" alt="Warm stones laid along a person's back at a spa" width="2400" height="1600" decoding="async"><span class="scrim"></span></div>
+	</div>
 	<nav class="nav" aria-label="Page">
 		<a class="wordmark" href="#top">JustSimple Booking</a>
 		<ul>
@@ -25,14 +31,24 @@
 	<h1 class="hero-title">
 		<span class="line">Book any</span>
 		<span class="line two"><span class="slot" role="img" aria-label="table, chair, bay, visit or treatment">
-			<img src="{{assets}}img/restaurant.webp" alt="" width="2400" height="3600" class="on">
-			<img src="{{assets}}img/salon.webp" alt="" width="2400" height="1666">
+			<img src="{{assets}}img/salon.webp" alt="" width="2400" height="1666" class="on">
+			<img src="{{assets}}img/restaurant.webp" alt="" width="2400" height="3600">
 			<img src="{{assets}}img/workshop.webp" alt="" width="2400" height="3600">
 			<img src="{{assets}}img/home.webp" alt="" width="2400" height="1350">
 			<img src="{{assets}}img/spa.webp" alt="" width="2400" height="1600">
 		</span> online.</span>
 	</h1>
 	<p class="horizon"><span>A free WordPress plugin for salons, clinics, restaurants, workshops and home services.</span> <span>Every booking is worked out on your own site.</span></p>
+	<div class="doors">
+		<div class="doors-pick" role="group" aria-label="What is being booked">
+			<button type="button" aria-pressed="true">Chair</button>
+			<button type="button" aria-pressed="false">Table</button>
+			<button type="button" aria-pressed="false">Bay</button>
+			<button type="button" aria-pressed="false">Visit</button>
+			<button type="button" aria-pressed="false">Treatment</button>
+		</div>
+		<p class="doors-try" aria-live="polite"><span>Salons: stylists, chairs and add-ons.</span> <a href="#try" data-try="Haircut and gel, Saturday">Try “Haircut and gel, Saturday”</a></p>
+	</div>
 	<a class="paper-btn phone-only" href="{{zip}}" download>Download the plugin</a>
 </header>
 
