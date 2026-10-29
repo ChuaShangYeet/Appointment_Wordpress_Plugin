@@ -1,6 +1,8 @@
 // Keyboard-only check of the marketing page's demo: for each example line, reach its button with Tab, press Enter, then book a
 // time in the real widget using Tab, arrow keys, typing and Enter, and read what the widget announces.
-//   php marketing/build.php && node marketing/test-demo.mjs
+//   php marketing/build.php && node marketing/test-demo.mjs                       the built page, recorded answers
+//   node marketing/test-demo.mjs http://localhost/jsb-test/                      a site whose Showcase serves the page: live
+//   node marketing/test-demo.mjs "http://localhost/jsb-test/?demo=recorded"      the same site, forced onto the recorded answers
 import { createServer } from 'node:http';
 import { createReadStream, statSync } from 'node:fs';
 import { extname, join, resolve, sep } from 'node:path';
@@ -25,8 +27,11 @@ const server = createServer( ( req, res ) => {
 		res.end();
 	}
 } );
-await new Promise( ( ok ) => server.listen( 0, '127.0.0.1', ok ) );
-const url = `http://127.0.0.1:${ server.address().port }/`;
+const site = process.argv[ 2 ] || null;
+if ( ! site ) {
+	await new Promise( ( ok ) => server.listen( 0, '127.0.0.1', ok ) );
+}
+const url = site || `http://127.0.0.1:${ server.address().port }/`;
 
 const KEYS = { Tab: 9, Enter: 13, ' ': 32, ArrowRight: 39 };
 const sleep = ( ms ) => new Promise( ( ok ) => setTimeout( ok, ms ) );
@@ -74,7 +79,10 @@ try {
 				await step( 'Tab reaches the example', await tabTo( `[data-ask="${ line }"]` ) );
 				await press( 'Enter' );
 			}
-			await sleep( 1800 );
+			// wait for the times, as a person would: the live engine takes a second or two a step, the recorded answers almost none
+			for ( let waited = 0; waited < 20000 && ! ( await has( '[data-k="time"]' ) ); waited += 250 ) {
+				await sleep( 250 );
+			}
 			const shown = await has( '[data-k="time"]' );
 			if ( ! shown ) {
 				steps.push( '   the widget says: ' + ( await p.eval( `document.querySelector('jsb-booking').shadowRoot.querySelector('#root').innerText.replace(/\\n+/g, ' | ').slice(0, 400)` ) ) );
@@ -99,7 +107,11 @@ try {
 			await press( 'Enter' );
 			await sleep( 1200 );
 			const done = await p.eval( `(() => { const r = document.querySelector('jsb-booking').shadowRoot; return { live: r.querySelector('#live').textContent, demo: !!r.querySelector('#step-done .msg.accent'), facts: (r.querySelector('.facts') || {}).innerText || '', focus: (${ DEEP } || {}).tagName }; })()` );
-			await step( `booked: "${ done.live }"`, /DEMO/.test( done.live.replace( / /g, '' ) ) );
+			// live bookings get real codes; recorded ones start DEMO. The note above the form says which this is.
+			const expectLive = !! site && ! /demo=recorded/.test( site );
+			const noteText = await p.eval( `document.getElementById('answer-note').textContent` );
+			await step( `booked: "${ done.live }"`, expectLive ? /Your code is/.test( done.live ) && ! /DEMO/.test( done.live.replace( / /g, '' ) ) : /DEMO/.test( done.live.replace( / /g, '' ) ) );
+			await step( `the page says it is ${ expectLive ? 'live' : 'recorded' }`, expectLive ? /booking live/.test( noteText ) : ! /booking live/.test( noteText ) );
 			await step( 'the done screen says it is a demo', done.demo );
 			await step( 'focus moved to the done heading', done.focus === 'H3' );
 			steps.push( '   ' + done.facts.replace( /\n+/g, ' | ' ) );
@@ -114,7 +126,9 @@ try {
 	}
 } finally {
 	await b.close();
-	server.close();
+	if ( ! site ) {
+		server.close();
+	}
 }
 console.log( failures ? `${ failures } FAILED` : 'all passed' );
 process.exit( failures ? 1 : 0 );

@@ -22,6 +22,7 @@ localsite/data/
 # The built marketing page (php marketing/build.php)
 marketing/dist/
 marketing/dist-artifact/
+showcase/site/
 
 # Local test-site credentials
 dev/

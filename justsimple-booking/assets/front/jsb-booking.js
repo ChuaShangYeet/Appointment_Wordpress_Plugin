@@ -122,7 +122,7 @@ class JsbBooking extends HTMLElement {
 	// ---------------------------------------------------------------- loading
 
 	async start() {
-		const p = new URLSearchParams( this.src.demo ? '' : location.search ); // a demo has no bookings to manage
+		const p = new URLSearchParams( true === this.src.demo ? '' : location.search ); // a recorded demo has no bookings to manage
 		if ( p.get( 'jsb_booking' ) && p.get( 'jsb_token' ) ) {
 			try {
 				const b = await this.src.show( p.get( 'jsb_booking' ), p.get( 'jsb_token' ) );
@@ -1100,11 +1100,14 @@ class JsbBooking extends HTMLElement {
 		const pending = bk.status === 'pending';
 		const body = `<p class="summary" style="margin-top:0">${ pending ? 'Request sent. The business will confirm it' + ( bk.hold_expires ? ' by ' + esc( hm( bk.hold_expires ) ) : '' ) + '.' : 'You are booked.' } Your booking code:</p>` +
 			`<p class="done-code" aria-label="Booking code ${ esc( bk.code.split( '' ).join( ' ' ) ) }">${ esc( bk.code ) }</p>` +
-			( this.src.demo
+			// a recorded demo (src.demo true) booked nothing; the live demo (src.demo 'live') booked for real, until tonight's reset
+			( true === this.src.demo
 				? `<p class="msg accent" style="margin-top:0">This is the demo: nothing was booked. On your own site the customer gets this code by email, with a link to change or cancel.</p>`
-				: `<p class="hint" style="margin-top:0">Quote it if you call.${ this.st.details.email ? ' We have emailed it to you.' : '' }</p>` ) +
+				: 'live' === this.src.demo
+					? `<p class="msg accent" style="margin-top:0">This booking is real on this demo site until tonight's reset. No email is sent here; on your own site the customer gets this code by email.</p>`
+					: `<p class="hint" style="margin-top:0">Quote it if you call.${ this.st.details.email ? ' We have emailed it to you.' : '' }</p>` ) +
 			this.factsHtml( bk ) +
-			`<div class="actions">${ this.src.demo ? '' : `<a class="btn secondary" href="${ esc( this.manageLink( bk.code, r.manage_token ) ) }">Change or cancel</a>` }<button type="button" class="link" data-act="again">Make another booking</button></div>`;
+			`<div class="actions">${ true === this.src.demo ? '' : `<a class="btn secondary" href="${ esc( this.manageLink( bk.code, r.manage_token ) ) }">Change or cancel</a>` }<button type="button" class="link" data-act="again">Make another booking</button></div>`;
 		return `<section class="step opening" id="step-done"><div class="step-head"><h3>${ pending ? 'Request sent' : 'Booked' }</h3></div><div class="step-body">${ body }</div></section>`;
 	}
 

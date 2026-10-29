@@ -55,7 +55,8 @@ clear( $dist, $dist );
 
 // the page, with the version and the zip's name filled in
 foreach ( array( 'index.html', 'page.css', 'page.js' ) as $f ) {
-	$text = str_replace( array( '{{version}}', '{{zip}}' ), array( $version, $artifact ? '#get' : "justsimple-booking-$version.zip" ), file_get_contents( "$here/$f" ) );
+	// {{assets}}: the files sit beside the page here; the Showcase build below keeps it for the plugin to fill in
+	$text = str_replace( array( '{{version}}', '{{zip}}', '{{assets}}' ), array( $version, $artifact ? '#get' : "justsimple-booking-$version.zip", '' ), file_get_contents( "$here/$f" ) );
 	if ( $artifact && 'index.html' === $f ) {
 		// the host wraps the page in its own document: keep the head's contents and the body's, with a plain name as the title
 		preg_match( '#<head>(.*?)</head>#s', $text, $head );
@@ -103,3 +104,43 @@ foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $base, 
 $zip->close();
 
 printf( "marketing/dist built: plugin %s, %d files in the zip (%.0f KB)\n", $version, $files, filesize( $zipPath ) / 1024 );
+
+// ------------------------------------------------------------------ the Showcase plugin, with the page inside it
+
+// The live demo site's plugin serves this page itself (showcase/src/Front.php), filling {{assets}} with its own address.
+$showcase = dirname( __DIR__ ) . '/showcase';
+$site     = "$showcase/site";
+if ( ! is_dir( $site ) ) {
+	mkdir( $site, 0777, true );
+}
+foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $site, FilesystemIterator::SKIP_DOTS ), RecursiveIteratorIterator::CHILD_FIRST ) as $f ) {
+	$f->isDir() ? rmdir( $f->getPathname() ) : unlink( $f->getPathname() );
+}
+foreach ( array( 'index.html', 'page.css', 'page.js' ) as $f ) {
+	file_put_contents( "$site/$f", str_replace( array( '{{version}}', '{{zip}}' ), array( $version, "{{assets}}justsimple-booking-$version.zip" ), file_get_contents( "$here/$f" ) ) );
+}
+foreach ( array( 'img', 'demo', 'widget', 'fonts' ) as $folder ) {
+	foreach ( glob( "$dist/$folder/*" ) as $f ) {
+		put( $f, "$site/$folder/" . basename( $f ) );
+	}
+}
+put( $zipPath, "$site/justsimple-booking-$version.zip" ); // the page's Download buttons
+if ( ! preg_match( '/^\s*\*\s*Version:\s*(\S+)/m', file_get_contents( "$showcase/justsimple-showcase.php" ), $sv ) ) {
+	fwrite( STDERR, "no Version: header in justsimple-showcase.php\n" );
+	exit( 1 );
+}
+$szPath = "$dist/justsimple-showcase-{$sv[1]}.zip";
+$sz     = new ZipArchive();
+$sz->open( $szPath, ZipArchive::CREATE | ZipArchive::OVERWRITE );
+$sbase  = realpath( $showcase );
+$sfiles = 0;
+foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $sbase, FilesystemIterator::SKIP_DOTS ) ) as $f ) {
+	$rel = str_replace( '\\', '/', substr( $f->getPathname(), strlen( $sbase ) + 1 ) );
+	if ( preg_match( '#^tests/|(^|/)\.#', $rel ) ) {
+		continue;
+	}
+	$sz->addFile( $f->getPathname(), "justsimple-showcase/$rel" );
+	$sfiles++;
+}
+$sz->close();
+printf( "showcase built: justsimple-showcase-%s.zip, %d files (%.1f MB)\n", $sv[1], $sfiles, filesize( $szPath ) / 1048576 );

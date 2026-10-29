@@ -1,10 +1,11 @@
 /**
  * The marketing page's behaviour: the headline's slot cycling through what each kind of business books, the sections rising in
  * once, and the one live thing: a typed line ("Table for 8, Friday 8pm") that drives the plugin's real booking form, answering
- * from times the real engine worked out for five demo businesses (demo/*.json, recorded by tests/record-demo.php).
+ * live against the demo site's engine when the Showcase plugin serves this page, and otherwise from times the real engine worked
+ * out for five demo businesses (demo/*.json, recorded by tests/record-demo.php).
  */
 import { DemoSource } from './widget/demo-source.js';
-import './widget/jsb-booking.js';
+import { RestSource } from './widget/jsb-booking.js';
 
 document.documentElement.classList.add( 'js' );
 const still = matchMedia( '(prefers-reduced-motion: reduce)' ).matches;
@@ -153,8 +154,43 @@ function choices( ask, data ) {
 	}
 }
 
+// On the live demo site (the JustSimple Showcase plugin serves this page) window.jsbShowcase names the site's REST address and
+// its five demo booking pages: the widget then books for real against the engine. Anywhere else, or when the live site does
+// not answer with JSON (a host's browser check, an outage), it replays the recorded answers. ?demo=recorded forces those.
+const LIVE = window.jsbShowcase && new URLSearchParams( location.search ).get( 'demo' ) !== 'recorded' ? window.jsbShowcase : null;
+const NOTES = {
+	live: 'The plugin\'s real booking form, booking live on this demo site. Everything here is wiped at 3 am each night, and no email is sent.',
+	recorded: NOTE,
+	fallback: 'The live demo is not answering just now, so this replays times the engine worked out earlier. Nothing you book here is real.',
+};
+
+/** { source, id, data: { module, vehicles }, how: 'live' | 'recorded' | 'fallback' } for one kind of business. */
+async function sourceFor( kind ) {
+	const id = LIVE && LIVE.pages && LIVE.pages[ kind ];
+	if ( id ) {
+		try {
+			const get = async ( path ) => {
+				const r = await fetch( `${ LIVE.api }${ path }`, { credentials: 'omit' } );
+				if ( ! r.ok || ! ( r.headers.get( 'content-type' ) || '' ).includes( 'json' ) ) {
+					throw new Error( 'not JSON' );
+				}
+				return r.json();
+			};
+			const module = await get( `/modules/${ id }` );
+			const vehicles = kind === 'workshop' ? await get( `/modules/${ id }/supported-vehicles` ) : [];
+			const source = new RestSource( LIVE.api );
+			source.demo = 'live';
+			return { source, id, data: { module, vehicles }, how: 'live' };
+		} catch ( e ) {
+			// falls through to the recorded answers
+		}
+	}
+	const data = await fetch( new URL( `./demo/${ kind }.json`, import.meta.url ) ).then( ( r ) => r.json() );
+	return { source: new DemoSource( data ), id: 1, data, how: id ? 'fallback' : 'recorded' };
+}
+
 const cache = {};
-let shown = null; // { kind, el }
+let shown = null; // { kind, el, how }
 
 async function answer() {
 	const ask = read( input.value );
@@ -162,17 +198,17 @@ async function answer() {
 		note.textContent = 'Name what to book: a table, a haircut, a car service, an aircon visit or the doctor, and a day.';
 		return;
 	}
-	note.textContent = NOTE;
 	try {
-		cache[ ask.kind ] = cache[ ask.kind ] || fetch( `demo/${ ask.kind }.json` ).then( ( r ) => r.json() );
-		const data = await cache[ ask.kind ];
+		cache[ ask.kind ] = cache[ ask.kind ] || sourceFor( ask.kind );
+		const { source, id, data, how } = await cache[ ask.kind ];
+		note.textContent = NOTES[ how ];
 		if ( ! shown || shown.kind !== ask.kind ) {
 			const el = document.createElement( 'jsb-booking' );
-			el.setAttribute( 'module', '1' );
-			el.setAttribute( 'css', 'widget/jsb-booking.css' );
-			el.source = new DemoSource( data );
+			el.setAttribute( 'module', String( id ) );
+			el.setAttribute( 'css', new URL( './widget/jsb-booking.css', import.meta.url ).href );
+			el.source = source;
 			holder.replaceChildren( el );
-			shown = { kind: ask.kind, el };
+			shown = { kind: ask.kind, el, how };
 		}
 		shown.el.preset( choices( ask, data ) );
 	} catch ( e ) {
