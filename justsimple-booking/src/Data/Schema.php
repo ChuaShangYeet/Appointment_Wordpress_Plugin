@@ -16,7 +16,7 @@ defined( 'ABSPATH' ) || exit;
  */
 final class Schema {
 
-	const VERSION = 1;
+	const VERSION = 2; // 2: every table InnoDB, also on hosts whose default engine is MyISAM
 	const OPTION  = 'jsb_db_version';
 
 	/** Every table, without prefix. Order matters only for readability; there are no foreign keys. */
@@ -65,7 +65,23 @@ final class Schema {
 		foreach ( self::statements() as $sql ) {
 			dbDelta( $sql );
 		}
+		self::ensure_innodb();
 		update_option( self::OPTION, self::VERSION, false );
+	}
+
+	/**
+	 * Converts any plugin table that is not InnoDB (some hosts default to MyISAM, and dbDelta never changes an existing table's
+	 * engine). Bookings rely on InnoDB's transactions and row locks to stop double booking. A host without InnoDB keeps
+	 * MyISAM, and System status shows it as a problem.
+	 */
+	public static function ensure_innodb() {
+		global $wpdb;
+		foreach ( self::TABLES as $name ) {
+			$engine = $wpdb->get_var( $wpdb->prepare( 'SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s', self::table( $name ) ) );
+			if ( $engine && 0 !== strcasecmp( $engine, 'InnoDB' ) ) {
+				$wpdb->query( 'ALTER TABLE ' . self::table( $name ) . ' ENGINE=InnoDB' ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- table names are constants
+			}
+		}
 	}
 
 	/** Used by uninstall.php only, and only when the owner asked for their data to be deleted. */
@@ -80,7 +96,7 @@ final class Schema {
 	/** @return array<string,string> table name (without prefix) => CREATE TABLE statement */
 	public static function statements() {
 		global $wpdb;
-		$c = $wpdb->get_charset_collate();
+		$c = 'ENGINE=InnoDB ' . $wpdb->get_charset_collate(); // named, not left to the host's default
 		$t = array();
 		foreach ( self::TABLES as $name ) {
 			$t[ $name ] = self::table( $name );
