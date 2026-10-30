@@ -14,6 +14,7 @@ if ( empty( $argv[1] ) || ! is_file( rtrim( $argv[1], '/\\' ) . '/wp-load.php' )
 $_SERVER['HTTP_HOST'] = 'localhost';
 require rtrim( $argv[1], '/\\' ) . '/wp-load.php';
 
+use JustSimple\Booking\Data\Db;
 use JustSimple\Booking\Data\Schema;
 
 // Public routes are rate limited per IP; every CLI request comes from the same "unknown" address. The limit itself is
@@ -154,6 +155,33 @@ $cust = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . Schema::table( 'custo
 check( 201 === $s && 'aisha@example.test' === $cust['email'] && 'Aisha B' === $cust['name'], 'same phone: name updated, email on record kept', $cust );
 $contact = $wpdb->get_var( $wpdb->prepare( 'SELECT contact_email FROM ' . Schema::table( 'bookings' ) . ' WHERE code = %s', $b3['booking']['code'] ) );
 check( 'someone-else@example.test' === $contact, 'the new email stays on the booking only', $contact );
+
+echo "== mobile numbers (the backend's check, 2026-10-30)\n";
+$phone_of = static function ( $b ) use ( $wpdb ) {
+	return $wpdb->get_var( $wpdb->prepare( 'SELECT c.phone FROM ' . Schema::table( 'bookings' ) . ' b JOIN ' . Schema::table( 'customers' ) . ' c ON c.id = b.customer_id WHERE b.code = %s', $b['booking']['code'] ) );
+};
+list( $s, $d ) = call( 'POST', "/modules/$mid/bookings", $body( $at( '14:00' ), null, '012-345 678' ) );
+check( 422 === $s && 'customer.phone' === $d['data']['field'] && 'That is not a mobile number in Malaysia: it has 9 or 10 digits after +60, such as 012-345 6789' === $d['message'], 'a Malaysian mobile a digit short: refused, saying what one looks like', $d );
+list( $s, $d ) = call( 'POST', "/modules/$mid/bookings", $body( $at( '14:00' ), null, '03-2282 4410' ) );
+check( 422 === $s && 'customer.phone' === $d['data']['field'] && false !== strpos( $d['message'], 'landline' ), 'a landline: refused, codes go by WhatsApp or SMS', $d );
+list( $s, $d ) = call( 'POST', "/modules/$mid/bookings", $body( $at( '14:00' ), null, '9123 4567', array( 'customer' => array( 'name' => 'Wei', 'phone' => '9123 4567', 'phone_country' => 'ZZ' ) ) ) );
+check( 422 === $s && 'customer.phone_country' === $d['data']['field'], 'a country code that is no country: refused', $d );
+list( $s, $sg ) = call( 'POST', "/modules/$mid/bookings", $body( $at( '14:00' ), null, '9123 4567', array( 'customer' => array( 'name' => 'Wei', 'phone' => '9123 4567', 'phone_country' => 'SG' ) ) ) );
+check( 201 === $s && '+6591234567' === $phone_of( $sg ), 'a Singapore number with SG chosen in front: kept as +6591234567', array( $s, $sg ) );
+list( $s, $my ) = call( 'POST', "/modules/$mid/bookings", $body( $at( '14:00' ), null, '012-777 0101' ) );
+check( 201 === $s && '+60127770101' === $phone_of( $my ), 'no country chosen: the page\'s own (Malaysia); 012-777 0101 kept as +60127770101', array( $s, $my ) );
+// numbers kept the old way (as typed, digits only), fresh each run: the site keeps its data between runs
+$land = '037' . random_int( 1000000, 9999999 );
+$mob  = '019' . random_int( 1000000, 9999999 );
+$wpdb->insert( Schema::table( 'customers' ), array( 'name' => 'Old Landline', 'phone' => $land, 'created_utc' => Db::now_sql(), 'updated_utc' => Db::now_sql() ) );
+list( $s, $old ) = call( 'POST', "/modules/$mid/bookings", $body( $at( '09:00' ), null, substr( $land, 0, 2 ) . '-' . substr( $land, 2, 4 ) . ' ' . substr( $land, 6 ) ) );
+check( 201 === $s && $land === $phone_of( $old ), 'a number already on file books as it is, though no mobile', array( $s, $old ) );
+$wpdb->insert( Schema::table( 'customers' ), array( 'name' => 'Old Spelling', 'phone' => $mob, 'created_utc' => Db::now_sql(), 'updated_utc' => Db::now_sql() ) );
+Schema::standard_phones();
+$rewritten = $wpdb->get_col( $wpdb->prepare( 'SELECT phone FROM ' . Schema::table( 'customers' ) . ' WHERE phone IN (%s, %s, %s, %s) ORDER BY phone', $land, $mob, '+60' . substr( $land, 1 ), '+60' . substr( $mob, 1 ) ) );
+check( array( '+60' . substr( $mob, 1 ), '+60' . substr( $land, 1 ) ) === $rewritten, 'the upgrade keeps old numbers the new way: +<digits>', $rewritten );
+list( $s, $again ) = call( 'POST', "/modules/$mid/bookings", $body( $at( '12:00' ), null, substr( $mob, 0, 3 ) . '-' . substr( $mob, 3, 3 ) . ' ' . substr( $mob, 6 ) ) );
+check( 201 === $s && '+60' . substr( $mob, 1 ) === $phone_of( $again ) && 1 === (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . Schema::table( 'customers' ) . ' WHERE phone = %s', '+60' . substr( $mob, 1 ) ) ), 'and the customer typing it as before is the same customer', $again );
 
 echo "== manage link\n";
 $code = $b1['booking']['code'];
@@ -341,7 +369,7 @@ echo "== salon: upsell\n";
 as_user( 1 );
 // A: an upsell that would reach the next appointment
 list( , $first ) = $book( array( 'cut' ), $st[1], $iso( $T ) );
-list( $s, $next ) = $book( array( 'color' ), $st[1], $iso( $T + 45 * 60 ), 'Next Customer', '+60111222333' );
+list( $s, $next ) = $book( array( 'color' ), $st[1], $iso( $T + 45 * 60 ), 'Next Customer', '+601112223333' );
 $first_id = $bid( $first );
 $next_id  = $bid( $next );
 check( 201 === $s, 'S1: cut, then the next customer straight after', $next );
@@ -360,7 +388,7 @@ check( 200 === $s && false === $d['schedule_conflict'], 'the flag can be cleared
 
 // B: an upsell ending exactly when the next appointment starts
 list( , $b1 ) = $book( array( 'cut' ), $st[2], $iso( $T ) );
-$book( array( 'cut' ), $st[2], $iso( $T + 75 * 60 ), 'Later', '+60111222334' );
+$book( array( 'cut' ), $st[2], $iso( $T + 75 * 60 ), 'Later', '+601112223334' );
 $progress( $bid( $b1 ) );
 list( $s, $u ) = $items( $bid( $b1 ), array( 'gel' ) );
 check( 200 === $s && true === $u['extended'] && array() === $u['conflicts'] && $iso( $T + 75 * 60 ) === $u['booking']['end'], 'ending exactly at the next start: extended', $u );
@@ -518,7 +546,7 @@ $rbook = static function ( int $party, string $hm, array $extra = array(), strin
 	return call( 'POST', "/modules/$rid/bookings", array_merge( array(
 		'party_size' => $party,
 		'start'      => $at( $hm ),
-		'customer'   => array( 'name' => 'Diner', 'phone' => $phone ?? '+6013' . random_int( 1000000, 9999999 ), 'email' => 'diner@example.test' ),
+		'customer'   => array( 'name' => 'Diner', 'phone' => $phone ?? '+6012' . random_int( 1000000, 9999999 ), 'email' => 'diner@example.test' ),
 	), $extra ) );
 };
 list( $s, $b ) = $rbook( 3, '19:00', array( 'special_request' => 'Window seat, birthday' ) );
@@ -696,7 +724,7 @@ $gbook = static function ( array $gg, array $svcs, string $start, array $extra =
 			return $gg['svc'][ $k ];
 		}, $svcs ),
 		'start'       => $start,
-		'customer'    => array( 'name' => 'Driver', 'phone' => '+6014' . random_int( 1000000, 9999999 ), 'email' => 'driver@example.test' ),
+		'customer'    => array( 'name' => 'Driver', 'phone' => '+6019' . random_int( 1000000, 9999999 ), 'email' => 'driver@example.test' ),
 		'vehicle'     => array( 'plate_no' => 'W' . random_int( 10000, 99999 ), 'supported_vehicle_id' => $gg['car']['Vios'] ),
 	), $extra ) );
 };
@@ -1218,6 +1246,8 @@ check( 422 === $s, 'a date that does not exist is refused', $d );
 
 list( , $found ) = call( 'GET', "/admin/modules/{$fp['id']}/bookings", null, array( 'from' => $d4, 'to' => $d4, 'q' => '12345 98' ) );
 check( array( 'Farah Board' ) === array_column( array_column( $found, 'customer' ), 'name' ), 'search finds a phone number however it is spaced', array_column( $found, 'customer' ) );
+list( , $found ) = call( 'GET', "/admin/modules/{$fp['id']}/bookings", null, array( 'from' => $d4, 'to' => $d4, 'q' => '012-345 9876' ) );
+check( array( 'Farah Board' ) === array_column( array_column( $found, 'customer' ), 'name' ), 'and as it is dialled at home, with the trunk 0 (kept as +60123459876)', array_column( $found, 'customer' ) );
 list( , $found ) = call( 'GET', "/admin/modules/{$fp['id']}/bookings", null, array( 'from' => $d4, 'to' => $d4, 'q' => substr( $fb['booking']['code'], 0, 5 ) ) );
 check( 1 === count( $found ), 'and a booking code from its first letters' );
 list( , $found ) = call( 'GET', "/admin/modules/{$fp['id']}/bookings", null, array( 'from' => $d4, 'to' => $d4, 'q' => 'nobody-here' ) );
@@ -1303,14 +1333,14 @@ as_user( 1 );
 
 echo "== widget: look, map and the shortcode\n";
 as_user( 1 );
-foreach ( array( array( 'accent' => 'red' ), array( 'font' => 'comic' ), array( 'currency' => 'RINGGITMYR' ), array( 'page_url' => 'javascript:alert(1)' ) ) as $bad ) {
+foreach ( array( array( 'accent' => 'red' ), array( 'font' => 'comic' ), array( 'currency' => 'RINGGITMYR' ), array( 'page_url' => 'javascript:alert(1)' ), array( 'country' => 'my' ), array( 'country' => 'ZZ' ) ) as $bad ) {
 	list( $s, $d ) = call( 'PATCH', "/admin/modules/{$fp['id']}", array( 'settings' => $bad ) );
 	check( 422 === $s, 'settings.' . key( $bad ) . ' refused', $d );
 }
-list( $s ) = call( 'PATCH', "/admin/modules/{$fp['id']}", array( 'settings' => array( 'accent' => '#AA3355', 'font' => 'dm-sans', 'currency' => 'MYR', 'phone' => '+60 3-1234 5678', 'map_picker' => false ) ) );
+list( $s ) = call( 'PATCH', "/admin/modules/{$fp['id']}", array( 'settings' => array( 'accent' => '#AA3355', 'font' => 'dm-sans', 'currency' => 'MYR', 'phone' => '+60 3-1234 5678', 'map_picker' => false, 'country' => 'SG' ) ) );
 as_user( 0 );
 list( , $pm ) = call( 'GET', "/modules/{$fp['id']}" );
-check( 200 === $s && array( 'accent' => '#aa3355', 'font' => 'dm-sans', 'currency' => 'MYR', 'phone' => '+60 3-1234 5678' ) === $pm['look'], 'the look reaches the public module', $pm['look'] );
+check( 200 === $s && array( 'accent' => '#aa3355', 'font' => 'dm-sans', 'currency' => 'MYR', 'phone' => '+60 3-1234 5678', 'country' => 'SG' ) === $pm['look'], 'the look reaches the public module, with the country of customers\' numbers', $pm['look'] );
 check( array( 'enabled' => false, 'center' => array( 3.14, 101.69 ) ) === $pm['map'], 'the map picker can be switched off; its centre is rounded to about 1 km', $pm['map'] );
 list( , $sm ) = call( 'GET', "/modules/$mid" );
 check( null === $sm['map'] && '#4f6238' === $sm['look']['accent'], 'other kinds carry no map and the default colour', $sm );

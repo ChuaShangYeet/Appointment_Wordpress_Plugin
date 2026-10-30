@@ -7,6 +7,7 @@ use JustSimple\Booking\Booking\BookingService;
 use JustSimple\Booking\Booking\DayBoard;
 use JustSimple\Booking\Booking\FieldService;
 use JustSimple\Booking\Booking\Parts;
+use JustSimple\Booking\Booking\Phone;
 use JustSimple\Booking\Booking\Upsell;
 use JustSimple\Booking\Data\Catalog;
 use JustSimple\Booking\Data\Db;
@@ -738,8 +739,11 @@ final class AdminController {
 				$digits = preg_replace( '/\D/', '', $q );
 				$like   = '%' . $wpdb->esc_like( $q ) . '%';
 				$sql   .= $wpdb->prepare( ' AND (code LIKE %s OR customer_id IN (SELECT id FROM ' . Schema::table( 'customers' ) . ' WHERE name LIKE %s', $wpdb->esc_like( strtoupper( $q ) ) . '%', $like );
-				if ( strlen( $digits ) >= 3 ) {
-					$sql .= $wpdb->prepare( " OR REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '.', '') LIKE %s", '%' . $wpdb->esc_like( $digits ) . '%' );
+				// numbers are kept as +60123456789, so 012-345 6789 typed at the desk is looked for without its trunk 0 too
+				foreach ( array_unique( array( $digits, ltrim( $digits, '0' ) ) ) as $d ) {
+					if ( strlen( $d ) >= 3 ) {
+						$sql .= $wpdb->prepare( " OR REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '.', '') LIKE %s", '%' . $wpdb->esc_like( $d ) . '%' );
+					}
 				}
 				$sql .= '))';
 			}
@@ -983,6 +987,12 @@ final class AdminController {
 				}
 				$out[ $k ] = $v;
 			}
+		}
+		if ( array_key_exists( 'country', $in ) ) {
+			if ( ! is_string( $in['country'] ) || ! Phone::known( $in['country'] ) ) {
+				Fields::fail( 'settings.country', 'must be a country code such as MY' );
+			}
+			$out['country'] = $in['country'];
 		}
 		if ( array_key_exists( 'map_picker', $in ) ) {
 			$out['map_picker'] = in_array( $in['map_picker'], array( true, 1, '1', 'true' ), true );

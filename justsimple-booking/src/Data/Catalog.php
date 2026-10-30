@@ -1,6 +1,7 @@
 <?php
 namespace JustSimple\Booking\Data;
 
+use JustSimple\Booking\Booking\Phone;
 use JustSimple\Booking\Engine\EngineError;
 use JustSimple\Booking\Engine\Policy;
 
@@ -24,6 +25,7 @@ final class Catalog {
 		'font'              => 'theme',   // 'theme' (inherit the site's font) or 'dm-sans' (bundled)
 		'currency'          => 'RM',
 		'phone'             => '',        // shown when the widget cannot run (no script) and for on-site help
+		'country'           => '',        // where customers' phone numbers are read when typed without a code; '' = the site's time zone's country
 		'map_picker'        => true,      // field: allow the optional OpenStreetMap picker
 		'page_url'          => '',        // the page the widget is on, for manage links in emails
 	);
@@ -38,6 +40,9 @@ final class Catalog {
 		$row['id']       = (int) $row['id'];
 		$settings        = json_decode( (string) $row['settings'], true );
 		$row['settings'] = array_merge( self::SETTINGS_DEFAULTS, is_array( $settings ) ? $settings : array() );
+		if ( ! Phone::known( (string) $row['settings']['country'] ) ) {
+			$row['settings']['country'] = Phone::site_country();
+		}
 		return $row;
 	}
 

@@ -13,6 +13,10 @@
 const DAYS_SHOWN = 14;
 const SLOW_MS = 300; // under this a load shows nothing at all
 
+// every country's calling code, mobile lengths and an example (written by tools/make-phone-plans.py), loaded once per page
+let countriesLoad = null;
+const loadCountries = () => ( countriesLoad = countriesLoad || fetch( new URL( './phone-countries.json', import.meta.url ) ).then( ( r ) => ( r.ok ? r.json() : [] ) ).catch( () => [] ) );
+
 // ------------------------------------------------------------------ small helpers
 
 const esc = ( s ) => String( s ?? '' ).replace( /[&<>"']/g, ( c ) => ( { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } )[ c ] );
@@ -157,6 +161,8 @@ class JsbBooking extends HTMLElement {
 		}
 		this.cur = look.currency || 'RM';
 		this.tz = this.m.timezone || 'UTC';
+		this.countries = [];
+		loadCountries().then( ( list ) => ( this.countries = list ) ); // wanted only at the details step, long after this
 		if ( manageOnly ) {
 			this.render();
 			return;
@@ -188,7 +194,7 @@ class JsbBooking extends HTMLElement {
 			slot: null,
 			taken: null,
 			lead: [],
-			details: { name: '', phone: '', email: '', request: '', line1: '', city: '', postcode: '' },
+			details: { name: '', phone: '', phone_country: '', email: '', request: '', line1: '', city: '', postcode: '' },
 			ack: false,
 			accepted: null,
 			errors: {},
@@ -425,6 +431,13 @@ class JsbBooking extends HTMLElement {
 			return;
 		}
 		const c = st.choice;
+		if ( k === 'd-phone_country' ) {
+			// the code in front changes what the number should look like: its example and any message about it
+			st.details.phone_country = t.value;
+			delete st.errors.phone;
+			this.render( '[data-k="d-phone_country"]' );
+			return;
+		}
 		switch ( k ) {
 			case 'service':
 				c.service = parseInt( t.value, 10 );
@@ -677,8 +690,9 @@ class JsbBooking extends HTMLElement {
 		if ( ! d.name.trim() ) {
 			errors.name = 'Enter your name.';
 		}
-		if ( ( d.phone.match( /\d/g ) || [] ).length < 7 ) {
-			errors.phone = 'Enter a phone number with at least 7 digits.';
+		const phoneProblem = this.phoneProblem();
+		if ( phoneProblem ) {
+			errors.phone = phoneProblem;
 		}
 		if ( d.email && ! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test( d.email ) ) {
 			errors.email = 'Enter a valid email, or leave it empty.';
@@ -698,7 +712,7 @@ class JsbBooking extends HTMLElement {
 		const c = st.choice;
 		const body = {
 			start: st.slot.start,
-			customer: { name: d.name.trim(), phone: d.phone.trim(), email: d.email.trim() },
+			customer: { name: d.name.trim(), phone: d.phone.trim(), phone_country: this.phoneCountry().code, email: d.email.trim() },
 			special_request: d.request.trim(),
 			idempotency_key: ( st.key = st.key || newKey() ),
 			website: this._root.querySelector( '[name="website"]' ).value, // the honeypot
@@ -766,7 +780,7 @@ class JsbBooking extends HTMLElement {
 			return;
 		}
 		const field = e.data && e.data.field;
-		const map = { 'customer.name': 'name', 'customer.phone': 'phone', 'customer.email': 'email', 'address.line1': 'line1' };
+		const map = { 'customer.name': 'name', 'customer.phone': 'phone', 'customer.phone_country': 'phone', 'customer.email': 'email', 'address.line1': 'line1' };
 		if ( field && map[ field ] ) {
 			st.errors = { [ map[ field ] ]: e.message };
 			this.render( `[data-k="d-${ map[ field ] }"]` );
@@ -1033,10 +1047,57 @@ class JsbBooking extends HTMLElement {
 		return `<div class="group"><label class="label" for="d-${ key }">${ label }${ opts.optional ? ' <span class="hint" style="display:inline">(optional)</span>' : '' }</label>${ input }${ err ? `<span class="field-error" id="e-${ key }">${ esc( err ) }</span>` : '' }</div>`;
 	}
 
+	/** The country chosen in front of the number (the booking page's own until the customer picks another). */
+	phoneCountry() {
+		const code = this.st.details.phone_country || ( this.m.look && this.m.look.country ) || 'MY';
+		return this.countries.find( ( c ) => c.code === code ) || { code, name: '', calling: '', lengths: [], example: null, trunk: null };
+	}
+
+	/** Mobile number with its country code in front: a native select laid over "+60", so it takes little room and works by keyboard. */
+	phoneField() {
+		const st = this.st;
+		const err = st.errors.phone;
+		const c = this.phoneCountry();
+		const list = this.countries.length ? this.countries : [ c ];
+		const options = list.map( ( x ) => `<option value="${ esc( x.code ) }"${ x.code === c.code ? ' selected' : '' }>${ esc( x.name || x.code ) }${ x.calling ? ' +' + esc( x.calling ) : '' }</option>` ).join( '' );
+		return `<div class="group"><label class="label" for="d-phone">Mobile number</label>` +
+			`<div class="tel"><span class="cc"><span aria-hidden="true">${ c.calling ? '+' + esc( c.calling ) : esc( c.code ) }</span>` +
+			`<select data-k="d-phone_country" aria-label="Country code">${ options }</select></span>` +
+			`<input id="d-phone" type="tel" data-k="d-phone" autocomplete="tel-national" inputmode="tel" value="${ esc( st.details.phone ) }"${ c.example ? ` placeholder="${ esc( c.example ) }"` : '' } required aria-required="true"${ err ? ` aria-invalid="true" aria-describedby="e-phone"` : '' }></div>` +
+			`${ err ? `<span class="field-error" id="e-phone">${ esc( err ) }</span>` : '' }</div>`;
+	}
+
+	/**
+	 * A quick look before sending: '' when the number may be a mobile of the chosen country (the server decides), else what to
+	 * fix, worded as the server words it. A number typed with + or 00 is another country's: only the server can tell.
+	 */
+	phoneProblem() {
+		const text = this.st.details.phone.trim().replace( /[\s\-().]/g, '' );
+		const c = this.phoneCountry();
+		const ask = c.lengths.length ? `That is not a mobile number in ${ c.name }: it has ${ c.lengths.join( ' or ' ) } digits after +${ c.calling }${ c.example ? `, such as ${ c.example }` : '' }` : 'Enter a mobile number we can reach you on.';
+		if ( ! text ) {
+			return 'Enter a mobile number we can reach you on.';
+		}
+		if ( /^(\+|00)/.test( text ) ) {
+			return /^(\+|00)\d{7,15}$/.test( text ) ? '' : ask;
+		}
+		if ( ! /^\d+$/.test( text ) ) {
+			return ask;
+		}
+		if ( ! c.lengths.length ) {
+			return /^\d{6,15}$/.test( text ) ? '' : ask;
+		}
+		let national = c.trunk && text.startsWith( c.trunk ) ? text.slice( c.trunk.length ) : text; // the 0 dialled at home is not counted
+		if ( ! c.lengths.includes( national.length ) && text.startsWith( c.calling ) ) {
+			national = text.slice( c.calling.length ); // typed with the country code but no +
+		}
+		return c.lengths.includes( national.length ) ? '' : ask;
+	}
+
 	detailsHtml() {
 		const st = this.st;
 		let b = `<form novalidate>` +
-			`<div class="row">${ this.field( 'name', 'Your name', 'text', { required: true } ) }${ this.field( 'phone', 'Phone', 'tel', { required: true } ) }</div>` +
+			`<div class="row">${ this.field( 'name', 'Your name', 'text', { required: true } ) }${ this.phoneField() }</div>` +
 			this.field( 'email', 'Email', 'email', { optional: true } ) +
 			`<span class="hint">We send your booking code and a link to change or cancel it.</span>`;
 		if ( this.onSite() ) {

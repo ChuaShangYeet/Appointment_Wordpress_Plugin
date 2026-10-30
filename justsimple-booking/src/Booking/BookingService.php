@@ -90,7 +90,7 @@ final class BookingService {
 	/**
 	 * Book a slot.
 	 *
-	 * @param array{service_ids:int[],staff_id:?int,start:string,customer:array{name:string,phone:string,email:?string},special_request:?string,idempotency_key:?string,source:?string} $in
+	 * @param array{service_ids:int[],staff_id:?int,start:string,customer:array{name:string,phone:string,phone_country?:?string,email:?string},special_request:?string,idempotency_key:?string,source:?string} $in
 	 * @return array{booking:array,manage_token:string,replayed:bool}
 	 * @throws EngineError
 	 */
@@ -110,7 +110,7 @@ final class BookingService {
 		if ( '' === $name || mb_strlen( $name ) > 150 ) {
 			throw new EngineError( EngineError::VALIDATION, 'Enter your name (up to 150 characters).', array( 'field' => 'customer.name' ) );
 		}
-		$phone = Customers::normalise_phone( (string) ( $in['customer']['phone'] ?? '' ) );
+		$phone = Customers::phone_for_booking( (string) ( $in['customer']['phone'] ?? '' ), $in['customer']['phone_country'] ?? null, $module['settings']['country'] );
 		$email = trim( (string) ( $in['customer']['email'] ?? '' ) );
 		if ( '' !== $email && ! is_email( $email ) ) {
 			throw new EngineError( EngineError::VALIDATION, 'Enter a valid email address, or leave it empty.', array( 'field' => 'customer.email' ) );

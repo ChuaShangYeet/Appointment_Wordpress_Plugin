@@ -9,14 +9,35 @@ defined( 'ABSPATH' ) || exit;
 
 final class Customers {
 
-	/** Digits with an optional leading +; 7 to 15 digits (E.164 allows 15). */
-	public static function normalise_phone( string $raw ): string {
-		$plus   = 0 === strpos( ltrim( $raw ), '+' );
-		$digits = preg_replace( '/\D+/', '', $raw );
-		if ( strlen( $digits ) < 7 || strlen( $digits ) > 15 ) {
-			throw new EngineError( EngineError::VALIDATION, 'Enter a phone number with 7 to 15 digits.', array( 'field' => 'customer.phone' ) );
+	/**
+	 * The number to book with: a mobile of the country chosen in front of it (else the booking page's country), kept as
+	 * +<digits>; or a number this site already has on file, so customers saved before numbers were checked keep booking.
+	 *
+	 * @throws EngineError validation (field customer.phone) saying what a mobile of the country looks like
+	 */
+	public static function phone_for_booking( string $raw, $country, string $page_country ): string {
+		$where = $page_country;
+		if ( null !== $country && '' !== $country ) {
+			if ( ! is_string( $country ) || ! Phone::known( $country ) ) {
+				throw new EngineError( EngineError::VALIDATION, 'Choose the country of the phone number.', array( 'field' => 'customer.phone_country' ) );
+			}
+			$where = $country;
 		}
-		return ( $plus ? '+' : '' ) . $digits;
+		try {
+			return Phone::mobile( $raw, $where );
+		} catch ( EngineError $e ) {
+			global $wpdb;
+			$spelled = Phone::spelled( $raw, $where );
+			$typed   = ( 0 === strpos( ltrim( $raw ), '+' ) ? '+' : '' ) . preg_replace( '/\D+/', '', $raw ); // how numbers were kept before 0.1.3
+			$known   = array_values( array_unique( array_filter( array( $spelled, $typed ) ) ) );
+			if ( $known ) {
+				$found = $wpdb->get_var( $wpdb->prepare( 'SELECT phone FROM ' . Schema::table( 'customers' ) . ' WHERE phone IN (' . implode( ',', array_fill( 0, count( $known ), '%s' ) ) . ') ORDER BY id LIMIT 1', $known ) ); // phpcs:ignore WordPress.DB.PreparedSQL
+				if ( null !== $found ) {
+					return (string) $found;
+				}
+			}
+			throw $e;
+		}
 	}
 
 	/**

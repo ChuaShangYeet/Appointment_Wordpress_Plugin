@@ -28,7 +28,7 @@ try {
 			$out = array( 'ok' => true, 'extended' => $r['extended'], 'added' => $r['added_minutes'], 'conflicts' => count( $r['conflicts'] ) );
 			break;
 		case 'book':
-			$r   = BookingService::create( (int) $argv[3], array( 'service_ids' => array( (int) $argv[4] ), 'staff_id' => (int) $argv[5], 'start' => $argv[6], 'customer' => array( 'name' => 'Racer', 'phone' => '+601' . random_int( 10000000, 99999999 ) ) ) );
+			$r   = BookingService::create( (int) $argv[3], array( 'service_ids' => array( (int) $argv[4] ), 'staff_id' => (int) $argv[5], 'start' => $argv[6], 'customer' => array( 'name' => 'Racer', 'phone' => '+6012' . random_int( 1000000, 9999999 ) ) ) );
 			$out = array( 'ok' => true, 'code' => $r['booking']['code'] );
 			break;
 		case 'book-table': // <module_id> <party> <iso-start> [table_type] [accepted_minimum_spend|-] [table_id|-]
@@ -40,7 +40,7 @@ try {
 					'table_type'             => $argv[6] ?? 'normal',
 					'accepted_minimum_spend' => isset( $argv[7] ) && '-' !== $argv[7] ? $argv[7] : null,
 					'table_id'               => isset( $argv[8] ) && '-' !== $argv[8] ? (int) $argv[8] : null,
-					'customer'               => array( 'name' => 'Racer', 'phone' => '+601' . random_int( 10000000, 99999999 ) ),
+					'customer'               => array( 'name' => 'Racer', 'phone' => '+6012' . random_int( 1000000, 9999999 ) ),
 				)
 			);
 			$out = array( 'ok' => true, 'tables' => array_column( $r['booking']['tables'], 'name' ), 'spend' => $r['booking']['minimum_spend_agreed'] );
@@ -52,7 +52,7 @@ try {
 					'service_ids' => array_map( 'intval', explode( ',', $argv[4] ) ),
 					'start'       => $argv[5],
 					'vehicle'     => array( 'plate_no' => 'R' . random_int( 10000, 99999 ), 'supported_vehicle_id' => (int) $argv[6] ),
-					'customer'    => array( 'name' => 'Racer', 'phone' => '+601' . random_int( 10000000, 99999999 ) ),
+					'customer'    => array( 'name' => 'Racer', 'phone' => '+6012' . random_int( 1000000, 9999999 ) ),
 				)
 			);
 			$out = array( 'ok' => true, 'staff' => array_column( $r['booking']['staff'], 'name' ), 'bays' => array_column( $r['booking']['bays'], 'name' ) );
@@ -73,7 +73,7 @@ try {
 				'service_ids' => array( (int) $argv[4] ),
 				'start'       => $argv[5],
 				'staff_id'    => isset( $argv[8] ) && '-' !== $argv[8] ? (int) $argv[8] : null,
-				'customer'    => array( 'name' => 'Racer', 'phone' => '+601' . random_int( 10000000, 99999999 ) ),
+				'customer'    => array( 'name' => 'Racer', 'phone' => '+6012' . random_int( 1000000, 9999999 ) ),
 			);
 			if ( isset( $argv[6] ) && '-' !== $argv[6] ) {
 				$in['address'] = array( 'line1' => '1 Race Road', 'latitude' => (float) $argv[6], 'longitude' => (float) $argv[7] );

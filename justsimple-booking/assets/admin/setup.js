@@ -28,6 +28,7 @@ export async function openSetup( root, id ) {
 		...lists.map( ( p ) => api( `/admin/modules/${ id }/${ p }` ) ),
 		api( `/admin/modules/${ id }/hours` ),
 		k === 'restaurant' ? api( `/admin/modules/${ id }/seating` ) : Promise.resolve( null ),
+		fetch( `${ cfg.urls.assets }front/phone-countries.json?ver=${ cfg.version }` ).then( ( r ) => ( r.ok ? r.json() : [] ) ).catch( () => [] ),
 	] ).catch( ( e ) => e );
 	if ( got instanceof Error ) {
 		root.innerHTML = backLink() + errorHtml( got, false );
@@ -36,6 +37,7 @@ export async function openSetup( root, id ) {
 	lists.forEach( ( p, i ) => ( S.data[ p ] = got[ i ] ) );
 	S.data.hours = got[ lists.length ];
 	S.data.seating = got[ lists.length + 1 ];
+	S.countries = got[ lists.length + 2 ];
 	if ( S.data.staff ) {
 		// each person's hours and what they can do, for the list's one-line summaries
 		const extra = await Promise.all( S.data.staff.map( ( p ) => Promise.all( [ api( `/admin/staff/${ p.id }/shifts` ), api( `/admin/staff/${ p.id }/services` ) ] ) ) );
@@ -310,6 +312,7 @@ const SECTION = {
 				fld( { k: 'font', label: 'Font', type: 'select', options: [ [ 'theme', 'Your site\'s font' ], [ 'dm-sans', 'DM Sans (included)' ] ] }, s.font ) + `</div><div class="jsb-pair">` +
 				fld( { k: 'currency', label: 'Currency shown', type: 'text', max: 8 }, s.currency ) +
 				fld( { k: 'phone', label: 'Phone for questions', type: 'text', max: 32, hint: 'Shown when a booking cannot be made online.' }, s.phone ) + `</div>` +
+				fld( { k: 'country', label: 'Customers\' phone numbers', type: 'select', options: ( S.countries.length ? S.countries : [ { code: s.country, name: s.country, calling: '' } ] ).map( ( c ) => [ c.code, `${ c.name }${ c.calling ? ' +' + c.calling : '' }` ] ), hint: 'The country code shown in front of the number. A customer can choose another; the number must be a mobile of that country, because codes and updates go by WhatsApp or SMS.' }, s.country ) +
 				( S.m.type === 'field' ? fld( { k: 'map_picker', label: 'Offer a map to pick the visit address', type: 'check', hint: 'Uses OpenStreetMap; the customer\'s browser loads its map tiles.' }, s.map_picker ) : '' ) +
 				`<p class="jsb-contrast hint" aria-live="polite"></p>` + saveRow( 'look' ) + `</form>` +
 				`<div class="jsb-preview"><p class="lab">Preview: the real booking form</p>${ S.m.status === 'active' ? `<jsb-booking module="${ S.id }" api="${ esc( cfg.urls.rest ) }" css="${ esc( cfg.urls.assets + 'front/jsb-booking.css?ver=' + cfg.version ) }"></jsb-booking>` : '<p class="hint">Switch the page on to see its booking form here.</p>' }</div>`,
@@ -508,7 +511,7 @@ const FORMS = {
 		return 'rules';
 	},
 	async look( v ) {
-		const settings = { accent: v.accent_hex || v.accent, font: v.font, currency: v.currency, phone: v.phone };
+		const settings = { accent: v.accent_hex || v.accent, font: v.font, currency: v.currency, phone: v.phone, country: v.country };
 		if ( 'map_picker' in v ) {
 			settings.map_picker = v.map_picker;
 		}

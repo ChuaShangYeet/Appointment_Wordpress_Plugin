@@ -96,6 +96,9 @@ try {
 			await step( 'Tab reaches the name', await tabTo( '[data-k="d-name"]' ) );
 			await type( 'Keyboard Demo' );
 			await press( 'Tab' );
+			await step( 'Tab reaches the country code, Malaysia', await p.eval( `(() => { const a = ${ DEEP }; return !! a && a.matches('[data-k="d-phone_country"]') && a.value === 'MY'; })()` ) );
+			await press( 'Tab' );
+			await step( 'then the mobile number', await focusedIs( '[data-k="d-phone"]' ) );
 			await type( '0123456789' );
 			if ( await has( '[data-k="ack"]' ) ) {
 				await step( 'Tab reaches the parts notice', await tabTo( '[data-k="ack"]' ) );

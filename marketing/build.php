@@ -72,7 +72,7 @@ foreach ( glob( "$here/img/*" ) as $f ) {
 foreach ( glob( "$here/demo/*.json" ) as $f ) {
 	put( $f, "$dist/demo/" . basename( $f ) );
 }
-foreach ( array( 'jsb-booking.js', 'jsb-booking.css', 'demo-source.js', 'map-picker.js' ) as $f ) {
+foreach ( array( 'jsb-booking.js', 'jsb-booking.css', 'demo-source.js', 'map-picker.js', 'phone-countries.json' ) as $f ) {
 	put( "$plugin/assets/front/$f", "$dist/widget/$f" );
 }
 foreach ( glob( "$plugin/assets/fonts/*" ) as $f ) {

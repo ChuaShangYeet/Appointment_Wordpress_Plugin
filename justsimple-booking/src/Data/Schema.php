@@ -1,6 +1,8 @@
 <?php
 namespace JustSimple\Booking\Data;
 
+use JustSimple\Booking\Booking\Phone;
+
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -16,7 +18,7 @@ defined( 'ABSPATH' ) || exit;
  */
 final class Schema {
 
-	const VERSION = 2; // 2: every table InnoDB, also on hosts whose default engine is MyISAM
+	const VERSION = 3; // 2: every table InnoDB, also on hosts whose default engine is MyISAM; 3: customers' numbers kept as +<digits>
 	const OPTION  = 'jsb_db_version';
 
 	/** Every table, without prefix. Order matters only for readability; there are no foreign keys. */
@@ -66,7 +68,25 @@ final class Schema {
 			dbDelta( $sql );
 		}
 		self::ensure_innodb();
+		self::standard_phones();
 		update_option( self::OPTION, self::VERSION, false );
+	}
+
+	/**
+	 * Before 0.1.3 a customer's number was kept as typed, digits only (0123456789 and +60123456789 were two customers). Now
+	 * numbers are kept as +<digits>, read in the country of the site's time zone; this rewrites the old ones the same way.
+	 * A number another customer already has the new way is left as it was (the two records stay apart, as before).
+	 */
+	public static function standard_phones() {
+		global $wpdb;
+		$t       = self::table( 'customers' );
+		$country = Phone::site_country();
+		foreach ( (array) $wpdb->get_results( "SELECT id, phone FROM $t WHERE phone NOT LIKE '+%'", ARRAY_A ) as $c ) { // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name
+			$new = Phone::spelled( (string) $c['phone'], $country );
+			if ( null !== $new && $new !== $c['phone'] && null === $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $t WHERE phone = %s", $new ) ) ) { // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$wpdb->update( $t, array( 'phone' => $new ), array( 'id' => (int) $c['id'] ) );
+			}
+		}
 	}
 
 	/**

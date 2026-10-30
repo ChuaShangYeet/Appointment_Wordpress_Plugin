@@ -111,6 +111,7 @@ final class PublicController {
 					'font'     => $m['settings']['font'],
 					'currency' => $m['settings']['currency'],
 					'phone'    => $m['settings']['phone'],
+					'country'  => $m['settings']['country'], // the code in front of the customer's number until they choose another
 				),
 				// field: the optional map picker starts near the business (rounded to about 1 km; the exact point stays private)
 				'map'        => 'field' === $m['type'] ? array(

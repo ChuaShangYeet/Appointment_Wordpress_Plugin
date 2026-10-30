@@ -139,7 +139,7 @@ final class DemoData {
 			self::person( $id, $name, $sh, range( 0, 6 ) );
 		}
 		self::book( $id, 1, '11:00', array( 'services' => "$cut,$gel" ), array( 'service_ids' => array( $cut, $gel ) ), 'Nurul Huda Ismail', '+60 17-300 1201' );
-		self::book( $id, 1, '15:00', array( 'services' => (string) $colour ), array( 'service_ids' => array( $colour ) ), 'Farah Aziz', '+60 11-300 1202' );
+		self::book( $id, 1, '15:00', array( 'services' => (string) $colour ), array( 'service_ids' => array( $colour ) ), 'Farah Aziz', '+60 11-3000 1202' );
 		self::book( $id, 2, '12:00', array( 'services' => (string) $cut ), array( 'service_ids' => array( $cut ) ), 'Daniel Tan', '+60 16-300 1203' );
 		return $id;
 	}
