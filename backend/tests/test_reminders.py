@@ -176,7 +176,7 @@ async def test_reminders_can_be_switched_off_or_set_to_other_lead_times(seeded: 
 async def test_a_backlog_is_worked_off_over_several_ticks(seeded: Seed, notify: Recorder, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(reminders, "BATCH", 2)
     for n in range(5):
-        await booked_with_email(seeded, f"+6011111{n:04d}", f"c{n}@example.com", hour=10)
+        await booked_with_email(seeded, f"+60111111{n:04d}", f"c{n}@example.com", hour=10)
     now = at(seeded.day, 10) - 24 * H + dt.timedelta(minutes=5)
     assert [(await tick(seeded, now)).reminders_queued for _ in range(4)] == [2, 2, 1, 0]
     assert len(reminders_sent(notify)) == 5
@@ -277,8 +277,8 @@ async def test_two_sweeps_at_once_queue_one_reminder(seeded: Seed, notify: Recor
 
 async def test_reminders_belong_to_their_own_business(client: httpx.AsyncClient, notify: Recorder) -> None:
     a, b = await make_seed(client), await make_seed(client)
-    await booked_with_email(a, "+60111110001", "a@example.com", hour=10)
-    await booked_with_email(b, "+60111110002", "b@example.com", hour=10)
+    await booked_with_email(a, "+601111110001", "a@example.com", hour=10)
+    await booked_with_email(b, "+601111110002", "b@example.com", hour=10)
     now = at(a.day, 10) - 24 * H + dt.timedelta(minutes=5)
     report = await sweep_all(tenant_ids=[a.tenant_id], now=now)
     assert [t.reminders_queued for t in report.tenants] == [1]

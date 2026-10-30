@@ -4,6 +4,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 from app.core.countries import Country
+from app.core.phone import mobile_example, mobile_lengths, trunk_prefix
 
 
 class TimezoneChoice(BaseModel):
@@ -20,6 +21,12 @@ class CountryOut(BaseModel):
     code: str
     name: str
     calling_code: str
+    #: A made-up mobile number as people in the country write it (``012-345 6789``), for the placeholder of a phone field; ``null`` where unknown.
+    mobile_example: str | None
+    #: How many digits a mobile number has after ``calling_code`` (Malaysia ``[9, 10]``), for a quick check before sending; the server's check is the one that counts.
+    mobile_lengths: list[int]
+    #: What people dial before a number at home and leave out after the country code (Malaysia ``0``); ``null`` where nothing is left out (Singapore).
+    trunk_prefix: str | None
     currency: str
     default_timezone: str
     timezones: list[TimezoneChoice]
@@ -38,7 +45,7 @@ class CountryOut(BaseModel):
 
 def country_out(country: Country) -> CountryOut:
     return CountryOut(
-        code=country.code, name=country.name, calling_code=country.calling_code, currency=country.currency,
+        code=country.code, name=country.name, calling_code=country.calling_code, mobile_example=mobile_example(country.code), mobile_lengths=mobile_lengths(country.code), trunk_prefix=trunk_prefix(country.code), currency=country.currency,
         default_timezone=country.default_timezone,
         timezones=[TimezoneChoice(timezone=zone, label=label) for zone, label in country.timezones],
         exact_address=country.exact_address,

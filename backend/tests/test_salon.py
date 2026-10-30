@@ -220,7 +220,7 @@ async def test_an_addon_added_during_the_appointment_extends_the_reservation(sal
 async def test_an_upsell_that_reaches_the_next_appointment_alerts_the_stylist_and_forces_nothing(salon: Salon) -> None:
     mei = "Mei"
     first = (await sbook(salon, at(salon.day, 10), ["cut"], stylist=mei)).json()["id"]  # 10:00-10:45
-    nxt = await sbook(salon, at(salon.day, 10, 45), ["color"], stylist=mei, customer={"name": "Next Customer", "phone": "+60111222333"})
+    nxt = await sbook(salon, at(salon.day, 10, 45), ["color"], stylist=mei, customer={"name": "Next Customer", "phone": "+601112223333"})
     assert nxt.status_code == 201
     await status(salon, first, "in-progress")
     r = await upsell(salon, first, ["gel"])  # +30 min would run to 11:15, into the 10:45 appointment

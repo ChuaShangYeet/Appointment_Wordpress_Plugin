@@ -33,6 +33,8 @@ The white bar at the top is the test site's own control panel, not part of the p
 | Sign up a business | A new business signs itself up on the free plan, confirms its email (the button opens the emailed link), gets its keys, and sets itself up. |
 
 Sample sign-ins: phone **012-345 6789** and email **aisha.rahman@gmail.com** have bookings at every business.
+The mobile number fields (booking details and My bookings) have a country code in front, set to the business's country; pick another
+for a number from elsewhere. A new number must be a real mobile of that country (Malaysia: 9 or 10 digits after +60, such as 012-345 6789).
 
 Things that behave as in the real product, so they may surprise you:
 

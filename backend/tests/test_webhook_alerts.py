@@ -197,7 +197,7 @@ async def test_each_switch_off_gets_its_own_alert(client: httpx.AsyncClient, net
     assert (await s.client.patch(f"/v1/admin/webhooks/{hook['id']}", json={"active": True}, headers=s.admin)).status_code == 200
     mei = await s.add_staff("Lin")
     for hour in (9, 10):
-        r = await s.client.post("/v1/public/bookings", headers=s.pk, json=s.booking_body(at(s.day + dt.timedelta(days=1), hour), mei, customer={"name": "B", "phone": f"+6013000{hour:04d}"}))
+        r = await s.client.post("/v1/public/bookings", headers=s.pk, json=s.booking_body(at(s.day + dt.timedelta(days=1), hour), mei, customer={"name": "B", "phone": f"+6016000{hour:04d}"}))
         assert r.status_code == 201
     await tick(s, clock + dt.timedelta(minutes=10))
     await tick(s, clock + dt.timedelta(minutes=11))

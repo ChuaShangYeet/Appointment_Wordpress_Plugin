@@ -80,6 +80,15 @@ window.JS = window.JS || {};
     return `<label class="field ${err ? 'invalid' : ''}" for="${id}"><span>${J.esc(label)}${optional ? ' <span class="opt">(optional)</span>' : ''}</span>${control}${hint ? `<span class="hint">${hint}</span>` : ''}${err ? `<span class="err">${J.esc(err)}</span>` : ''}</label>`;
   };
 
+  /** A mobile number with its country code in front, chosen by the customer (backend: phone + phone_country). ``country`` is the chosen ISO code. */
+  J.phoneField = function ({ id, label, model, countryModel, country, hint, err }) {
+    const c = J.COUNTRIES[country] || {};
+    const codes = Object.entries(J.COUNTRIES).map(([k, x]) => `<option value="${k}" ${k === country ? 'selected' : ''}>+${x.calling} ${J.esc(x.name)}</option>`).join('');
+    return `<div class="field ${err ? 'invalid' : ''}"><label for="${id}">${J.esc(label)}</label>
+      <div class="tel"><select data-model="${countryModel}" data-rerender aria-label="Country code">${codes}</select><input id="${id}" type="tel" data-model="${model}" value="${J.esc(J.get(model))}" placeholder="${J.esc(c.mobile || '')}" autocomplete="tel-national" inputmode="tel"></div>
+      ${hint ? `<span class="hint">${hint}</span>` : ''}${err ? `<span class="err">${J.esc(err)}</span>` : ''}</div>`;
+  };
+
   /** One outline icon set (paths from Lucide, ISC licence), drawn at the text size in the text colour. */
   const ICONS = {
     'arrow-left': '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',

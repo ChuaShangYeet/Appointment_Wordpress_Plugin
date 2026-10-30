@@ -38,7 +38,7 @@ from app.core.exceptions import (
     ValidationFailed,
 )
 from app.core.config import get_settings
-from app.core.phone import normalise_email, normalise_phone
+from app.core.phone import normalise_email
 from app.core.security import encrypt_field
 from app.models import (
     Booking,
@@ -54,7 +54,7 @@ from app.models import (
     Tenant,
 )
 from app.schemas.public import BookingCreate
-from app.services import events, reminders
+from app.services import events, phones, reminders
 from app.services.allocators import Assignment, BaseAllocator, get_allocator
 from app.services.automotive import lead_time_notice, resolve_vehicle
 from app.services.customer_profile import ensure_gender_allowed
@@ -188,8 +188,9 @@ async def _upsert_customer(db: AsyncSession, tenant: Tenant, data: BookingCreate
     sign in as them. The email given with this booking is kept on the booking (``contact_email``); the customer changes their own by confirming a new one.
     """
     ensure_gender_allowed(tenant, data.customer.gender)
+    phone = await phones.customer_phone(db, tenant, data.customer.phone, data.customer.phone_country)
     insert_stmt = pg_insert(Customer).values(
-        tenant_id=tenant.id, name=data.customer.name, phone=normalise_phone(data.customer.phone, tenant.phone_country_code),
+        tenant_id=tenant.id, name=data.customer.name, phone=phone,
         email=data.customer.email, gender=data.customer.gender,
     )
     stmt = insert_stmt.on_conflict_do_update(

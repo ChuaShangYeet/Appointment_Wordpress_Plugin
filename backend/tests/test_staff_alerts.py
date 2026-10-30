@@ -30,7 +30,7 @@ async def set_contact(s: Seed, resource_id: uuid.UUID, **fields: Any) -> httpx.R
 async def collide(salon: Salon, stylist: str = "Mei") -> tuple[str, str]:
     """A haircut (10:00-10:45) with a colour right behind it (10:45-12:15); a 30-minute add-on on the first runs into the second."""
     first = (await sbook(salon, at(salon.day, 10), ["cut"], stylist=stylist)).json()["id"]
-    nxt = (await sbook(salon, at(salon.day, 10, 45), ["color"], stylist=stylist, customer={"name": "Next Customer", "phone": "+60111222333"})).json()["id"]
+    nxt = (await sbook(salon, at(salon.day, 10, 45), ["color"], stylist=stylist, customer={"name": "Next Customer", "phone": "+601112223333"})).json()["id"]
     assert (await status(salon, first, "in-progress")).status_code == 200
     r = await upsell(salon, first, ["gel"])
     assert r.status_code == 200 and r.json()["extended"] is False and len(r.json()["conflicts"]) == 1
@@ -215,8 +215,8 @@ async def test_only_the_stylist_of_the_running_appointment_is_told(salon: Salon,
 
 async def test_the_next_customer_gets_nothing(salon: Salon, mail: Recorder) -> None:
     await set_contact(salon, salon.stylists["Mei"], contact_email="mei@example.com")
-    first = (await sbook(salon, at(salon.day, 10), ["cut"], stylist="Mei", customer={"name": "A B", "phone": "+60111000001", "email": "a@example.com"})).json()["id"]
-    await sbook(salon, at(salon.day, 10, 45), ["color"], stylist="Mei", customer={"name": "Next Customer", "phone": "+60111222333", "email": "next@example.com"})
+    first = (await sbook(salon, at(salon.day, 10), ["cut"], stylist="Mei", customer={"name": "A B", "phone": "+601110000001", "email": "a@example.com"})).json()["id"]
+    await sbook(salon, at(salon.day, 10, 45), ["color"], stylist="Mei", customer={"name": "Next Customer", "phone": "+601112223333", "email": "next@example.com"})
     await status(salon, first, "in-progress")
     await upsell(salon, first, ["gel"])
     mail.sent.clear()

@@ -34,6 +34,12 @@ class DisposableEmail(ValidationFailed):
     code = "disposable_email"
 
 
+class InvalidPhone(ValidationFailed):
+    """A customer's number is not a mobile number of the chosen country; the message says what one looks like."""
+
+    code = "invalid_phone"
+
+
 class CalendarNotConfigured(DomainError):
     """The server has no Google OAuth client, so no calendar can be connected (``GOOGLE_OAUTH_CLIENT_ID`` and friends)."""
 

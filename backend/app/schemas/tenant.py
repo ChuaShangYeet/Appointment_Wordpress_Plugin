@@ -220,6 +220,8 @@ class ApiKeyOut(BaseModel):
 
 class OtpRequest(BaseModel):
     phone: str = Field(min_length=6, max_length=32)
+    #: As on a booking's customer: the country of the code in front of the number, else the business's; a new number must be a mobile of it.
+    phone_country: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
 
 
 class OtpVerify(OtpRequest):
@@ -233,6 +235,8 @@ class MagicLinkRequest(BaseModel):
 
     email: EmailStr
     phone: str | None = Field(default=None, min_length=6, max_length=32)
+    #: The country of the code in front of ``phone``, else the business's.
+    phone_country: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
 
 
 class MagicLinkVerify(BaseModel):

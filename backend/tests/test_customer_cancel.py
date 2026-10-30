@@ -93,14 +93,14 @@ async def test_wrong_or_expired_or_reused_codes_are_refused(seeded: Seed, otp: A
     await request_code(seeded)
     await otp.flushall()  # the code expired
     assert (await verify(seeded)).status_code == 401
-    assert (await verify(seeded, phone="+60100000000")).status_code == 401  # a code is bound to its phone
+    assert (await verify(seeded, phone="+60123459990")).status_code == 401  # a code is bound to its phone
 
 
 async def test_guessing_is_capped_and_a_new_code_does_not_reset_the_cap(seeded: Seed, otp: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(get_settings(), "otp_resend_cooldown_seconds", 60)
     assert (await request_code(seeded)).status_code == 202
     assert (await request_code(seeded)).status_code == 429  # one code per cooldown window
-    assert (await request_code(seeded, "+60100000009")).status_code == 202  # other phones are independent
+    assert (await request_code(seeded, "+60123459999")).status_code == 202  # other phones are independent
     for _ in range(5):
         assert (await verify(seeded, code="000000")).status_code == 401
     locked = await verify(seeded)  # even the right code is refused now

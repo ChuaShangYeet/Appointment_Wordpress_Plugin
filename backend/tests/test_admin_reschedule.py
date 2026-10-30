@@ -110,7 +110,7 @@ async def test_the_move_is_recorded_as_staff_work_and_in_the_audit_log(seeded: S
 async def test_a_refused_move_leaves_no_event_and_no_audit_entry(seeded: Seed) -> None:
     mei = await seeded.add_staff("Mei")
     bid = await book(seeded, mei, at(seeded.day, 10))
-    await book(seeded, mei, at(seeded.day, 15), phone="+60188880000")
+    await book(seeded, mei, at(seeded.day, 15), phone="+60198880000")
     assert (await amove(seeded, bid, at(seeded.day, 15))).status_code == 409
     assert await events_of(seeded, bid, "booking.rescheduled") == []
     assert await audit_entries(seeded) == []
@@ -230,7 +230,7 @@ async def test_a_pending_request_whose_hold_ran_out_cannot_be_moved(client: http
 async def test_a_taken_slot_refuses_the_move_and_the_original_stays(seeded: Seed) -> None:
     mei = await seeded.add_staff("Mei")
     bid = await book(seeded, mei, at(seeded.day, 10))
-    await book(seeded, mei, at(seeded.day, 15), phone="+60188880000")
+    await book(seeded, mei, at(seeded.day, 15), phone="+60198880000")
     r = await amove(seeded, bid, at(seeded.day, 15))
     assert r.status_code == 409
     assert await allocations(seeded, bid) == [("staff", "Mei", "10:00", "11:00", "active")]  # rolled back whole
@@ -258,7 +258,7 @@ async def test_a_day_off_blocks_the_move(seeded: Seed) -> None:
 async def test_the_staff_member_stays_unless_the_business_chooses_otherwise(seeded: Seed) -> None:
     mei, lin = await seeded.add_staff("Mei"), await seeded.add_staff("Lin")
     bid = await book(seeded, mei, at(seeded.day, 10))
-    await book(seeded, mei, at(seeded.day, 15), phone="+60188880000")  # Mei is busy at 15:00, Lin is free
+    await book(seeded, mei, at(seeded.day, 15), phone="+60198880000")  # Mei is busy at 15:00, Lin is free
     assert (await amove(seeded, bid, at(seeded.day, 15))).status_code == 409  # not silently handed to someone else
     both = await amove(seeded, bid, at(seeded.day, 15), resource_id=str(lin), any_available=True)
     assert both.status_code == 422
@@ -317,8 +317,8 @@ async def test_the_customer_is_told_their_booking_was_moved(seeded: Seed, mail: 
 # --------------------------------------------------------------------- races
 async def test_two_admin_moves_into_the_same_slot_have_one_winner(seeded: Seed, monkeypatch: pytest.MonkeyPatch) -> None:
     mei = await seeded.add_staff("Mei")
-    a = await book(seeded, mei, at(seeded.day, 10), phone="+60111110001")
-    b = await book(seeded, mei, at(seeded.day, 12), phone="+60111110002")
+    a = await book(seeded, mei, at(seeded.day, 10), phone="+601111110001")
+    b = await book(seeded, mei, at(seeded.day, 12), phone="+601111110002")
     with monkeypatch.context() as m:
         m.setattr(booking_module, "reschedule_as_admin", _Together(2).wrap(booking_module.reschedule_as_admin))
         ra, rb = await asyncio.gather(amove(seeded, a, at(seeded.day, 15)), amove(seeded, b, at(seeded.day, 15)))

@@ -483,8 +483,8 @@ async def test_notification_admin_needs_a_manager(seeded: Seed) -> None:
 async def test_the_notification_log_can_be_filtered_and_is_private_to_the_business(client: httpx.AsyncClient, mail: Recorder) -> None:
     a, b = await make_seed(client), await make_seed(client)
     await put_template(a, "booking.confirmed", "sms", body="x")
-    first = await booked_with_email(a, "+60111110001", "one@example.com", hour=10)
-    await booked_with_email(a, "+60111110002", "two@example.com", hour=12)
+    first = await booked_with_email(a, "+601111110001", "one@example.com", hour=10)
+    await booked_with_email(a, "+601111110002", "two@example.com", hour=12)
     mail.failing["sms"] = RuntimeError("sms gateway down")
     await run_outbox(a)
     await booked_with_email(b)

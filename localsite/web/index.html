@@ -166,7 +166,11 @@ button { -webkit-tap-highlight-color: transparent; }
 .choice.disabled { opacity: 0.55; cursor: not-allowed; }
 
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.field > span { font-weight: 500; font-size: 0.92rem; }
+.field > span, .field > label { font-weight: 500; font-size: 0.92rem; }
+.tel { display: flex; gap: 8px; }
+.tel select { flex: 0 0 auto; width: 10.5rem; text-overflow: ellipsis; }
+.tel input { flex: 1; min-width: 0; }
+@media (max-width: 420px) { .tel select { width: 8.5rem; } }
 .field .opt { color: var(--muted); font-weight: 400; }
 input[type="text"], input[type="tel"], input[type="email"], input[type="number"], input[type="time"], input[type="password"], select, textarea {
   width: 100%; background: var(--surface); border: 1px solid var(--control); border-radius: var(--r-control); padding: 9px 12px; min-height: 42px; font-size: 16px; color: var(--text);

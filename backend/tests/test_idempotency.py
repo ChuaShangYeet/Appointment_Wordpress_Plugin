@@ -50,7 +50,7 @@ async def test_without_a_key_every_request_is_its_own_booking(seeded: Seed) -> N
     """Unchanged: a client that sends no key gets no protection (two staff, same time, same person)."""
     await seeded.add_staff("Mei")
     await seeded.add_staff("Lin")
-    body = seeded.booking_body(at(seeded.day, 10), None, customer={"name": "Aisha", "phone": "+60111110009"})
+    body = seeded.booking_body(at(seeded.day, 10), None, customer={"name": "Aisha", "phone": "+601111110009"})
     first, second = await send(seeded, body), await send(seeded, body)
     assert first.status_code == second.status_code == 201 and first.json()["id"] != second.json()["id"]
     assert await count(seeded) == 2
@@ -72,12 +72,12 @@ async def test_the_second_copy_does_not_use_up_the_plans_monthly_bookings(client
 async def test_the_same_key_with_another_request_is_refused_and_changes_nothing(seeded: Seed) -> None:
     mei = await seeded.add_staff("Mei")
     k = key()
-    assert (await send(seeded, seeded.booking_body(at(seeded.day, 10), mei, customer={"name": "Aisha", "phone": "+60111110001"}), k)).status_code == 201
+    assert (await send(seeded, seeded.booking_body(at(seeded.day, 10), mei, customer={"name": "Aisha", "phone": "+601111110001"}), k)).status_code == 201
     for changed in (
-        seeded.booking_body(at(seeded.day, 12), mei, customer={"name": "Aisha", "phone": "+60111110001"}),  # another time
-        seeded.booking_body(at(seeded.day, 10), mei, customer={"name": "Aisha", "phone": "+60111110002"}),  # another person
-        seeded.booking_body(at(seeded.day, 10), mei, customer={"name": "Aisha K", "phone": "+60111110001"}),  # another name
-        seeded.booking_body(at(seeded.day, 10), mei, customer={"name": "Aisha", "phone": "+60111110001"}, special_request="window seat"),
+        seeded.booking_body(at(seeded.day, 12), mei, customer={"name": "Aisha", "phone": "+601111110001"}),  # another time
+        seeded.booking_body(at(seeded.day, 10), mei, customer={"name": "Aisha", "phone": "+601111110002"}),  # another person
+        seeded.booking_body(at(seeded.day, 10), mei, customer={"name": "Aisha K", "phone": "+601111110001"}),  # another name
+        seeded.booking_body(at(seeded.day, 10), mei, customer={"name": "Aisha", "phone": "+601111110001"}, special_request="window seat"),
     ):
         r = await send(seeded, changed, k)
         assert r.status_code == 409 and r.json()["error"] == "idempotency_key_reused", changed
@@ -86,7 +86,7 @@ async def test_the_same_key_with_another_request_is_refused_and_changes_nothing(
 
 async def test_spacing_and_key_order_in_the_json_do_not_matter(seeded: Seed) -> None:
     mei = await seeded.add_staff("Mei")
-    body = seeded.booking_body(at(seeded.day, 10), mei, customer={"name": "Aisha", "phone": "+60111110001"})
+    body = seeded.booking_body(at(seeded.day, 10), mei, customer={"name": "Aisha", "phone": "+601111110001"})
     k = key()
     first = await send(seeded, body, k)
     reordered = json.dumps(dict(reversed(list(body.items()))), indent=4)
@@ -173,7 +173,7 @@ async def test_the_database_allows_one_booking_per_business_and_key(seeded: Seed
         async with tenant_session(seeded.tenant_id) as db:
             tenant = await db.get(Tenant, seeded.tenant_id)
             assert tenant is not None
-            data = BookingCreate(service_ids=[seeded.service_id], start_at=at(seeded.day, hour), resource_id=mei, customer=CustomerIn(name="A", phone="+60111110001"))
+            data = BookingCreate(service_ids=[seeded.service_id], start_at=at(seeded.day, hour), resource_id=mei, customer=CustomerIn(name="A", phone="+601111110001"))
             await booking_service.create_booking(db, tenant, data, idempotency=("same-key-12345", "hash"))
 
     await make(10)

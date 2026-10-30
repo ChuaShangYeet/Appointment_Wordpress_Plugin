@@ -79,8 +79,8 @@ async def test_a_later_booking_never_changes_what_is_known(seeded: Seed) -> None
     assert await stored_gender(seeded) == "female"
     assert (await book_with(seeded, mei, 16, gender="other")).status_code == 201  # anyone can book with anyone's phone number: only the customer (signed in) changes it
     assert await stored_gender(seeded) == "female"
-    bid = (await book_with(seeded, mei, 9, phone="+60188887777")).json()["id"]  # a different customer has none
-    assert await stored_gender(seeded, "+60188887777") is None and (await admin_view(seeded, bid))["customer_gender"] is None
+    bid = (await book_with(seeded, mei, 9, phone="+60198887777")).json()["id"]  # a different customer has none
+    assert await stored_gender(seeded, "+60198887777") is None and (await admin_view(seeded, bid))["customer_gender"] is None
 
 
 async def test_a_later_booking_fills_in_a_gender_nobody_had_given(seeded: Seed) -> None:
@@ -145,7 +145,7 @@ async def test_the_profile_refuses_what_it_does_not_take(seeded: Seed, otp: Any)
     mei = await seeded.add_staff("Mei")
     assert (await book_with(seeded, mei, 10)).status_code == 201
     me = await login(seeded)
-    for body in ({}, {"gender": "robot"}, {"name": "Someone Else"}, {"gender": "male", "email": "x@example.com"}, {"phone": "+60100000000"}):
+    for body in ({}, {"gender": "robot"}, {"name": "Someone Else"}, {"gender": "male", "email": "x@example.com"}, {"phone": "+60123459990"}):
         assert (await seeded.client.patch("/v1/public/me/profile", json=body, headers=me)).status_code == 422, body
     assert await stored_gender(seeded) is None
     assert (await seeded.client.get("/v1/public/me/profile", headers=seeded.pk)).status_code == 401

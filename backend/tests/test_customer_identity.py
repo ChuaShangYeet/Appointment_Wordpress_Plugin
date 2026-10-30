@@ -244,13 +244,13 @@ async def test_only_the_newest_link_works(seeded: Seed, links: list[str]) -> Non
 
 
 async def test_two_customers_sharing_an_email_are_told_apart_by_phone(seeded: Seed, links: list[str]) -> None:
-    mine = await booked_with_email(seeded, "+60111110001", EMAIL, hour=10)
-    theirs = await booked_with_email(seeded, "+60111110002", EMAIL, hour=12)
+    mine = await booked_with_email(seeded, "+601111110001", EMAIL, hour=10)
+    theirs = await booked_with_email(seeded, "+601111110002", EMAIL, hour=12)
     await ask(seeded)
     assert links == []  # ambiguous: no link rather than a guess
     await ask(seeded, phone="+60199999999")
     assert links == []  # a phone that matches nobody with this email
-    await ask(seeded, phone="0111-110002")
+    await ask(seeded, phone="0111-111 0002")
     assert len(links) == 1
     token = (await redeem(seeded, links[0])).json()["access_token"]
     listing = (await seeded.client.get("/v1/public/me/bookings", headers={**seeded.pk, "Authorization": f"Bearer {token}"})).json()

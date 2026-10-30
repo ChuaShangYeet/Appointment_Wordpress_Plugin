@@ -112,7 +112,7 @@ async def test_a_refused_extension_does_not_touch_the_marker(client: httpx.Async
     """If the next appointment is in the way nothing is stretched, so there is nothing new to check."""
     salon = await make_salon(client, stylists=("Mei",))
     first = (await sbook(salon, at(salon.day, 10), ["cut"], stylist="Mei")).json()["id"]  # 10:00-10:45
-    await sbook(salon, at(salon.day, 10, 45), ["cut"], stylist="Mei", customer={"name": "Next", "phone": "+60111222333"})
+    await sbook(salon, at(salon.day, 10, 45), ["cut"], stylist="Mei", customer={"name": "Next", "phone": "+601112223333"})
     await sweep(salon, now=soon())
     assert (await status(salon, first, "in-progress")).status_code == 200
     r = await upsell(salon, first, ["gel"])
@@ -133,7 +133,7 @@ async def test_an_extension_the_constraint_refuses_does_not_touch_the_marker_eit
     """A booking slips into the gap between the check and the write: nothing is stretched, so there is nothing new to check."""
     salon = await make_salon(client, stylists=("Mei",))
     first = (await sbook(salon, at(salon.day, 10), ["cut"], stylist="Mei")).json()["id"]
-    await sbook(salon, at(salon.day, 10, 45), ["cut"], stylist="Mei", customer={"name": "Next", "phone": "+60111222333"})
+    await sbook(salon, at(salon.day, 10, 45), ["cut"], stylist="Mei", customer={"name": "Next", "phone": "+601112223333"})
     await sweep(salon, now=soon())
     assert (await status(salon, first, "in-progress")).status_code == 200
     real = booking_module._clashes

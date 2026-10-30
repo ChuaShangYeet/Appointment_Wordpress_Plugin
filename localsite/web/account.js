@@ -7,7 +7,7 @@
 
   function init() {
     return {
-      session: null, me: null, mode: 'phone', phone: '', code: '', codeSent: null, email: '', linkSent: false, busy: false, err: null,
+      session: null, me: null, mode: 'phone', phone: '', phoneCountry: '', code: '', codeSent: null, email: '', linkSent: false, busy: false, err: null,
       tab: 'upcoming', bookings: null, loading: false, cancelAsk: null, cancelBusy: false,
       move: null, rate: null, confirm: { email: '', sent: false, err: null, busy: false }, addr: { text: '', err: null, busy: false }, reqErr: null,
     };
@@ -31,7 +31,7 @@
     let body;
     if (phone && !s.codeSent) {
       body = `<form class="stack" data-submit="acc.sendCode">
-        ${J.field({ id: 'a-phone', label: 'Mobile number', model: 'account.phone', type: 'tel', placeholder: '012-345 6789', hint: 'The number you booked with. We send a 6-digit code to it by WhatsApp.', attrs: 'autocomplete="tel" inputmode="tel"' })}
+        ${J.phoneField({ id: 'a-phone', label: 'Mobile number', model: 'account.phone', countryModel: 'account.phoneCountry', country: s.phoneCountry || b.country, hint: 'The number you booked with. We send a 6-digit code to it by WhatsApp.' })}
         ${s.err ? `<p class="err">${J.esc(s.err)}</p>` : ''}
         <button class="btn" type="submit" ${s.busy ? 'disabled' : ''}>${s.busy ? J.busyLabel('Sending…') : 'Send me a code'}</button>
         <p class="hint">Test site: <b class="mono">012-345 6789</b> has sample bookings at every business.</p></form>`;
@@ -197,7 +197,7 @@
     async 'acc.sendCode'() {
       const s = st();
       s.busy = true; s.err = null; J.render();
-      const [res, err] = await J.call(() => api.requestOtp(J.state.biz, s.phone));
+      const [res, err] = await J.call(() => api.requestOtp(J.state.biz, s.phone, s.phoneCountry || J.biz().country));
       s.busy = false;
       if (err) s.err = err.status === 503 ? "We couldn't send the code just now. Try again in a moment, or sign in with an email link instead." : err.detail;
       else { s.codeSent = res; s.code = ''; }
@@ -206,7 +206,7 @@
     async 'acc.verify'() {
       const s = st();
       s.busy = true; s.err = null; J.render();
-      const [session, err] = await J.call(() => api.verifyOtp(J.state.biz, s.phone, s.code.trim()));
+      const [session, err] = await J.call(() => api.verifyOtp(J.state.biz, s.phone, s.code.trim(), s.phoneCountry || J.biz().country));
       s.busy = false;
       if (err) { s.err = err.status === 403 ? 'Too many tries. Ask for a new code.' : 'That code is wrong or has expired. Check the message and try again.'; J.render(); return; }
       s.session = session; s.tab = 'upcoming'; s.codeSent = null; s.code = '';

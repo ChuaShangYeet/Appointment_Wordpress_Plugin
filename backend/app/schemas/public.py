@@ -58,6 +58,9 @@ Gender = Literal["female", "male", "other"]
 class CustomerIn(BaseModel):
     name: str = Field(min_length=1, max_length=150)
     phone: str = Field(min_length=6, max_length=32)
+    #: The country of the code in front of the number (``SG``), chosen by the customer; left out, the business's country. A number typed with ``+`` keeps its own.
+    #: A number new to the business must be a mobile of that country (422 with what it should look like); one already on file is taken as it is.
+    phone_country: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
     email: EmailStr | None = None
     #: Spa and salon only (422 elsewhere). Leaving it out keeps what is already known about this customer.
     gender: Gender | None = None

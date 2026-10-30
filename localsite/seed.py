@@ -282,7 +282,7 @@ class Seeder:
         return made
 
     def stranger(self) -> dict[str, Any]:
-        return {"name": self.rng.choice(NAMES), "phone": "+601" + str(2 + self.rng.randrange(8)) + f"{self.rng.randrange(10**7):07d}"}
+        return {"name": self.rng.choice(NAMES), "phone": "+601" + self.rng.choice("269") + f"{self.rng.randrange(10**7):07d}"}  # (012, 016, 019: every block is a mobile range)
 
     async def fill(self, b: dict[str, Any], days: range, count: int) -> list[str]:
         made: list[str] = []

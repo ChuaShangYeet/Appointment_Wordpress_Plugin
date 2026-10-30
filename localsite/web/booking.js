@@ -21,7 +21,7 @@
       party: 2, tableType: 'normal', separate: false,
       vehicle: { mode: null, savedId: null, plate: '', modelId: '', year: '' }, vehicleErr: null,
       address: { text: '', result: null, error: null, checking: false, savedId: null },
-      details: { name: '', phone: '', email: '', gender: '', notes: '', request: '' }, fieldErrors: {},
+      details: { name: '', phone: '', phoneCountry: '', email: '', gender: '', notes: '', request: '' }, fieldErrors: {},
       acceptSpend: false, ackLead: false, human: 'no', busy: false, error: null, taken: null, result: null,
     };
   }
@@ -249,6 +249,9 @@
       <p class="hint">Times are in Malaysia time. ${b.type === 'professional' && services(b)[0] && services(b)[0].location_type === 'on_site' ? 'The time shown is when the technician arrives.' : ''}</p></div>`;
   }
 
+  /** What a phone message was about: it is shown only while the country and number are still the ones it was about. */
+  function phoneKey(b) { const d = st().details; return `${d.phoneCountry || b.country}|${d.phone}`; }
+
   function detailsStep(b) {
     const s = st(), e = s.fieldErrors;
     const signed = session();
@@ -256,7 +259,7 @@
       ${signed ? `<div class="notice info"><span>Booking as <b>${J.esc(s.details.name || 'you')}</b>, signed in with ${J.esc(J.fmt.prettyPhone(signed.phone))}.</span></div>` : `<p class="muted">Already booked with us? <button type="button" class="btn link" data-act="nav" data-view="account">Sign in</button> to use your saved details.</p>`}
       <div class="stack">
         ${J.field({ id: 'b-name', label: 'Name', model: 'book.details.name', err: e.name, attrs: 'autocomplete="name"' })}
-        ${J.field({ id: 'b-phone', label: 'Mobile number', model: 'book.details.phone', type: 'tel', err: e.phone, placeholder: '012-345 6789', hint: 'We send updates to this number. Use the same number to manage your booking later.', attrs: 'autocomplete="tel" inputmode="tel"' })}
+        ${J.phoneField({ id: 'b-phone', label: 'Mobile number', model: 'book.details.phone', countryModel: 'book.details.phoneCountry', country: s.details.phoneCountry || b.country, err: e.phoneFor === phoneKey(b) ? e.phone : null, hint: 'We send updates to this number. Use the same number to manage your booking later.' })}
         ${J.field({ id: 'b-email', label: 'Email', model: 'book.details.email', type: 'email', optional: true, err: e.email, hint: 'For the confirmation and reminders.', attrs: 'autocomplete="email"' })}
         ${b.collectsGender ? J.field({ id: 'b-gender', label: 'Gender', model: 'book.details.gender', optional: true, options: [['', 'Prefer not to say'], ['female', 'Female'], ['male', 'Male'], ['other', 'Other']], hint: 'Some guests prefer a therapist of the same gender. Only staff see this.' }) : ''}
         ${b.healthNotes ? J.field({ id: 'b-notes', label: 'Health notes', model: 'book.details.notes', area: true, optional: true, placeholder: 'Injuries, pregnancy, allergies to oils…', hint: 'Kept private: only the owner and manager can read these.' }) : ''}
@@ -279,7 +282,7 @@
     else if (b.type === 'restaurant' && s.slot) rows.push(['Seating', slotSub(b, s.slot)]);
     if (b.type === 'automotive') rows.push(['Car', J.esc(vehicleText(b))]);
     if (b.type === 'professional' && s.address.result && stepsFor(b).includes('address')) rows.push(['Address', J.esc(s.address.result.formatted_address)]);
-    rows.push(['Contact', `${J.esc(s.details.name)}<br><span class="muted">${J.esc(s.details.phone)}${s.details.email ? ' · ' + J.esc(s.details.email) : ''}</span>`]);
+    rows.push(['Contact', `${J.esc(s.details.name)}<br><span class="muted">${J.esc(J.fmt.prettyPhone(J.fmt.shownPhone(s.details.phone, s.details.phoneCountry || b.country)))}${s.details.email ? ' · ' + J.esc(s.details.email) : ''}</span>`]);
     if (s.details.request) rows.push(['Note', J.esc(s.details.request)]);
     if (s.details.notes && b.healthNotes) rows.push(['Health notes', 'Added <span class="muted">· private to the owner and manager</span>']);
     if (b.type !== 'restaurant') rows.push(['Price', `${J.priceTotal(services(b))} <span class="muted">· ${services(b).some((x) => x.price_after_inspection) ? 'we tell you the final price once we have looked, before any work starts; ' : ''}${PAY_AT[b.type] || 'pay on the day'}</span>`]);
@@ -426,7 +429,8 @@
       if (s.step === 'details') {
         const e = {};
         if (!s.details.name.trim()) e.name = 'Enter your name';
-        try { J.fmt.normPhone(s.details.phone); } catch (x) { e.phone = 'Enter a mobile number we can reach you on, such as 012-345 6789'; }
+        const phoneProblem = J.fmt.phoneProblem(s.details.phone, s.details.phoneCountry || b.country);
+        if (phoneProblem) Object.assign(e, { phone: phoneProblem, phoneFor: phoneKey(b) });
         if (s.details.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s.details.email.trim())) e.email = 'That email address looks incomplete';
         s.fieldErrors = e;
         if (Object.keys(e).length) { J.render(); return; }
@@ -444,7 +448,7 @@
       const savedCar = v.mode === 'saved' && me() ? me().vehicles.find((x) => x.id === v.savedId) : null;
       const body = {
         service_ids: serviceIds(b), start_at: s.slot.start_at, resource_id: s.resourceId === 'any' ? null : s.resourceId,
-        customer: { name: s.details.name.trim(), phone: s.details.phone, email: s.details.email.trim() || null, gender: s.details.gender || null },
+        customer: { name: s.details.name.trim(), phone: s.details.phone, phone_country: s.details.phoneCountry || b.country, email: s.details.email.trim() || null, gender: s.details.gender || null },
         party_size: b.type === 'restaurant' ? s.party : null, table_type: s.tableType, allow_separate_seating: s.separate, accept_minimum_spend: s.acceptSpend, accepted_minimum_spend: s.acceptSpend && s.slot.minimum_spend ? s.slot.minimum_spend : null,
         acknowledge_lead_time: s.ackLead, special_request: s.details.request.trim() || null, health_notes: s.details.notes.trim() || null,
         vehicle: b.type !== 'automotive' ? null : savedCar ? { plate_no: savedCar.plate_no, supported_vehicle_id: savedCar.supported_vehicle_id, year: savedCar.year } : { plate_no: v.plate.trim().toUpperCase(), supported_vehicle_id: v.modelId, year: Number(v.year) },
@@ -457,6 +461,7 @@
       if (err.status === 409) { s.taken = { time: s.slot.start_at, slots: err.extra.slots || [] }; s.slot = null; s.human = 'no'; }
       else if (err.status === 402) s.error = { title: 'Online booking is full for this month', text: `${b.name} can't take more online bookings until next month. Call ${b.phone} and they will fit you in.` };
       else if (err.error === 'validation_failed' && err.extra.fields) { s.fieldErrors = err.extra.fields; go('details'); return; }
+      else if (err.error === 'invalid_phone') { s.fieldErrors = { phone: err.detail, phoneFor: phoneKey(b) }; go('details'); return; }
       else if (err.status === 503) s.error = { title: "We couldn't book that just now", text: 'Please try again in a moment.' };
       else s.error = { title: "We couldn't book that", text: err.detail };
       J.render();

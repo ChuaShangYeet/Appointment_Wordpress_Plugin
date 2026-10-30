@@ -16,9 +16,9 @@ from app.api.deps import AuditAdmin, DbDep, Principal, get_tenant, require_full_
 from app.core.config import get_settings
 from app.core import ratelimit
 from app.core.exceptions import Conflict, Forbidden, NotFound, PlanLimitReached, TooManyRequests, Unauthorized
-from app.core.phone import normalise_email, normalise_phone
+from app.core.phone import normalise_email
 from app.core.redis import get_redis
-from app.services import notifications, onboarding
+from app.services import notifications, onboarding, phones
 from app.services import plans as plans_service
 from app.services import sites as sites_service
 from app.services import users as users_service
@@ -159,10 +159,12 @@ def _otp_key(tenant_id: object, phone: str) -> str:
 
 
 @otp_router.post("/otp", status_code=202)
-async def request_otp(body: OtpRequest, request: Request) -> dict[str, str]:
-    """Send a 6-digit code over ``OTP_CHANNEL`` (WhatsApp or SMS; written to the log in development). 402 when the plan's message allowance is used up, 503 when it could not be sent."""
+async def request_otp(body: OtpRequest, request: Request, db: DbDep) -> dict[str, str]:
+    """Send a 6-digit code over ``OTP_CHANNEL`` (WhatsApp or SMS; written to the log in development). 402 when the plan's message allowance is used up, 503 when it could not be sent.
+
+    422 when the number is new to the business and is not a mobile of the chosen country (``app.services.phones``)."""
     tenant = get_tenant(request)
-    phone = normalise_phone(body.phone, tenant.phone_country_code)
+    phone = await phones.customer_phone(db, tenant, body.phone, body.phone_country)
     r = get_redis()
     key = _otp_key(tenant.id, phone)
     # One code per cooldown window. Without this, asking for a fresh code (which resets the attempt
@@ -187,7 +189,7 @@ async def request_otp(body: OtpRequest, request: Request) -> dict[str, str]:
 @otp_router.post("/otp/verify", response_model=TokenResponse)
 async def verify_otp(body: OtpVerify, request: Request, db: DbDep) -> TokenResponse:
     tenant = get_tenant(request)
-    phone = normalise_phone(body.phone, tenant.phone_country_code)
+    phone = await phones.customer_phone(db, tenant, body.phone, body.phone_country)
     r = get_redis()
     key = _otp_key(tenant.id, phone)
     if await r.incr(key + ":tries") > 5:
@@ -232,7 +234,7 @@ async def request_magic_link(body: MagicLinkRequest, request: Request, db: DbDep
     tenant = get_tenant(request)
     settings = get_settings()
     email = normalise_email(body.email)
-    phone = normalise_phone(body.phone, tenant.phone_country_code) if body.phone else None
+    phone = phones.spelled(body.phone, phones.region(tenant, body.phone_country)) if body.phone else None
     r = get_redis()
     who = _magic_key(tenant.id, hash_api_key(email)[:24])
     if settings.otp_resend_cooldown_seconds > 0 and not await r.set(who + ":cooldown", "1", ex=settings.otp_resend_cooldown_seconds, nx=True):

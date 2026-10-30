@@ -47,14 +47,29 @@ window.JS = window.JS || {};
     if (d.startsWith('0') || d.length < 7 || d.length > 15) throw new ApiError(422, 'validation_failed', 'That is not a valid phone number');
     return '+' + d;
   }
+  /** A quick look before sending: '' when the number may be a mobile of the country (the backend decides), else what to fix. */
+  function phoneProblem(raw, code) {
+    const c = JS.COUNTRIES[code], text = String(raw || '').trim().replace(/[\s\-().]/g, '');
+    const ask = c ? `Enter a mobile number in ${c.name}${c.mobileLengths.length ? `: ${c.mobileLengths.join(' or ')} digits after +${c.calling}` : ''}${c.mobile ? `, such as ${c.mobile}` : ''}` : 'Enter a mobile number';
+    if (!text) return 'Enter a mobile number we can reach you on';
+    if (text.startsWith('+') || text.startsWith('00')) return /^(\+|00)\d{7,15}$/.test(text) ? '' : ask;  // (another country's code typed in: the backend checks it)
+    if (!/^\d+$/.test(text) || !c || !c.mobileLengths.length) return /^\d{6,15}$/.test(text) ? '' : ask;
+    const national = c.trunk && text.startsWith(c.trunk) ? text.slice(c.trunk.length) : text;  // (the 0 people dial at home is not counted)
+    return c.mobileLengths.includes(national.length) ? '' : ask;
+  }
   function prettyPhone(p) {
     if (!p) return '';
     if (p.startsWith('+60') && p.length >= 11) { const r = p.slice(3); return r.length >= 10 ? `+60 ${r.slice(0, 2)}-${r.slice(2, 6)} ${r.slice(6)}` : `+60 ${r.slice(0, 2)}-${r.slice(2, 5)} ${r.slice(5)}`; }
     return p;
   }
+  /** The number as the backend writes it, for showing before it answers: the chosen country's code in front (the backend's own copy is the one kept). */
+  function shownPhone(raw, code) {
+    const c = JS.COUNTRIES[code];
+    try { return normPhone(raw, c ? c.calling : '60'); } catch (e) { return String(raw || ''); }
+  }
   function maskPhone(p) { return p ? `${p.slice(0, 3)}****${p.slice(-4)}` : ''; }
   const normEmail = (e) => String(e || '').trim().toLowerCase();
-  JS.fmt = { prettyPhone, maskPhone, normPhone };
+  JS.fmt = { prettyPhone, maskPhone, normPhone, phoneProblem, shownPhone };
 
   /* ------------------------------------------------------------------ talking to the backend */
   const FIELD_NAMES = { address_line1: 'address_line1', owner_email: 'owner_email' };
@@ -236,7 +251,7 @@ window.JS = window.JS || {};
       CFG = await http('GET', '/dev/config');
       // every country a business can sign up in, by name (GET /v1/countries); the sign-up page reads it as JS.COUNTRIES
       JS.COUNTRIES = Object.fromEntries((await http('GET', '/v1/countries')).map((c) => [c.code, {
-        name: c.name, calling: c.calling_code, currency: c.currency, exact: c.exact_address, postcode: c.postcode_digits, postcodeExample: c.postcode_example,
+        name: c.name, calling: c.calling_code, mobile: c.mobile_example, mobileLengths: c.mobile_lengths, trunk: c.trunk_prefix, currency: c.currency, exact: c.exact_address, postcode: c.postcode_digits, postcodeExample: c.postcode_example,
         zones: c.timezones.map((z) => [z.timezone, z.label]), states: c.states.map((x) => [x.code, x.name]),
       }]));
       await Promise.all(CFG.businesses.map((c) => loadBusiness(c.id).catch((e) => console.error('could not load', c.id, e))));
@@ -284,7 +299,7 @@ window.JS = window.JS || {};
       const b = snap(id);
       const out = {
         service_ids: body.service_ids, start_at: body.start_at, resource_id: body.resource_id || undefined,
-        customer: { name: body.customer.name, phone: body.customer.phone, email: body.customer.email || undefined, gender: body.customer.gender || undefined },
+        customer: { name: body.customer.name, phone: body.customer.phone, phone_country: body.customer.phone_country || undefined, email: body.customer.email || undefined, gender: body.customer.gender || undefined },
         party_size: body.party_size || undefined, table_type: body.table_type || 'normal', allow_separate_seating: !!body.allow_separate_seating,
         accept_minimum_spend: !!body.accept_minimum_spend, accepted_minimum_spend: body.accepted_minimum_spend ?? undefined,
         acknowledge_lead_time: !!body.acknowledge_lead_time, special_request: body.special_request || undefined, health_notes: body.health_notes || undefined,
@@ -294,7 +309,7 @@ window.JS = window.JS || {};
       try {
         const made = await http('POST', '/v1/public/bookings', { site: site(id), body: out, headers: { 'Idempotency-Key': 'web-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10) } });
         return {
-          ...made, ref: ref(made.id), customer: { ...out.customer, phone: normPhone(out.customer.phone) }, contact_email: out.customer.email || null,
+          ...made, ref: ref(made.id), customer: { ...out.customer, phone: shownPhone(out.customer.phone, out.customer.phone_country || b.country) }, contact_email: out.customer.email || null,
           minimum_spend_agreed: made.minimum_spend_agreed == null ? null : Number(made.minimum_spend_agreed),
           allocations: made.resource_ids.map((rid) => ({ rid, s: Date.parse(made.start_at), e: Date.parse(made.end_at) })),
         };
@@ -308,14 +323,14 @@ window.JS = window.JS || {};
     },
 
     /* ---------------- customer sign-in */
-    async requestOtp(id, rawPhone) {
-      const phone = normPhone(rawPhone);
-      await http('POST', '/v1/public/auth/otp', { site: site(id), body: { phone } });
-      return { status: 'sent', to: maskPhone(phone), channel: 'WhatsApp' };
+    async requestOtp(id, rawPhone, phoneCountry) {
+      await http('POST', '/v1/public/auth/otp', { site: site(id), body: { phone: rawPhone, phone_country: phoneCountry } });
+      return { status: 'sent', to: maskPhone(shownPhone(rawPhone, phoneCountry)), channel: 'WhatsApp' };
     },
-    async verifyOtp(id, rawPhone, code) {
-      const phone = normPhone(rawPhone);
-      const t = await http('POST', '/v1/public/auth/otp/verify', { site: site(id), body: { phone, code } });
+    async verifyOtp(id, rawPhone, code, phoneCountry) {
+      const t = await http('POST', '/v1/public/auth/otp/verify', { site: site(id), body: { phone: rawPhone, phone_country: phoneCountry, code } });
+      let phone = shownPhone(rawPhone, phoneCountry);
+      try { phone = (await http('GET', '/v1/public/me/profile', { site: site(id), token: t.access_token })).phone; } catch (e) { /* shown as typed */ }
       return { method: 'phone', phone, limited: false, token: t.access_token };
     },
     async requestMagicLink(id, rawEmail) {

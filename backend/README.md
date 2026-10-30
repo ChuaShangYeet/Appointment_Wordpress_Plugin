@@ -420,6 +420,17 @@ go out **once**, however many sweeps, retries or crashes there are. Delivery the
   422. `012-345 0001`, `+60 12 3450001` and `0060123450001` are therefore one customer. This is a spelling fix, **not** a check of
   national numbering plans. Migration `0014` rewrites existing numbers (a number whose normal form already belongs to another
   customer is left untouched; two people are never merged by a migration).
+* **A customer's number must be a mobile of the country chosen in front of it** (2026-10-30; `app/core/phone.py` `mobile_number`, `app/services/phones.py`).
+  Booking (`customer.phone_country`), OTP request and verify and the magic link (`phone_country`) take the ISO code of the country the customer picked in front of
+  the number (`SG`); left out, it is the business's country, and a number typed with `+` or `00` keeps its own. The number is read with Google's numbering plans
+  (the `phonenumbers` library) and must be a valid **mobile** there, because codes and updates go by WhatsApp or SMS: Malaysia 9 or 10 digits after +60 (`012-345 6789`,
+  `011-2345 6789`), Singapore 8, Australia 9; landlines (`03-2282 4410`) and numbers of another length are 422 `invalid_phone` with what a mobile there looks like
+  ("That is not a mobile number in Malaysia: it has 9 or 10 digits after +60, such as 012-345 6789"). In the United States and Canada a number cannot tell a
+  mobile from a landline, so a valid number is accepted. Only letters, digits, spaces, `-`, `(`, `)`, `.` and a leading `+` are read (the library would take
+  letters as digits and "ext 5" as an extension). **A number the business already has is taken as it is**, so customers saved before this check keep signing in
+  and booking (another business's customers do not count). `GET /v1/countries` gives each country's `mobile_example`, `mobile_lengths` and `trunk_prefix`
+  (the 0 dialled at home in Malaysia, `null` in Singapore) for a form's placeholder and a quick check before sending. Staff contact phones and the business's own
+  phone still have the spelling check only.
 * **Email magic link.** `POST /public/auth/magic-link {email, phone?}` mails a single-use link (through the email provider: see *Notifications*; in
   development the logging provider prints it), `POST /public/auth/magic-link/verify {token}` returns the same customer token as the OTP
   login. The token is 256 random bits, kept hashed in Redis for `MAGIC_LINK_TTL_SECONDS` (900), bound to the business, consumed
@@ -672,7 +683,7 @@ A business picks its country **once, when it is set up** (`POST /auth/tenants {"
 Nothing about time is worked out from the country itself, so a country added from `zone.tab` needs no rule of its own.
 
 * **Sign-up checks.** The time zone (default: the country's first) must be one of the country's; a `phone_country_code` that is not the country's, a code that is not a country (`XX`, `my` in small letters, `MYS`) and a zone of another country are 422 with a message that names the choices.
-  `GET /v1/countries` (no key; it is what a sign-up or settings page reads) lists every country, by name, with its time zones, phone code, currency and `exact_address`: `true` for the three, with `postcode_digits`, `postcode_example`, `states` and `privacy_law`; `false` for the rest, with those `null` or empty.
+  `GET /v1/countries` (no key; it is what a sign-up or settings page reads) lists every country, by name, with its time zones, phone code, an example mobile number and its lengths (`mobile_example`, `mobile_lengths`, `trunk_prefix`: see *Customer identity*), currency and `exact_address`: `true` for the three, with `postcode_digits`, `postcode_example`, `states` and `privacy_law`; `false` for the rest, with those `null` or empty.
 * **The address in parts.** `address_line1`, `address_line2`, `city`, `state` and `postcode` can be given at sign-up and in `PUT /admin/business-profile`: all or nothing. In the three countries known in detail, street, city and postcode are needed, and the state where the country has states (code or name, any case: `selangor` is `SGR`;
   Singapore has no states and its city defaults to Singapore). Everywhere else **only the street and city are needed**: the state, province or region is kept as typed (up to 100 characters, so `business_profiles.state` grew from 3 in migration 0034) and the postcode is optional and loosely checked.
   The one-line `address` is written in the country's order: `12 Jalan Bukit, 50450 Petaling Jaya, Selangor`, `1 George St, Sydney NSW 2000`, `1 Raffles Place, Singapore 048616`, elsewhere `street, city, region postcode` (`290 Bremner Blvd, Toronto, Ontario M5V 3L9`).
@@ -1140,7 +1151,7 @@ password (scram) authentication and TLS to the database, a real Redis, the rever
 * The availability cache is invalidated per date for bookings (see *Availability cache*) but per tenant for settings; a cold month view runs the pipeline once per date
   (no bulk month computation); no Celery or RabbitMQ (the sweep, the outbox and the reminders run in a plain asyncio worker: see *Background sweep*). The cache has been tested against `fakeredis`, not a real Redis server.
 * Customer accounts: phone (OTP) or email (magic link) login, no shared accounts across tenants. OTP codes and magic links go out through the
-  delivery providers (see *Notifications*): in production they need an email provider (SMTP) and, for OTP, a WhatsApp or SMS provider (both built, tested against a fake gateway only). Phones are normalised for spelling, not validated per country; the country
+  delivery providers (see *Notifications*): in production they need an email provider (SMTP) and, for OTP, a WhatsApp or SMS provider (both built, tested against a fake gateway only). A new customer's phone must be a mobile of the chosen country (Google's numbering plans; see *Customer identity*); staff contact phones are normalised for spelling only; the business's country
   code is set at onboarding only (no endpoint to change it later); emails are not verified when a booking is made; there is no
   guest manage-token (a guest signs in by phone or email); requests are limited per client address and per business (see *Rate limiting*) on top of the per-phone / per-email cool-downs and daily caps.
 * Rescheduling: see *Customer rescheduling* and *Admin rescheduling* for what is not done (virtual join links, a move limit, bulk moves, asking the customer first).
