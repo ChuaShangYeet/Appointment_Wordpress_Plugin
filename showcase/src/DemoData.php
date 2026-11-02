@@ -108,7 +108,7 @@ final class DemoData {
 	// ------------------------------------------------------------------ the five
 
 	private static function clinic(): ?int {
-		$id = self::page( 'staff', array( 'phone' => '+60 3-2142 8810' ) );
+		$id = self::page( 'staff', array( 'phone' => '+60 3-2142 8810', 'accent' => '#4f6238' ) );
 		if ( ! $id ) {
 			return null;
 		}
@@ -124,7 +124,7 @@ final class DemoData {
 	}
 
 	private static function salon(): ?int {
-		$id = self::page( 'salon', array( 'phone' => '+60 3-7781 2290' ) );
+		$id = self::page( 'salon', array( 'phone' => '+60 3-7781 2290', 'accent' => '#8a4458' ) );
 		if ( ! $id ) {
 			return null;
 		}
@@ -145,7 +145,7 @@ final class DemoData {
 	}
 
 	private static function restaurant(): ?int {
-		$id = self::page( 'restaurant', array( 'phone' => '+60 3-9284 1177' ) );
+		$id = self::page( 'restaurant', array( 'phone' => '+60 3-9284 1177', 'accent' => '#a63d2a' ) );
 		if ( ! $id ) {
 			return null;
 		}
@@ -161,7 +161,7 @@ final class DemoData {
 	}
 
 	private static function workshop(): ?int {
-		$id = self::page( 'workshop', array( 'phone' => '+60 3-7956 4402' ) );
+		$id = self::page( 'workshop', array( 'phone' => '+60 3-7956 4402', 'accent' => '#3c5a73' ) );
 		if ( ! $id ) {
 			return null;
 		}
@@ -187,7 +187,7 @@ final class DemoData {
 	}
 
 	private static function field(): ?int {
-		$id = self::page( 'field', array( 'phone' => '+60 12-388 4120', 'latitude' => 3.139, 'longitude' => 101.6869, 'service_radius_km' => 25 ) );
+		$id = self::page( 'field', array( 'phone' => '+60 12-388 4120', 'accent' => '#2c6e73', 'latitude' => 3.139, 'longitude' => 101.6869, 'service_radius_km' => 25 ) );
 		if ( ! $id ) {
 			return null;
 		}

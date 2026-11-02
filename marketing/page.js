@@ -94,6 +94,31 @@ const holder = document.getElementById( 'answer-widget' );
 const note = document.getElementById( 'answer-note' );
 const NOTE = note.textContent;
 const businesses = [ ...document.querySelectorAll( '.biz button' ) ];
+const head = document.getElementById( 'biz-head' );
+const headImg = head.querySelector( 'img' );
+const ASSETS = new URL( './img/', import.meta.url );
+/** Each demo business: its room in the hero, its photo, and the rule its bookings keep (the five-kinds table's words). */
+const BUSINESS = {
+	salon: { room: 0, img: 'salon.webp', w: 2400, h: 1666, alt: 'A salon with three styling chairs facing round mirrors on a dark wall', rule: 'An add-on makes the booking longer, and starts that no longer fit drop out.' },
+	restaurant: { room: 1, img: 'restaurant.webp', w: 2400, h: 3600, alt: 'Dishes on blue and white plates, laid on a dark cloth among chillies and shallots', rule: 'A party of 8 is seated across tables that are free together.' },
+	workshop: { room: 2, img: 'workshop.webp', w: 2400, h: 3600, alt: 'A mechanic leaning over an open engine bay', rule: 'A mechanic and a bay must both be free; a part on order is shown before booking.' },
+	field: { room: 3, img: 'home.webp', w: 2400, h: 1350, alt: 'Air conditioning units on the white wall of a building', rule: 'Travel time is held either side of each visit, only inside the area covered.' },
+	staff: { room: 4, img: 'clinic.webp', w: 1920, h: 1282, alt: 'A clinic\'s examination room with a couch, an ultrasound machine and a plant by the window', rule: 'Times show only where the doctor is free, or any doctor if you do not mind who.' },
+};
+
+/** The header above the booking form becomes the chosen business; its colour comes from the business's own settings, once loaded. */
+function showBusiness( kind, name ) {
+	const b = BUSINESS[ kind ];
+	head.querySelector( 'b' ).textContent = name;
+	head.querySelector( 'span' ).textContent = b.rule;
+	if ( ! headImg.src.endsWith( '/' + b.img ) ) {
+		Object.assign( headImg, { src: new URL( b.img, ASSETS ).href, alt: b.alt, width: b.w, height: b.h } );
+		headImg.classList.remove( 'fresh' );
+		void headImg.offsetWidth; // (restart the fade)
+		headImg.classList.add( 'fresh' );
+	}
+	enter( b.room ); // the hero shows the same room, so the top of the page and the demo agree
+}
 
 const WEEKDAYS = [ 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday' ];
 const has = ( text, words ) => words.some( ( w ) => text.includes( w ) );
@@ -220,6 +245,7 @@ async function answer( line ) {
 		cache[ ask.kind ] = cache[ ask.kind ] || sourceFor( ask.kind );
 		const { source, id, data, how } = await cache[ ask.kind ];
 		note.textContent = NOTES[ how ];
+		document.getElementById( 'try' ).style.setProperty( '--biz', ( data.module.look && data.module.look.accent ) || '' ); // the header's name and the chosen business take its colour
 		if ( ! shown || shown.kind !== ask.kind ) {
 			const el = document.createElement( 'jsb-booking' );
 			el.setAttribute( 'module', String( id ) );
@@ -237,6 +263,7 @@ async function answer( line ) {
 // each business opens on its own starting line, already filled in; the visitor carries on from there
 businesses.forEach( ( b ) => b.addEventListener( 'click', () => {
 	businesses.forEach( ( x ) => x.setAttribute( 'aria-pressed', String( x === b ) ) );
+	showBusiness( b.dataset.kind, b.querySelector( 'span' ).textContent.split( ' · ' )[ 0 ] );
 	answer( b.dataset.ask );
 } ) );
 answer( ( businesses.find( ( b ) => b.getAttribute( 'aria-pressed' ) === 'true' ) || businesses[ 0 ] ).dataset.ask );

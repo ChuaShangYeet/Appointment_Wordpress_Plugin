@@ -49,7 +49,7 @@ foreach ( $wpdb->get_col( $wpdb->prepare( 'SELECT id FROM ' . Schema::table( 'mo
 
 $m   = call( 'POST', '/admin/modules', array( 'title' => TITLE, 'type' => 'salon' ) );
 $mid = $m['id'];
-call( 'PATCH', "/admin/modules/$mid", array( 'status' => 'active', 'settings' => array( 'phone' => '+60 3-7781 2290' ) ) );
+call( 'PATCH', "/admin/modules/$mid", array( 'status' => 'active', 'settings' => array( 'phone' => '+60 3-7781 2290', 'accent' => '#8a4458' ) ) );
 call( 'PUT', "/admin/modules/$mid/hours", array( 'hours' => array_map( static function ( $d ) {
 	return array( 'weekday' => $d, 'open_time' => '10:00', 'close_time' => '21:00' );
 }, range( 0, 6 ) ) ) );
@@ -186,7 +186,7 @@ $book_at = static function ( int $mid, array $body ) {
 };
 
 // appointments: a clinic
-$k  = demo_page( 'Klinik Dr Wong', 'staff', array( 'phone' => '+60 3-2142 8810' ) );
+$k  = demo_page( 'Klinik Dr Wong', 'staff', array( 'phone' => '+60 3-2142 8810', 'accent' => '#4f6238' ) );
 hours( $k['id'], '09:00', '18:00', array( 1, 2, 3, 4, 5, 6 ) );
 $ks = array();
 foreach ( array( array( 'General consultation', 15, '45.00' ), array( 'Follow-up visit', 10, '30.00' ), array( 'Vaccination', 15, '80.00' ) ) as $x ) {
@@ -198,7 +198,7 @@ $book_at( $k['id'], array( 'service_ids' => array( $ks[0] ), 'staff_id' => $wong
 $book_at( $k['id'], array( 'service_ids' => array( $ks[0] ), 'staff_id' => $wong, 'start' => $on( 1, '10:15' ) ) );
 
 // a restaurant with a VIP room
-$r = demo_page( 'Rumah Makan Seri', 'restaurant', array( 'phone' => '+60 3-9284 1177' ) );
+$r = demo_page( 'Rumah Makan Seri', 'restaurant', array( 'phone' => '+60 3-9284 1177', 'accent' => '#a63d2a' ) );
 hours( $r['id'], '11:00', '22:30' );
 foreach ( array( array( 'A1', 2 ), array( 'A2', 2 ), array( 'A3', 2 ), array( 'B1', 4 ), array( 'B2', 4 ), array( 'B3', 4 ), array( 'C1', 6 ), array( 'C2', 6 ) ) as $t ) {
 	call( 'POST', "/admin/modules/{$r['id']}/tables", array( 'name' => $t[0], 'capacity' => $t[1] ) );
@@ -209,7 +209,7 @@ $book_at( $r['id'], array( 'party_size' => 6, 'table_type' => 'normal', 'start' 
 $book_at( $r['id'], array( 'party_size' => 6, 'table_type' => 'normal', 'start' => $on( 4, '19:30' ) ) );
 
 // a workshop: mechanics, bays, the cars it services, a part on order
-$w  = demo_page( 'Bengkel Ah Kow', 'workshop', array( 'phone' => '+60 3-7956 4402' ) );
+$w  = demo_page( 'Bengkel Ah Kow', 'workshop', array( 'phone' => '+60 3-7956 4402', 'accent' => '#3c5a73' ) );
 hours( $w['id'], '08:30', '18:00', array( 1, 2, 3, 4, 5, 6 ) );
 $ws = array();
 foreach ( array( array( 'Oil and filter change', 45, '120.00' ), array( 'Brake pads, front', 90, '260.00' ), array( 'Aircon gas top-up', 60, '150.00' ) ) as $x ) {
@@ -228,7 +228,7 @@ call( 'PUT', "/admin/services/{$ws[1]}/parts", array( 'product_ids' => array( $p
 $book_at( $w['id'], array( 'service_ids' => array( $ws[0] ), 'start' => $on( 2, '09:00' ), 'vehicle' => array( 'plate_no' => 'WXY 1234', 'supported_vehicle_id' => $cars['Myvi'], 'year' => 2019 ) ) );
 
 // home services: visits at the customer's place, online calls
-$f  = demo_page( 'CoolAir Services', 'field', array( 'phone' => '+60 12-388 4120', 'latitude' => 3.139, 'longitude' => 101.6869, 'service_radius_km' => 25 ) );
+$f  = demo_page( 'CoolAir Services', 'field', array( 'phone' => '+60 12-388 4120', 'accent' => '#2c6e73', 'latitude' => 3.139, 'longitude' => 101.6869, 'service_radius_km' => 25 ) );
 hours( $f['id'], '09:00', '18:00', array( 1, 2, 3, 4, 5, 6 ) );
 call( 'POST', "/admin/modules/{$f['id']}/services", array( 'name' => 'Aircon check at your place', 'duration_minutes' => 45, 'price' => '60.00', 'location_type' => 'on_site', 'service_category' => 'inspection', 'travel_buffer_minutes' => 30 ) );
 call( 'POST', "/admin/modules/{$f['id']}/services", array( 'name' => 'Aircon servicing', 'duration_minutes' => 90, 'price' => '150.00', 'location_type' => 'on_site', 'travel_buffer_minutes' => 30 ) );

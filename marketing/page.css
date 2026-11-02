@@ -68,7 +68,7 @@ h1, h2 { margin: 0; font-weight: 600; letter-spacing: -0.04em; line-height: 0.95
 .room[data-kind="visit"] { --scrim: 0.62; }
 .room[data-kind="visit"] img { object-position: 62% 50%; }
 .room[data-kind="treatment"] { --scrim: 0.62; }
-.room[data-kind="treatment"] img { object-position: 50% 45%; }
+.room[data-kind="treatment"] img { object-position: 50% 60%; }
 
 /* the words that choose the room, and the line under the current one that runs until the next room comes */
 .doors {
@@ -130,6 +130,14 @@ section { padding: 160px var(--margin) 0; }
 .showcase { min-height: 88svh; display: grid; grid-template-columns: repeat(12, 1fr); column-gap: var(--gutter); align-content: start; }
 .try-h { grid-column: 1 / -1; font-size: clamp(48px, 7.2vw, 112px); letter-spacing: -0.045em; line-height: 0.95; }
 .answer { grid-column: 1 / 7; grid-row: 2; margin-top: 48px; max-width: 560px; }
+/* the business being booked: its room, its name in its own colour, the rule its bookings keep */
+.biz-head { margin: 0 0 20px; }
+.biz-head img { width: 100%; height: auto; aspect-ratio: 16 / 6; object-fit: cover; border-radius: 2px; background: var(--surface); }
+.biz-head img.fresh { animation: fresh 260ms var(--ease); }
+@keyframes fresh { from { opacity: 0.2; } to { opacity: 1; } }
+.biz-head figcaption { margin-top: 14px; }
+.biz-head b { display: block; font-size: clamp(22px, 2vw, 29px); letter-spacing: -0.02em; line-height: 1.1; color: var(--biz, var(--ink)); transition: color 200ms; }
+.biz-head span { display: block; margin-top: 6px; font-size: 17px; }
 .answer-note { margin: 0 0 16px; font-size: var(--step-small); color: var(--muted); max-width: 52ch; }
 .answer-widget { min-height: 420px; }
 .answer-widget jsb-booking { --jsb-font: "DM Sans", system-ui, sans-serif; }
@@ -261,7 +269,7 @@ section { padding: 160px var(--margin) 0; }
 	.try-h { font-size: 11vw; }
 	.biz { margin-top: 24px; flex-direction: row; flex-wrap: wrap; gap: 8px; }
 	.biz button { width: auto; min-height: 44px; padding: 0 14px; background: var(--surface); }
-	.biz button[aria-pressed="true"] { background: var(--accent); }
+	.biz button[aria-pressed="true"] { background: var(--biz, var(--accent)); }
 	.biz button[aria-pressed="true"] b { color: var(--accent-ink); }
 	.biz b { font-size: 17px; letter-spacing: 0; color: var(--ink); }
 	.biz span { display: none; }
@@ -302,7 +310,7 @@ section { padding: 160px var(--margin) 0; }
 
 @media (prefers-reduced-motion: reduce) {
 	html { scroll-behavior: auto; }
-	.js .slot, .js .slot img.on, .kinds-pic img, .js .room.on img, .js .room.under img, .doors-pick button[aria-pressed="true"]::after { animation: none; }
+	.js .slot, .js .slot img.on, .kinds-pic img, .biz-head img.fresh, .js .room.on img, .js .room.under img, .doors-pick button[aria-pressed="true"]::after { animation: none; }
 	.doors-pick button[aria-pressed="true"]::after { transform: none; }
 	.slot img, .room { transition: none; }
 	.js [data-reveal].wait > * { opacity: 1; transform: none; transition: none; }
