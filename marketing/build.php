@@ -53,10 +53,18 @@ if ( ! is_dir( $dist ) ) {
 }
 clear( $dist, $dist );
 
+// {{v}}: a fingerprint of everything the page loads, put in each file's address (page.css?v=...). Hosts often tell browsers to
+// keep these files for a year (InfinityFree: max-age=31536000), so without it a returning visitor gets the new page with old styles.
+$fingerprint = hash_init( 'sha1' );
+foreach ( array_merge( array( "$here/page.css", "$here/page.js" ), glob( "$here/demo/*.json" ), glob( "$plugin/assets/front/*.{js,css,json}", GLOB_BRACE ), glob( "$plugin/assets/fonts/*.css" ) ) as $f ) {
+	hash_update_file( $fingerprint, $f );
+}
+$stamp = substr( hash_final( $fingerprint ), 0, 10 );
+
 // the page, with the version and the zip's name filled in
 foreach ( array( 'index.html', 'page.css', 'page.js' ) as $f ) {
 	// {{assets}}: the files sit beside the page here; the Showcase build below keeps it for the plugin to fill in
-	$text = str_replace( array( '{{version}}', '{{zip}}', '{{assets}}' ), array( $version, $artifact ? '#get' : "justsimple-booking-$version.zip", '' ), file_get_contents( "$here/$f" ) );
+	$text = str_replace( array( '{{version}}', '{{zip}}', '{{assets}}', '{{v}}' ), array( $version, $artifact ? '#get' : "justsimple-booking-$version.zip", '', $stamp ), file_get_contents( "$here/$f" ) );
 	if ( $artifact && 'index.html' === $f ) {
 		// the host wraps the page in its own document: keep the head's contents and the body's, with a plain name as the title
 		preg_match( '#<head>(.*?)</head>#s', $text, $head );
@@ -117,7 +125,7 @@ foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $site, 
 	$f->isDir() ? rmdir( $f->getPathname() ) : unlink( $f->getPathname() );
 }
 foreach ( array( 'index.html', 'page.css', 'page.js' ) as $f ) {
-	file_put_contents( "$site/$f", str_replace( array( '{{version}}', '{{zip}}' ), array( $version, "{{assets}}justsimple-booking-$version.zip" ), file_get_contents( "$here/$f" ) ) );
+	file_put_contents( "$site/$f", str_replace( array( '{{version}}', '{{zip}}', '{{v}}' ), array( $version, "{{assets}}justsimple-booking-$version.zip", $stamp ), file_get_contents( "$here/$f" ) ) );
 }
 foreach ( array( 'img', 'demo', 'widget', 'fonts' ) as $folder ) {
 	foreach ( glob( "$dist/$folder/*" ) as $f ) {

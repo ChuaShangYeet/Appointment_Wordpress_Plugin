@@ -4,8 +4,9 @@
  * 8pm"), answering live against the demo site's engine when the Showcase plugin serves this page, and otherwise from times the
  * real engine worked out (demo/*.json, recorded by tests/record-demo.php).
  */
-import { DemoSource } from './widget/demo-source.js';
-import { RestSource } from './widget/jsb-booking.js';
+import { DemoSource } from './widget/demo-source.js?v={{v}}'; // the build puts its fingerprint here, so a new build is never an old cached file
+import { RestSource } from './widget/jsb-booking.js?v={{v}}';
+const VER = new URL( import.meta.url ).search; // this page's ?v=, passed on to the files it loads itself
 
 document.documentElement.classList.add( 'js' );
 const still = matchMedia( '(prefers-reduced-motion: reduce)' ).matches;
@@ -232,7 +233,7 @@ async function sourceFor( kind ) {
 			// falls through to the recorded answers
 		}
 	}
-	const data = await fetch( new URL( `./demo/${ kind }.json`, import.meta.url ) ).then( ( r ) => r.json() );
+	const data = await fetch( new URL( `./demo/${ kind }.json${ VER }`, import.meta.url ) ).then( ( r ) => r.json() );
 	return { source: new DemoSource( data ), id: 1, data, how: id ? 'fallback' : 'recorded' };
 }
 
@@ -249,7 +250,7 @@ async function answer( line ) {
 		if ( ! shown || shown.kind !== ask.kind ) {
 			const el = document.createElement( 'jsb-booking' );
 			el.setAttribute( 'module', String( id ) );
-			el.setAttribute( 'css', new URL( './widget/jsb-booking.css', import.meta.url ).href );
+			el.setAttribute( 'css', new URL( './widget/jsb-booking.css' + VER, import.meta.url ).href );
 			el.source = source;
 			holder.replaceChildren( el );
 			shown = { kind: ask.kind, el, how };
