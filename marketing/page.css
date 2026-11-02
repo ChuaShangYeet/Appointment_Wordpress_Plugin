@@ -206,7 +206,7 @@ section { padding: 160px var(--margin) 0; }
 .mail-head { margin: 0 -24px 18px !important; padding: 16px 24px; background: #f4f1ea; border-radius: 2px 2px 0 0; }
 .mail-head b, .mail-head span { display: block; }
 .mail-head span { color: var(--muted); font-size: 14px; margin-top: 2px; }
-.mail-link { color: #2c5d8a; text-decoration: underline; text-underline-offset: 0.18em; }
+.mail-link { color: var(--muted); } /* a sample has no booking behind it, so no address to follow: words stand in for the link */
 .faq-mail figcaption { margin-top: 14px; font-size: 14px; color: var(--muted); max-width: 420px; }
 .faq details { margin: 0 -24px 36px; padding: 0 24px; border-radius: 2px; transition: background-color 200ms; }
 .faq details[open] { background: var(--surface); padding-top: 24px; padding-bottom: 24px; }
