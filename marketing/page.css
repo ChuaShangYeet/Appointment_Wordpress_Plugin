@@ -192,7 +192,22 @@ section { padding: 160px var(--margin) 0; }
 /* ---- questions: wide heading, indented questions ---- */
 .faq-h { font-size: clamp(40px, 4.5vw, 68px); }
 .faq { overflow-x: clip; } /* the open question's tile bleeds 24px past the text, never past the screen */
-.faq-list { margin: 80px 0 0 calc(4 * (var(--col) + var(--gutter))); }
+.faq { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: var(--gutter); align-items: start; }
+.faq-h { grid-column: 1 / -1; }
+.faq-list { grid-column: 5 / -1; grid-row: 2; margin: 80px 0 0; }
+/* beside the questions: the confirmation email the plugin sends, as plain as it is, staying in view while the answers open */
+.faq-mail { grid-column: 1 / 5; grid-row: 2; margin: 80px 0 0; position: sticky; top: 32px; }
+.mail {
+	background: #fff; color: var(--ink); border-radius: 2px; padding: 0 24px 22px; font-size: 15px; line-height: 1.55;
+	max-width: 420px; overflow-wrap: anywhere;
+}
+.mail p { margin: 0 0 12px; }
+.mail p:last-child { margin-bottom: 0; }
+.mail-head { margin: 0 -24px 18px !important; padding: 16px 24px; background: #f4f1ea; border-radius: 2px 2px 0 0; }
+.mail-head b, .mail-head span { display: block; }
+.mail-head span { color: var(--muted); font-size: 14px; margin-top: 2px; }
+.mail-link { color: #2c5d8a; text-decoration: underline; text-underline-offset: 0.18em; }
+.faq-mail figcaption { margin-top: 14px; font-size: 14px; color: var(--muted); max-width: 420px; }
 .faq details { margin: 0 -24px 36px; padding: 0 24px; border-radius: 2px; transition: background-color 200ms; }
 .faq details[open] { background: var(--surface); padding-top: 24px; padding-bottom: 24px; }
 .faq summary {
@@ -242,6 +257,8 @@ section { padding: 160px var(--margin) 0; }
 @media (max-width: 1100px) {
 	.nav ul { grid-column: 5 / 12; justify-content: flex-end; padding-right: 8px; }
 	.nav ul a { white-space: nowrap; }
+	.faq-mail { grid-column: 1 / 6; }
+	.faq-list { grid-column: 6 / -1; }
 }
 
 /* ---- phone ---- */
@@ -291,7 +308,9 @@ section { padding: 160px var(--margin) 0; }
 	.bar b { font-size: 22px; }
 	.how { padding-bottom: 80px; }
 	.faq-h { font-size: 10vw; }
+	.faq { display: flex; flex-direction: column; }
 	.faq-list { margin: 48px 0 0; }
+	.faq-mail { order: 3; position: static; margin: 20px 0 0; }
 	.faq details { margin: 0 calc(-1 * var(--margin)) 28px; padding: 0 var(--margin); }
 	.faq summary { font-size: 20px; }
 	.faq details p { font-size: 17px; }
