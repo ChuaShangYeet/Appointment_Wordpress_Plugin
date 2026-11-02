@@ -163,7 +163,7 @@ $phone_of = static function ( $b ) use ( $wpdb ) {
 list( $s, $d ) = call( 'POST', "/modules/$mid/bookings", $body( $at( '14:00' ), null, '012-345 678' ) );
 check( 422 === $s && 'customer.phone' === $d['data']['field'] && 'That is not a mobile number in Malaysia: it has 9 or 10 digits after +60, such as 012-345 6789' === $d['message'], 'a Malaysian mobile a digit short: refused, saying what one looks like', $d );
 list( $s, $d ) = call( 'POST', "/modules/$mid/bookings", $body( $at( '14:00' ), null, '03-2282 4410' ) );
-check( 422 === $s && 'customer.phone' === $d['data']['field'] && false !== strpos( $d['message'], 'landline' ), 'a landline: refused, codes go by WhatsApp or SMS', $d );
+check( 422 === $s && 'customer.phone' === $d['data']['field'] && false !== strpos( $d['message'], 'landline' ), 'a landline: refused, the business must be able to reach the customer', $d );
 list( $s, $d ) = call( 'POST', "/modules/$mid/bookings", $body( $at( '14:00' ), null, '9123 4567', array( 'customer' => array( 'name' => 'Wei', 'phone' => '9123 4567', 'phone_country' => 'ZZ' ) ) ) );
 check( 422 === $s && 'customer.phone_country' === $d['data']['field'], 'a country code that is no country: refused', $d );
 list( $s, $sg ) = call( 'POST', "/modules/$mid/bookings", $body( $at( '14:00' ), null, '9123 4567', array( 'customer' => array( 'name' => 'Wei', 'phone' => '9123 4567', 'phone_country' => 'SG' ) ) ) );
@@ -764,7 +764,8 @@ check( 201 === $s && 'Honda' === $b['booking']['vehicle']['make'] && 2018 === $b
 $same = array( 'name' => 'Aisha', 'phone' => '+60123456789' );
 list( $s ) = $gbook( $g, array( 'oil' ), $gat( $tomorrow, '16:00' ), array( 'customer' => $same, 'vehicle' => array( 'plate_no' => 'abc 123', 'supported_vehicle_id' => $g['car']['Vios'] ) ) );
 list( $s2, $b ) = $gbook( $g, array( 'oil' ), $gat( $tomorrow, '17:00' ), array( 'customer' => $same, 'vehicle' => array( 'plate_no' => 'ABC-123', 'supported_vehicle_id' => $g['car']['Vios'] ) ) );
-$vehicles = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . Schema::table( 'vehicles' ) . ' v JOIN ' . Schema::table( 'customers' ) . ' c ON c.id = v.customer_id WHERE c.phone = %s', '+60123456789' ) );
+// (only this plate: since numbers are kept one way, other tests' bookings from 0123456789 are this customer too, with their own cars)
+$vehicles = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . Schema::table( 'vehicles' ) . ' v JOIN ' . Schema::table( 'customers' ) . ' c ON c.id = v.customer_id WHERE c.phone = %s AND v.plate_no = %s', '+60123456789', 'ABC123' ) );
 check( 201 === $s && 201 === $s2 && 1 === $vehicles && 'ABC123' === $b['booking']['vehicle']['plate_no'], '"abc 123" and "ABC-123" from one phone are one vehicle', array( $s, $s2, $vehicles ) );
 list( $s, $d ) = call( 'POST', "/modules/$mid/bookings", array( 'service_ids' => array( $svc['id'] ), 'start' => $at( '12:00' ), 'customer' => array( 'name' => 'A', 'phone' => '+60175550001' ), 'vehicle' => array( 'plate_no' => 'A1', 'supported_vehicle_id' => $g['car']['Vios'] ) ) );
 check( 422 === $s && 'vehicle' === $d['data']['field'], 'a vehicle on a spa booking: 422', $d );

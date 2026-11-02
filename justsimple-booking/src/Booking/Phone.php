@@ -8,17 +8,19 @@ defined( 'ABSPATH' ) || exit;
 /**
  * A customer's mobile number: the country chosen in front of it, and the check it must pass there.
  *
- * Booking codes and updates go to the customer's phone, so a number new to the site must be a mobile of the chosen country,
+ * The business calls or messages the customer about a booking on this number (the plugin itself sends email only, so it must
+ * be a number that reaches the person, not the front desk): a number new to the site must be a mobile of the chosen country,
  * of the right length (Malaysia: 9 or 10 digits after +60), and it is kept one way: +<digits> (E.164), so 012-345 6789 and
  * +60 12-345 6789 are one customer. A number typed with + or 00 keeps its own country whatever was chosen.
  *
  * The rules are Google's numbering plans (libphonenumber), written out by tools/make-phone-plans.py into phone-plans.php;
  * this class follows libphonenumber's own steps (international prefix, country code, trunk prefix, which country of a shared
- * code, which kind of number), and tests/phone.php checks it gives the backend's answer for every country's examples.
+ * code, which kind of number), and tests/phone.php checks it gives the backend's answer for every country's examples. (Only the
+ * landline message is worded differently: the backend sends codes by WhatsApp or SMS, the plugin does not.)
  */
 final class Phone {
 
-	const LANDLINE = 'That looks like a landline: enter a mobile number, because codes and updates are sent by WhatsApp or SMS';
+	const LANDLINE = 'That looks like a landline: enter a mobile number, so the business can call or message you about your booking';
 	const INVALID  = 'That is not a valid phone number';
 
 	/** @var array|null */
