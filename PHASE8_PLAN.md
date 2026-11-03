@@ -1,6 +1,22 @@
 # Phase 8 plan: a live demo of the plugin
 
-Status: **confirmed as recommended (separate Showcase plugin, front page, 03:00 reset; InnoDB fix committed on its own as `84eb7d8`); built and checked locally, and checked on the host on 29 Oct 2026 (booking 0.1.2 and Showcase 0.1.0 active, five demo pages, a live booking through the front page with both emails caught, Reset now in 0.5 s leaving five fresh pages and no caught mail); not committed.** Branch `standalone-wp-plugin`; last commit `84eb7d8`.
+Status: **confirmed as recommended (separate Showcase plugin, front page, 03:00 reset; InnoDB fix committed on its own as `84eb7d8`); built, checked locally and on the host on 29 Oct 2026 (booking 0.1.2 and Showcase 0.1.0 active, five demo pages, a live booking through the front page with both emails caught, Reset now in 0.5 s leaving five fresh pages and no caught mail); committed as `572e168`.** Branch `standalone-wp-plugin`.
+
+**After phase 8** (each asked for, built, checked and committed on its own; the live site runs all of it, plugin 0.1.7, checked there on 3 Nov 2026):
+
+| Commit | What |
+| :--- | :--- |
+| `02ddf3b` | Hero: the background is the room being booked, fading in step with the picture in the headline |
+| `556fe78` | The try-it section picks one of five demo businesses instead of an editable line |
+| `c4be8cf` | 0.1.3: customers' mobile numbers checked per country, ported from the backend (Week4 `893fcdb`) |
+| `67ecbd6` | The chosen business shows its own photo, colour and rule; the hero follows it; a clinic photo |
+| `9967361` | A build fingerprint in every file address the page loads (the host lets browsers keep files a year) |
+| `188f6e4`, `6c8a16b` | The confirmation email beside the questions, without a dead link |
+| `6ff872e` | 0.1.4: email-only wording for refused landlines; the readme describes the plugin as it is |
+| `84172e0` | 0.1.5: faster form (details carried in the page, lighter photos, five forms readied); live first visit 4.7 s to 2.3 s, switching business 1.2 s to 10-220 ms |
+| `29a527c`, `8026a69` | 0.1.6 and 0.1.7: the host gave JSON a year in browser caches; the plugin's answers now say no-store and the form adds its version to what it reads |
+
+Uploading to the host: both zips from `marketing/dist` with Replace current with uploaded, then Performance › Purge All Caches (W3 Total Cache served WordPress's own front page once, saved while the Showcase was being replaced).
 
 The marketing page's demo replays answers recorded from the engine. Phase 8 makes it live: a real WordPress site with the plugin, five demo businesses that reset every night, and the marketing page served from that same site so its widget books against the real engine.
 

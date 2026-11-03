@@ -1,6 +1,13 @@
 # JustSimple Booking: standalone WordPress plugin plan
 
-Status: **draft, waiting for confirmation** (Birdview step 2 of 4). No code is written until the scope below is confirmed.
+Status (2026-11-03): **confirmed and built.** Phases 1 to 8 are done on the branch `standalone-wp-plugin` (on GitHub as `wordpress_demo`), each planned in its own `PHASEn_PLAN.md`, confirmed, built and checked; the plugin is at version 0.1.7 and runs on the live demo at https://js-appointment-demo.infinityfreeapp.com. What the plugin does today is in `justsimple-booking/readme.txt`; how to build and test it is in `README.md`. This plan is kept as written below; where the build went further:
+
+- **Customers' phone numbers** are checked per country against Google's numbering plans, as the backend does since 2026-10-30 (0.1.3): a mobile of the chosen country, kept as +<digits>. The plugin sends email only, so the message says the business needs a mobile to reach the customer (0.1.4).
+- **Phase 8, the live demo**, added a second plugin, JustSimple Showcase (`showcase/`), only for the demo site: five demo businesses built through the booking routes, a nightly reset, mail caught instead of sent, and the marketing page served as the front page.
+- **Speed** (0.1.5): a booking page's details ride along in the page, so the form asks the server only for free times; the marketing page readies all five demo forms. On the live host the times show in about 2.3 s on a first visit and 1 s after (from 4.7 s).
+- **Hosts that cache JSON for a year** (InfinityFree does): the plugin's answers say no-store (0.1.6) and the form adds its version to what it reads (0.1.7), so a browser never shows free times that were booked since.
+
+The original plan follows.
 
 ## 1. What changes from the copied project
 
