@@ -4,7 +4,7 @@ Tags: booking, appointments, reservations, salon, restaurant
 Requires at least: 6.2
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.1.6
+Stable tag: 0.1.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -60,6 +60,9 @@ The plugin sends through WordPress's own mail, which many hosts deliver poorly. 
 They stay in your database unless you tick "Also delete every module, booking and customer" in Booking > Settings first.
 
 == Changelog ==
+
+= 0.1.7 =
+* The booking form adds its version to what it asks the server, so an answer a browser kept before 0.1.6 is never used again.
 
 = 0.1.6 =
 * Free times and booking details are never kept by the browser. Some hosts tell browsers to keep every JSON answer for a year, which could show a returning visitor times that were booked since.

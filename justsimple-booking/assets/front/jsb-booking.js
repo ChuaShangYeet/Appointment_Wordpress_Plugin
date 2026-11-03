@@ -70,13 +70,22 @@ export class ApiError extends Error {
 	}
 }
 
+// This script's own version (WordPress loads it as jsb-booking.js?ver=0.1.7; the marketing page with ?v=<fingerprint>), added to
+// every read: before 0.1.6 some hosts had browsers keep these answers for a year, and a new address is never one they kept.
+const READ_VERSION = ( () => {
+	const q = new URL( import.meta.url ).searchParams;
+	return q.get( 'ver' ) || q.get( 'v' ) || '';
+} )();
+
 /** The plugin's public REST routes. */
 export class RestSource {
 	constructor( base ) {
 		this.base = String( base || '' ).replace( /\/$/, '' );
 	}
 	async call( method, path, query, body ) {
-		const qs = query ? '?' + new URLSearchParams( Object.entries( query ).filter( ( [ , v ] ) => v !== null && v !== undefined && v !== '' ) ).toString() : '';
+		const q = Object.assign( {}, query || {}, method === 'GET' && READ_VERSION ? { ver: READ_VERSION } : {} );
+		const pairs = Object.entries( q ).filter( ( [ , v ] ) => v !== null && v !== undefined && v !== '' );
+		const qs = pairs.length ? '?' + new URLSearchParams( pairs ).toString() : '';
 		let res;
 		try {
 			res = await fetch( this.base + path + qs, {
