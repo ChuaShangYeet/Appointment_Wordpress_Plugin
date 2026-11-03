@@ -46,6 +46,23 @@ final class Rest {
 		return true;
 	}
 
+	/**
+	 * Our answers are about live bookings (free times, a booking's status), so no browser or proxy may keep them. Some hosts
+	 * give every JSON answer a year in the cache (InfinityFree: Cache-Control max-age=31536000), which showed a returning visitor
+	 * times booked since. Apache's mod_expires leaves alone an answer that sets its own Expires, so ours say so here.
+	 *
+	 * @param \WP_HTTP_Response $response
+	 * @param \WP_REST_Server   $server
+	 * @param \WP_REST_Request  $request
+	 */
+	public static function no_store( $response, $server, $request ) {
+		if ( $response instanceof \WP_HTTP_Response && 0 === strpos( ltrim( (string) $request->get_route(), '/' ), self::NS ) ) {
+			$response->header( 'Cache-Control', 'no-store, max-age=0' );
+			$response->header( 'Expires', 'Wed, 11 Jan 1984 05:00:00 GMT' );
+		}
+		return $response;
+	}
+
 	/** int[] from a query parameter given as 1,2,3 or services[]=1&services[]=2. */
 	public static function ids( $v ): array {
 		if ( is_string( $v ) ) {

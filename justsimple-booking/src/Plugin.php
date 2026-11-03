@@ -8,6 +8,7 @@ use JustSimple\Booking\Data\Schema;
 use JustSimple\Booking\Front\Front;
 use JustSimple\Booking\Rest\AdminController;
 use JustSimple\Booking\Rest\PublicController;
+use JustSimple\Booking\Rest\Rest;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -24,6 +25,7 @@ final class Plugin {
 
 		add_action( 'rest_api_init', array( PublicController::class, 'register' ) );
 		add_action( 'rest_api_init', array( AdminController::class, 'register' ) );
+		add_filter( 'rest_post_dispatch', array( Rest::class, 'no_store' ), 10, 3 );
 		add_action( Activator::CRON_SWEEP, array( HoldSweeper::class, 'cron' ) );
 		Mailer::register();
 		Front::register();

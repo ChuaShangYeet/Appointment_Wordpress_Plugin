@@ -3,7 +3,7 @@
  * Plugin Name:       JustSimple Booking
  * Plugin URI:        https://justsimple.example/booking
  * Description:       Appointments, table reservations, workshop bays and on-site visits, booked straight from your own WordPress site.
- * Version:           0.1.5
+ * Version:           0.1.6
  * Requires at least: 6.2
  * Requires PHP:      7.4
  * Author:            JustSimple
@@ -15,7 +15,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'JSB_VERSION', '0.1.5' );
+define( 'JSB_VERSION', '0.1.6' );
 define( 'JSB_FILE', __FILE__ );
 define( 'JSB_DIR', plugin_dir_path( __FILE__ ) );
 define( 'JSB_URL', plugin_dir_url( __FILE__ ) );

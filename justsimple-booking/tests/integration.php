@@ -110,6 +110,9 @@ list( $s, $mo ) = call( 'GET', "/modules/$mid/availability/month", null, array( 
 check( 200 === $s && in_array( $tomorrow, $mo['dates'], true ), 'month view lists tomorrow', $mo );
 list( $s ) = call( 'GET', "/modules/$mid/availability", null, array( 'date' => '2026-02-30', 'services' => (string) $svc['id'] ) );
 check( 422 === $s, 'impossible date refused' );
+// over real HTTP: the header is added as WordPress sends the answer, which rest_do_request() never does
+$heard = wp_remote_get( add_query_arg( array( 'date' => $tomorrow, 'services' => (string) $svc['id'] ), rest_url( "justsimple/v1/modules/$mid/availability" ) ), array( 'timeout' => 20 ) );
+check( 200 === wp_remote_retrieve_response_code( $heard ) && 0 === strpos( wp_remote_retrieve_header( $heard, 'cache-control' ), 'no-store' ) && '' !== wp_remote_retrieve_header( $heard, 'expires' ), 'free times say no browser may keep them (hosts can give JSON a year in the cache)', wp_remote_retrieve_headers( $heard ) );
 
 echo "== booking\n";
 $body = static function ( $start, $staff_id = null, $phone = '+60123456701', array $extra = array() ) use ( $svc ) {
