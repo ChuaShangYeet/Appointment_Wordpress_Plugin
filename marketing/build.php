@@ -56,7 +56,7 @@ clear( $dist, $dist );
 // {{v}}: a fingerprint of everything the page loads, put in each file's address (page.css?v=...). Hosts often tell browsers to
 // keep these files for a year (InfinityFree: max-age=31536000), so without it a returning visitor gets the new page with old styles.
 $fingerprint = hash_init( 'sha1' );
-foreach ( array_merge( array( "$here/page.css", "$here/page.js" ), glob( "$here/demo/*.json" ), glob( "$plugin/assets/front/*.{js,css,json}", GLOB_BRACE ), glob( "$plugin/assets/fonts/*.css" ) ) as $f ) {
+foreach ( array_merge( array( "$here/page.css", "$here/page.js" ), glob( "$here/demo/*.json" ), glob( "$plugin/assets/front/*.{js,css,json}", GLOB_BRACE ), glob( "$plugin/assets/fonts/*.css" ), glob( "$here/fonts/*.css" ) ) as $f ) {
 	hash_update_file( $fingerprint, $f );
 }
 $stamp = substr( hash_final( $fingerprint ), 0, 10 );
@@ -83,7 +83,7 @@ foreach ( glob( "$here/demo/*.json" ) as $f ) {
 foreach ( array( 'jsb-booking.js', 'jsb-booking.css', 'demo-source.js', 'map-picker.js', 'phone-countries.json' ) as $f ) {
 	put( "$plugin/assets/front/$f", "$dist/widget/$f" );
 }
-foreach ( glob( "$plugin/assets/fonts/*" ) as $f ) {
+foreach ( array_merge( glob( "$plugin/assets/fonts/*" ), glob( "$here/fonts/*" ) ) as $f ) { // DM Sans from the plugin, Fraunces the page's own
 	put( $f, "$dist/fonts/" . basename( $f ) );
 }
 

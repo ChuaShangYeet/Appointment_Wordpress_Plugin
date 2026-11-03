@@ -1,9 +1,10 @@
 /*
  * JustSimple Booking, the marketing page. Direction "The sentence is the layout" (seed 228969607): sand ground, charcoal ink,
- * moss only on the actions, one deep-leaf field to close. DM Sans throughout, the same face as the plugin's screens.
+ * moss only on the actions, one deep-leaf field to close. Fraunces for the headlines; DM Sans for the words, the same face as the plugin's screens.
  * The idea: the thing each business books (a table, a chair, a bay, a visit) sits inside the headline where the word would be.
  */
 :root {
+	--display: "Fraunces", Georgia, serif;
 	--bg: #ddd6c6;
 	--surface: #d2cab8;
 	--ink: #2a2a26;
@@ -34,7 +35,7 @@ img { display: block; max-width: 100%; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .vh { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .phone-only { display: none !important; }
-h1, h2 { margin: 0; font-weight: 600; letter-spacing: -0.04em; line-height: 0.95; }
+h1, h2 { margin: 0; font-family: var(--display); font-weight: 600; letter-spacing: -0.02em; line-height: 0.95; }
 
 /* ---- buttons: press, hover, focus ---- */
 .paper-btn, .accent-btn {
@@ -91,7 +92,7 @@ h1, h2 { margin: 0; font-weight: 600; letter-spacing: -0.04em; line-height: 0.95
 .doors-try { margin: 0; font-size: 17px; text-align: right; padding-bottom: 12px; }
 .doors-try a { display: inline-block; margin-left: 12px; font-weight: 600; }
 .nav { position: relative; z-index: 2; display: grid; grid-template-columns: repeat(12, 1fr); column-gap: var(--gutter); align-items: center; padding: 32px var(--margin) 0; }
-.wordmark { grid-column: 1 / 5; font-weight: 700; font-size: 20px; text-decoration: none; letter-spacing: -0.01em; }
+.wordmark { grid-column: 1 / 5; font-family: var(--display); font-weight: 600; font-size: 22px; text-decoration: none; letter-spacing: -0.01em; }
 .nav ul { grid-column: 7 / 12; justify-content: flex-end; padding-right: 8px; display: flex; gap: 24px; margin: 0; padding: 0; list-style: none; font-size: 17px; }
 .nav ul a { text-decoration: none; }
 .nav ul a:hover { text-decoration: underline; }
@@ -128,7 +129,7 @@ h1, h2 { margin: 0; font-weight: 600; letter-spacing: -0.04em; line-height: 0.95
 /* ---- showcase: five demo businesses, each opening the real booking form ---- */
 section { padding: 160px var(--margin) 0; }
 .showcase { min-height: 88svh; display: grid; grid-template-columns: repeat(12, 1fr); column-gap: var(--gutter); align-content: start; }
-.try-h { grid-column: 1 / -1; font-size: clamp(48px, 7.2vw, 112px); letter-spacing: -0.045em; line-height: 0.95; }
+.try-h { grid-column: 1 / -1; font-size: clamp(48px, 7.2vw, 112px); line-height: 0.95; }
 .answer { grid-column: 1 / 7; grid-row: 2; margin-top: 48px; max-width: 560px; }
 /* the business being booked: its room, its name in its own colour, the rule its bookings keep */
 .biz-head { margin: 0 0 20px; }
@@ -235,10 +236,11 @@ section { padding: 160px var(--margin) 0; }
 /* ---- footer: the download is the headline ---- */
 .foot { background: var(--field); color: var(--field-ink); display: flex; flex-direction: column; padding: 40px var(--margin) 32px; }
 .foot-top { display: flex; justify-content: space-between; gap: 24px; font-size: 14px; }
+.foot-top > a { white-space: nowrap; }
 .foot-top ul { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 8px 32px; }
 .foot-line {
-	margin-top: 96px; display: block; text-decoration: none; font-weight: 600; letter-spacing: -0.045em; line-height: 0.95;
-	font-size: clamp(40px, 10vw, 160px); transition: opacity 160ms;
+	margin-top: 96px; display: block; text-decoration: none; font-family: var(--display); font-weight: 600; letter-spacing: -0.02em; line-height: 1;
+	font-size: clamp(32px, 4.4vw, 64px); transition: opacity 160ms;
 }
 .foot-line span { display: inline; }
 .foot-line:hover { text-decoration: underline; text-decoration-thickness: 0.04em; }
@@ -327,7 +329,7 @@ section { padding: 160px var(--margin) 0; }
 	.cta-row .accent-btn { display: flex; width: 100%; }
 	.foot-top { flex-direction: column; }
 	.foot-top ul { flex-direction: column; }
-	.foot-line { font-size: 8.6vw; } /* "justsimple-booking-" fills the width on one line */
+	.foot-line { font-size: 6.4vw; } /* the name and the version on a line each */
 	.foot-line span { display: block; }
 	.foot-meta { grid-template-columns: 1fr; gap: 8px; font-size: 14px; }
 	.foot-meta p, .foot-meta p:nth-child(2), .foot-meta p:last-child { text-align: left; }
