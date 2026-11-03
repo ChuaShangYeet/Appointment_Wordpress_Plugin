@@ -48,7 +48,7 @@ h1, h2 { margin: 0; font-weight: 600; letter-spacing: -0.04em; line-height: 0.95
 .paper-btn:active, .accent-btn:active { transform: scale(.98); }
 
 /* ---- hero: title in the sky, line on the horizon ---- */
-.hero { position: relative; height: 100svh; min-height: 640px; overflow: hidden; color: var(--paper); background: #191917; }
+.hero { position: relative; height: 80svh; min-height: 600px; overflow: hidden; color: var(--paper); background: #191917; }
 /* the rooms: one fills the hero, the same picture as the slot; the next fades in over the one it replaces */
 .rooms { position: absolute; inset: 0; z-index: 0; }
 .room { position: absolute; inset: 0; overflow: hidden; z-index: 0; opacity: 0; transition: opacity 1200ms var(--ease); }
@@ -233,11 +233,11 @@ section { padding: 160px var(--margin) 0; }
 .cta-row .accent-btn { grid-column: 10 / 13; justify-self: end; }
 
 /* ---- footer: the download is the headline ---- */
-.foot { background: var(--field); color: var(--field-ink); min-height: 90svh; display: flex; flex-direction: column; padding: 40px var(--margin) 32px; }
+.foot { background: var(--field); color: var(--field-ink); display: flex; flex-direction: column; padding: 40px var(--margin) 32px; }
 .foot-top { display: flex; justify-content: space-between; gap: 24px; font-size: 14px; }
 .foot-top ul { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 8px 32px; }
 .foot-line {
-	margin-top: auto; display: block; text-decoration: none; font-weight: 600; letter-spacing: -0.045em; line-height: 0.95;
+	margin-top: 96px; display: block; text-decoration: none; font-weight: 600; letter-spacing: -0.045em; line-height: 0.95;
 	font-size: clamp(40px, 10vw, 160px); transition: opacity 160ms;
 }
 .foot-line span { display: inline; }
@@ -285,6 +285,7 @@ section { padding: 160px var(--margin) 0; }
 	.band { margin-top: 112px; }
 	.band img { height: 56svh; min-height: 320px; }
 	.horizon span { display: block; text-align: center !important; }
+	.hero { height: auto; min-height: 0; padding-bottom: 104px; } /* as tall as its words, with room for the button */
 	.hero .phone-only { position: absolute; z-index: 2; left: 20px; right: 20px; bottom: 24px; height: 56px; }
 	section { padding-top: 112px; }
 	.showcase { display: flex; flex-direction: column; min-height: 0; }
