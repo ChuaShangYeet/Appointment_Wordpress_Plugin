@@ -92,7 +92,7 @@ h1, h2 { margin: 0; font-weight: 600; letter-spacing: -0.04em; line-height: 0.95
 .doors-try a { display: inline-block; margin-left: 12px; font-weight: 600; }
 .nav { position: relative; z-index: 2; display: grid; grid-template-columns: repeat(12, 1fr); column-gap: var(--gutter); align-items: center; padding: 32px var(--margin) 0; }
 .wordmark { grid-column: 1 / 5; font-weight: 700; font-size: 20px; text-decoration: none; letter-spacing: -0.01em; }
-.nav ul { grid-column: 9 / 12; display: flex; gap: 24px; margin: 0; padding: 0; list-style: none; font-size: 17px; }
+.nav ul { grid-column: 7 / 12; justify-content: flex-end; padding-right: 8px; display: flex; gap: 24px; margin: 0; padding: 0; list-style: none; font-size: 17px; }
 .nav ul a { text-decoration: none; }
 .nav ul a:hover { text-decoration: underline; }
 .nav .paper-btn { grid-column: 12 / 13; justify-self: end; }
@@ -260,6 +260,10 @@ section { padding: 160px var(--margin) 0; }
 	.nav ul a { white-space: nowrap; }
 	.faq-mail { grid-column: 1 / 6; }
 	.faq-list { grid-column: 6 / -1; }
+}
+/* narrow tablets: the hosted engine's link stays only in the footer */
+@media (max-width: 900px) {
+	.nav .nav-wide { display: none; }
 }
 
 /* ---- phone ---- */
