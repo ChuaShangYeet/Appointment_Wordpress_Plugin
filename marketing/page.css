@@ -141,6 +141,7 @@ section { padding: 160px var(--margin) 0; }
 .answer-note { margin: 0 0 16px; font-size: var(--step-small); color: var(--muted); max-width: 52ch; }
 .answer-widget { min-height: 420px; }
 .answer-widget jsb-booking { --jsb-font: "DM Sans", system-ui, sans-serif; }
+.answer-widget jsb-booking[hidden] { display: none; } /* the other businesses' forms, loaded and waiting (the form's own display: block would win over the browser's [hidden]) */
 .biz { grid-column: 8 / 13; grid-row: 2; align-self: start; margin-top: 48px; display: flex; flex-direction: column; gap: 4px; }
 .biz button {
 	display: block; width: 100%; border: 0; border-radius: 2px; background: none; padding: 14px 16px; text-align: left; cursor: pointer;

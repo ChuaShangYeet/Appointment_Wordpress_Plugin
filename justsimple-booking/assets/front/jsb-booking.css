@@ -134,6 +134,9 @@ h3[tabindex="-1"]:focus { outline: none; } /* a step heading takes focus so scre
 /* ---- the times: the biggest thing on the widget ---- */
 .times { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; margin-top: 14px; transition: opacity 120ms; }
 .times.loading { opacity: .45; pointer-events: none; }
+.sk-time { min-height: 52px; background: #ebe7de; border-color: transparent; animation: sk 1.4s ease-in-out infinite; }
+@keyframes sk { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .sk-time { animation: none; } }
 .time { position: relative; display: block; }
 .time input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .time span {

@@ -31,10 +31,21 @@ const DOORS = [
 ];
 let room = 0;
 
+/** Rooms 2 to 5 (and their pictures in the headline) wait until the booking form is up, so they never compete with it. */
+function roomPhotos( n ) {
+	[ rooms[ n ] && rooms[ n ].querySelector( 'img' ), frames[ n ] ].forEach( ( img ) => {
+		if ( img && img.dataset.src ) {
+			img.src = img.dataset.src;
+			delete img.dataset.src;
+		}
+	} );
+}
+
 function enter( n ) {
 	if ( n === room ) {
 		return;
 	}
+	roomPhotos( n );
 	const from = rooms[ room ];
 	const to = rooms[ n ];
 	rooms.forEach( ( r ) => r.classList.remove( 'under' ) );
@@ -100,10 +111,10 @@ const headImg = head.querySelector( 'img' );
 const ASSETS = new URL( './img/', import.meta.url );
 /** Each demo business: its room in the hero, its photo, and the rule its bookings keep (the five-kinds table's words). */
 const BUSINESS = {
-	salon: { room: 0, img: 'salon.webp', w: 2400, h: 1666, alt: 'A salon with three styling chairs facing round mirrors on a dark wall', rule: 'An add-on makes the booking longer, and starts that no longer fit drop out.' },
-	restaurant: { room: 1, img: 'restaurant.webp', w: 2400, h: 3600, alt: 'Dishes on blue and white plates, laid on a dark cloth among chillies and shallots', rule: 'A party of 8 is seated across tables that are free together.' },
-	workshop: { room: 2, img: 'workshop.webp', w: 2400, h: 3600, alt: 'A mechanic leaning over an open engine bay', rule: 'A mechanic and a bay must both be free; a part on order is shown before booking.' },
-	field: { room: 3, img: 'home.webp', w: 2400, h: 1350, alt: 'Air conditioning units on the white wall of a building', rule: 'Travel time is held either side of each visit, only inside the area covered.' },
+	salon: { room: 0, img: 'salon.webp', w: 1920, h: 1333, alt: 'A salon with three styling chairs facing round mirrors on a dark wall', rule: 'An add-on makes the booking longer, and starts that no longer fit drop out.' },
+	restaurant: { room: 1, img: 'restaurant.webp', w: 1600, h: 2400, alt: 'Dishes on blue and white plates, laid on a dark cloth among chillies and shallots', rule: 'A party of 8 is seated across tables that are free together.' },
+	workshop: { room: 2, img: 'workshop.webp', w: 1600, h: 2400, alt: 'A mechanic leaning over an open engine bay', rule: 'A mechanic and a bay must both be free; a part on order is shown before booking.' },
+	field: { room: 3, img: 'home.webp', w: 1920, h: 1080, alt: 'Air conditioning units on the white wall of a building', rule: 'Travel time is held either side of each visit, only inside the area covered.' },
 	staff: { room: 4, img: 'clinic.webp', w: 1920, h: 1282, alt: 'A clinic\'s examination room with a couch, an ultrasound machine and a plant by the window', rule: 'Times show only where the doctor is free, or any doctor if you do not mind who.' },
 };
 
@@ -215,6 +226,15 @@ const NOTES = {
 /** { source, id, data: { module, vehicles }, how: 'live' | 'recorded' | 'fallback' } for one kind of business. */
 async function sourceFor( kind ) {
 	const id = LIVE && LIVE.pages && LIVE.pages[ kind ];
+	const known = id && LIVE.modules && LIVE.modules[ kind ];
+	if ( known ) {
+		// the Showcase put each business's details in the page: no round trip before the free times are asked for
+		const source = new RestSource( LIVE.api );
+		source.demo = 'live';
+		source.module = async ( m ) => ( m === id ? known.module : RestSource.prototype.module.call( source, m ) );
+		source.vehicles = async ( m ) => ( m === id ? known.vehicles : RestSource.prototype.vehicles.call( source, m ) );
+		return { source, id, data: known, how: 'live' };
+	}
 	if ( id ) {
 		try {
 			const get = async ( path ) => {
@@ -224,8 +244,7 @@ async function sourceFor( kind ) {
 				}
 				return r.json();
 			};
-			const module = await get( `/modules/${ id }` );
-			const vehicles = kind === 'workshop' ? await get( `/modules/${ id }/supported-vehicles` ) : [];
+			const [ module, vehicles ] = await Promise.all( [ get( `/modules/${ id }` ), kind === 'workshop' ? get( `/modules/${ id }/supported-vehicles` ) : [] ] );
 			const source = new RestSource( LIVE.api );
 			source.demo = 'live';
 			return { source, id, data: { module, vehicles }, how: 'live' };
@@ -237,34 +256,73 @@ async function sourceFor( kind ) {
 	return { source: new DemoSource( data ), id: 1, data, how: id ? 'fallback' : 'recorded' };
 }
 
-const cache = {};
-let shown = null; // { kind, el, how }
+// One booking form per business, each made once and kept: switching shows another that has already loaded its times.
+const made = {}; // kind -> Promise<{ el, data, how }>
+let shown = null; // the kind on view
 
-async function answer( line ) {
-	const ask = read( line );
-	try {
-		cache[ ask.kind ] = cache[ ask.kind ] || sourceFor( ask.kind );
-		const { source, id, data, how } = await cache[ ask.kind ];
-		note.textContent = NOTES[ how ];
-		document.getElementById( 'try' ).style.setProperty( '--biz', ( data.module.look && data.module.look.accent ) || '' ); // the header's name and the chosen business take its colour
-		if ( ! shown || shown.kind !== ask.kind ) {
-			const el = document.createElement( 'jsb-booking' );
-			el.setAttribute( 'module', String( id ) );
-			el.setAttribute( 'css', new URL( './widget/jsb-booking.css' + VER, import.meta.url ).href );
-			el.source = source;
-			holder.replaceChildren( el );
-			shown = { kind: ask.kind, el, how };
+function make( kind, line ) {
+	made[ kind ] = made[ kind ] || ( async () => {
+		const { source, id, data, how } = await sourceFor( kind );
+		const el = document.createElement( 'jsb-booking' );
+		el.setAttribute( 'module', String( id ) );
+		el.setAttribute( 'css', new URL( './widget/jsb-booking.css' + VER, import.meta.url ).href );
+		el.source = source;
+		el.hidden = true;
+		holder.append( el );
+		el.preset( choices( read( line ), data ) );
+		return { el, data, how };
+	} )();
+	return made[ kind ];
+}
+
+/** The form has its first times (or says there are none), or a few seconds have passed. */
+async function settled( el ) {
+	for ( let waited = 0; waited < 5000; waited += 150 ) {
+		if ( el.shadowRoot && el.shadowRoot.querySelector( '[data-k="time"], .times-empty, .msg.error' ) ) {
+			return;
 		}
-		shown.el.preset( choices( ask, data ) );
+		await new Promise( ( ok ) => setTimeout( ok, 150 ) );
+	}
+}
+
+async function answer( line, { again = false } = {} ) {
+	const kind = read( line ).kind;
+	try {
+		const w = await make( kind, line );
+		if ( again ) {
+			w.el.preset( choices( read( line ), w.data ) ); // the same business chosen again: back to its starting booking
+		}
+		note.textContent = NOTES[ w.how ];
+		document.getElementById( 'try' ).style.setProperty( '--biz', ( w.data.module.look && w.data.module.look.accent ) || '' ); // the header's name and the chosen business take its colour
+		holder.querySelectorAll( ':scope > :not(jsb-booking)' ).forEach( ( x ) => x.remove() );
+		holder.querySelectorAll( 'jsb-booking' ).forEach( ( x ) => ( x.hidden = x !== w.el ) );
+		shown = kind;
+		return w;
 	} catch ( e ) {
 		holder.innerHTML = '<p class="hint">The demo could not load. The page needs to be opened from a web address, not as a file.</p>';
+		return null;
+	}
+}
+
+/** Once the first form has its times: the hero's other photos, then the other businesses, one at a time, out of sight. */
+async function afterFirst( first ) {
+	if ( first ) {
+		await settled( first.el );
+	}
+	rooms.forEach( ( r, i ) => roomPhotos( i ) );
+	for ( const b of businesses ) {
+		const w = await make( b.dataset.kind, b.dataset.ask ).catch( () => null );
+		if ( w ) {
+			await settled( w.el );
+		}
 	}
 }
 
 // each business opens on its own starting line, already filled in; the visitor carries on from there
 businesses.forEach( ( b ) => b.addEventListener( 'click', () => {
+	const again = shown === b.dataset.kind;
 	businesses.forEach( ( x ) => x.setAttribute( 'aria-pressed', String( x === b ) ) );
 	showBusiness( b.dataset.kind, b.querySelector( 'span' ).textContent.split( ' · ' )[ 0 ] );
-	answer( b.dataset.ask );
+	answer( b.dataset.ask, { again } );
 } ) );
-answer( ( businesses.find( ( b ) => b.getAttribute( 'aria-pressed' ) === 'true' ) || businesses[ 0 ] ).dataset.ask );
+answer( ( businesses.find( ( b ) => b.getAttribute( 'aria-pressed' ) === 'true' ) || businesses[ 0 ] ).dataset.ask ).then( afterFirst );

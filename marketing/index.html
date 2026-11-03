@@ -7,17 +7,20 @@
 <meta name="description" content="A free WordPress plugin for salons, clinics, restaurants, workshops and home services. Every booking is worked out on your own site.">
 <link rel="stylesheet" href="{{assets}}fonts/dm-sans.css?v={{v}}">
 <link rel="stylesheet" href="{{assets}}page.css?v={{v}}">
+<link rel="modulepreload" href="{{assets}}page.js?v={{v}}">
+<link rel="modulepreload" href="{{assets}}widget/jsb-booking.js?v={{v}}">
+<link rel="modulepreload" href="{{assets}}widget/demo-source.js?v={{v}}">
 <link rel="preload" as="image" href="{{assets}}img/salon.webp">
 </head>
 <body>
 
 <header class="hero" id="top">
 	<div class="rooms">
-		<div class="room on" data-kind="chair"><img src="{{assets}}img/salon.webp" alt="A salon with three styling chairs facing round mirrors on a dark wall" width="2400" height="1666"><span class="scrim"></span></div>
-		<div class="room" data-kind="table"><img src="{{assets}}img/restaurant.webp" alt="Dishes on blue and white plates, laid on a dark cloth among chillies and shallots" width="2400" height="3600" decoding="async"><span class="scrim"></span></div>
-		<div class="room" data-kind="bay"><img src="{{assets}}img/workshop.webp" alt="A mechanic leaning over an open engine bay" width="2400" height="3600" decoding="async"><span class="scrim"></span></div>
-		<div class="room" data-kind="visit"><img src="{{assets}}img/home.webp" alt="Air conditioning units on the white wall of a building" width="2400" height="1350" decoding="async"><span class="scrim"></span></div>
-		<div class="room" data-kind="treatment"><img src="{{assets}}img/clinic.webp" alt="A clinic's examination room with a couch, an ultrasound machine and a plant by the window" width="1920" height="1282" decoding="async"><span class="scrim"></span></div>
+		<div class="room on" data-kind="chair"><img src="{{assets}}img/salon.webp" alt="A salon with three styling chairs facing round mirrors on a dark wall" width="1920" height="1333"><span class="scrim"></span></div>
+		<div class="room" data-kind="table"><img data-src="{{assets}}img/restaurant.webp" alt="Dishes on blue and white plates, laid on a dark cloth among chillies and shallots" width="1600" height="2400" decoding="async"><span class="scrim"></span></div>
+		<div class="room" data-kind="bay"><img data-src="{{assets}}img/workshop.webp" alt="A mechanic leaning over an open engine bay" width="1600" height="2400" decoding="async"><span class="scrim"></span></div>
+		<div class="room" data-kind="visit"><img data-src="{{assets}}img/home.webp" alt="Air conditioning units on the white wall of a building" width="1920" height="1080" decoding="async"><span class="scrim"></span></div>
+		<div class="room" data-kind="treatment"><img data-src="{{assets}}img/clinic.webp" alt="A clinic's examination room with a couch, an ultrasound machine and a plant by the window" width="1920" height="1282" decoding="async"><span class="scrim"></span></div>
 	</div>
 	<nav class="nav" aria-label="Page">
 		<a class="wordmark" href="#top">JustSimple Booking</a>
@@ -31,11 +34,11 @@
 	<h1 class="hero-title">
 		<span class="line">Book any</span>
 		<span class="line two"><span class="slot" role="img" aria-label="table, chair, bay, visit or treatment">
-			<img src="{{assets}}img/salon.webp" alt="" width="2400" height="1666" class="on">
-			<img src="{{assets}}img/restaurant.webp" alt="" width="2400" height="3600">
-			<img src="{{assets}}img/workshop.webp" alt="" width="2400" height="3600">
-			<img src="{{assets}}img/home.webp" alt="" width="2400" height="1350">
-			<img src="{{assets}}img/clinic.webp" alt="" width="1920" height="1282">
+			<img src="{{assets}}img/salon.webp" alt="" width="1920" height="1333" class="on">
+			<img data-src="{{assets}}img/restaurant.webp" alt="" width="1600" height="2400">
+			<img data-src="{{assets}}img/workshop.webp" alt="" width="1600" height="2400">
+			<img data-src="{{assets}}img/home.webp" alt="" width="1920" height="1080">
+			<img data-src="{{assets}}img/clinic.webp" alt="" width="1920" height="1282">
 		</span> online.</span>
 	</h1>
 	<p class="horizon"><span>A free WordPress plugin for salons, clinics, restaurants, workshops and home services.</span> <span>Every booking is worked out on your own site.</span></p>
@@ -65,7 +68,7 @@
 	</div>
 	<div class="answer">
 		<figure class="biz-head" id="biz-head">
-			<img src="{{assets}}img/salon.webp" alt="A salon with three styling chairs facing round mirrors on a dark wall" width="2400" height="1666">
+			<img src="{{assets}}img/salon.webp" alt="A salon with three styling chairs facing round mirrors on a dark wall" width="1920" height="1333">
 			<figcaption><b>Mei Hair Studio</b> <span>An add-on makes the booking longer, and starts that no longer fit drop out.</span></figcaption>
 		</figure>
 		<p class="answer-note" id="answer-note" aria-live="polite">The plugin's real booking form, answering with times its engine worked out for five demo businesses. Nothing you book here is real.</p>
@@ -74,14 +77,14 @@
 </section>
 
 <figure class="band">
-	<img src="{{assets}}img/welcome.webp" alt="A customer at a salon's front desk while the receptionist checks the booking on a tablet" width="2400" height="1600" decoding="async">
+	<img loading="lazy" src="{{assets}}img/welcome.webp" alt="A customer at a salon's front desk while the receptionist checks the booking on a tablet" width="1920" height="1280" decoding="async">
 	<figcaption>The front desk, with the bookings already in.</figcaption>
 </figure>
 
 <section class="kinds" id="kinds" aria-labelledby="kinds-h" data-reveal>
 	<h2 id="kinds-h" class="kinds-h"><span>Five kinds of booking,</span> <span>each with its own rule</span></h2>
 	<div class="kinds-body">
-		<figure class="kinds-pic"><img src="{{assets}}img/restaurant.webp" alt="Fried fish and a curry of prawns on blue and white plates, with chillies and lime" width="2400" height="3600" decoding="async"></figure>
+		<figure class="kinds-pic"><img loading="lazy" src="{{assets}}img/restaurant.webp" alt="Fried fish and a curry of prawns on blue and white plates, with chillies and lime" width="1600" height="2400" decoding="async"></figure>
 		<p class="kinds-word">Kinds</p>
 		<table class="kinds-table">
 			<caption class="vh">What each kind of booking page books, and the rule it keeps</caption>

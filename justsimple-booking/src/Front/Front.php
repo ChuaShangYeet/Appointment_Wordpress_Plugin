@@ -3,6 +3,7 @@ namespace JustSimple\Booking\Front;
 
 use JustSimple\Booking\Data\Catalog;
 use JustSimple\Booking\Data\Schema;
+use JustSimple\Booking\Rest\Rest;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -76,11 +77,19 @@ final class Front {
 			? sprintf( __( 'To book %1$s, please call %2$s.', 'justsimple-booking' ), esc_html( $m['title'] ), '<a href="tel:' . esc_attr( preg_replace( '/[^\d+]/', '', $phone ) ) . '">' . esc_html( $phone ) . '</a>' )
 			/* translators: %s: business name */
 			: sprintf( esc_html__( 'Online booking for %s needs JavaScript to be switched on.', 'justsimple-booking' ), esc_html( $m['title'] ) );
+		// the booking page's details, as GET /modules/{id} answers them, ride along in the page: the form then asks the server only
+		// for its free times (a round trip saved; about half a second on a cheap host). The form still fetches them behind the
+		// scenes, since a page cache may serve these after the owner changed something. Free times never ride along: they go stale.
+		$details = rest_do_request( new \WP_REST_Request( 'GET', '/' . Rest::NS . '/modules/' . $m['id'] ) );
+		$carried = 200 === $details->get_status()
+			? '<script type="application/json" class="jsb-module">' . wp_json_encode( rest_get_server()->response_to_data( $details, false ), JSON_HEX_TAG | JSON_HEX_AMP ) . '</script>'
+			: '';
 		return sprintf(
-			'<jsb-booking module="%d" api="%s" css="%s"><p class="jsb-fallback">%s</p></jsb-booking>',
+			'<jsb-booking module="%d" api="%s" css="%s">%s<p class="jsb-fallback">%s</p></jsb-booking>',
 			$m['id'],
 			esc_url( rest_url( 'justsimple/v1' ) ),
 			esc_url( JSB_URL . 'assets/front/jsb-booking.css?ver=' . JSB_VERSION ),
+			$carried,
 			$fallback
 		);
 	}

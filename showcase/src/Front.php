@@ -29,12 +29,14 @@ final class Front {
 		if ( ! is_readable( $file ) ) {
 			return; // not built: WordPress's own front page stays
 		}
+		$pages  = array_map( 'intval', (array) get_option( Reset::PAGES, array() ) );
 		$config = array(
-			'api'   => untrailingslashit( rest_url( 'justsimple/v1' ) ),
-			'pages' => (object) array_map( 'intval', (array) get_option( Reset::PAGES, array() ) ),
+			'api'     => untrailingslashit( rest_url( 'justsimple/v1' ) ),
+			'pages'   => (object) $pages,
+			'modules' => (object) self::details( $pages ),
 		);
 		$html = str_replace( '{{assets}}', esc_url( JSS_URL . 'site/' ), (string) file_get_contents( $file ) );
-		$html = str_replace( '</head>', '<script>window.jsbShowcase = ' . wp_json_encode( $config ) . ";</script>\n</head>", $html );
+		$html = str_replace( '</head>', '<script>window.jsbShowcase = ' . wp_json_encode( $config, JSON_HEX_TAG | JSON_HEX_AMP ) . ";</script>\n</head>", $html );
 		// the demo's free times change all day, and its booking page ids change at each reset: no cache may keep this page
 		// (W3 Total Cache and most page caches honour DONOTCACHEPAGE; hosts often install one by default)
 		if ( ! defined( 'DONOTCACHEPAGE' ) ) {
@@ -45,5 +47,31 @@ final class Front {
 		header( 'Content-Type: text/html; charset=utf-8' );
 		echo $html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- our own built page
 		exit;
+	}
+
+	/**
+	 * Each demo business's details as its booking form reads them (GET /modules/{id}, and the workshop's car models), asked of
+	 * the booking plugin's own routes inside this request: on a free host every request to the site costs about half a second
+	 * of WordPress starting up, so the form asks only for its free times. {kind: {module, vehicles}}; a page that does not
+	 * answer is left out and the form fetches it as before.
+	 */
+	private static function details( array $pages ): array {
+		$out = array();
+		foreach ( $pages as $kind => $id ) {
+			$module = rest_do_request( new \WP_REST_Request( 'GET', "/justsimple/v1/modules/$id" ) );
+			if ( 200 !== $module->get_status() ) {
+				continue;
+			}
+			$vehicles = array();
+			if ( 'workshop' === $kind ) {
+				$v        = rest_do_request( new \WP_REST_Request( 'GET', "/justsimple/v1/modules/$id/supported-vehicles" ) );
+				$vehicles = 200 === $v->get_status() ? $v->get_data() : array();
+			}
+			$out[ $kind ] = array(
+				'module'   => rest_get_server()->response_to_data( $module, false ),
+				'vehicles' => $vehicles,
+			);
+		}
+		return $out;
 	}
 }

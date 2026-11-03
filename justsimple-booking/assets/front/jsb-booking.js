@@ -13,6 +13,14 @@
 const DAYS_SHOWN = 14;
 const SLOW_MS = 300; // under this a load shows nothing at all
 
+// The form's shape in grey while it loads, so nothing jumps when it arrives: a name, a line, the days, the times. Its styles
+// are inline because it shows before the stylesheet has loaded; the pulse stops for reduced motion.
+const SKELETON = '.sk{display:grid;gap:14px;padding:4px 0}.sk i{display:block;border-radius:6px;background:#ebe7de;animation:sk 1.4s ease-in-out infinite}' +
+	'.sk-row{display:flex;gap:8px;overflow:hidden}.sk-row i{flex:none;width:58px;height:70px}.sk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}.sk-grid i{height:52px}' +
+	'@keyframes sk{50%{opacity:.55}}@media (prefers-reduced-motion:reduce){.sk i{animation:none}}';
+const SKELETON_HTML = `<div class="sk" role="status" aria-label="Loading the booking form"><i style="width:45%;height:22px"></i><i style="width:70%;height:14px"></i>` +
+	`<span class="sk-row">${ '<i></i>'.repeat( 7 ) }</span><span class="sk-grid">${ '<i></i>'.repeat( 8 ) }</span></div>`;
+
 // every country's calling code, mobile lengths and an example (written by tools/make-phone-plans.py), loaded once per page
 let countriesLoad = null;
 const loadCountries = () => ( countriesLoad = countriesLoad || fetch( new URL( './phone-countries.json', import.meta.url ) ).then( ( r ) => ( r.ok ? r.json() : [] ) ).catch( () => [] ) );
@@ -107,9 +115,17 @@ class JsbBooking extends HTMLElement {
 		}
 		this.moduleId = parseInt( this.getAttribute( 'module' ), 10 ) || 0;
 		this.src = this.source || new RestSource( this.getAttribute( 'api' ) );
+		// the page may carry this booking page's details (the plugin puts them in): no round trip before asking for times
+		const carried = this.querySelector( ':scope > script.jsb-module' );
+		if ( carried ) {
+			try {
+				const m = JSON.parse( carried.textContent );
+				this._carried = m && m.id === this.moduleId ? m : null;
+			} catch ( e ) {}
+		}
 		const shadow = this.attachShadow( { mode: 'open' } );
 		const css = this.getAttribute( 'css' ) || new URL( './jsb-booking.css', import.meta.url ).href;
-		shadow.innerHTML = `<link rel="stylesheet" href="${ esc( css ) }"><div class="jsb" part="widget"><div id="root"><p class="summary">Loading…</p></div><div id="live" class="vh" aria-live="polite"></div></div>`;
+		shadow.innerHTML = `<style>${ SKELETON }</style><link rel="stylesheet" href="${ esc( css ) }"><div class="jsb" part="widget"><div id="root">${ SKELETON_HTML }</div><div id="live" class="vh" aria-live="polite"></div></div>`;
 		this._root = shadow.getElementById( 'root' );
 		this._live = shadow.getElementById( 'live' );
 		this._root.addEventListener( 'click', ( e ) => this.onClick( e ) );
@@ -124,6 +140,18 @@ class JsbBooking extends HTMLElement {
 	}
 
 	// ---------------------------------------------------------------- loading
+
+	/** The booking page's colour, font, currency and clock. */
+	useLook() {
+		const look = this.m.look || {};
+		this.style.setProperty( '--jsb-accent', look.accent || '#4f6238' );
+		this.style.setProperty( '--jsb-on-accent', onAccent( look.accent || '#4f6238' ) );
+		if ( look.font === 'dm-sans' ) {
+			this.style.setProperty( '--jsb-font', '"DM Sans", system-ui, sans-serif' );
+		}
+		this.cur = look.currency || 'RM';
+		this.tz = this.m.timezone || 'UTC';
+	}
 
 	async start() {
 		const p = new URLSearchParams( true === this.src.demo ? '' : location.search ); // a recorded demo has no bookings to manage
@@ -148,19 +176,27 @@ class JsbBooking extends HTMLElement {
 
 	async loadModule( manageOnly ) {
 		try {
-			this.m = await this.src.module( this.moduleId );
+			if ( this._carried ) {
+				// use the details the page carried, and still ask: a page cache may have kept them since the owner changed something
+				this.m = this._carried;
+				this._carried = null;
+				this.src.module( this.moduleId ).then( ( fresh ) => {
+					if ( JSON.stringify( fresh ) !== JSON.stringify( this.m ) ) {
+						this.m = fresh;
+						this.useLook();
+						if ( this.st ) {
+							this.render();
+						}
+					}
+				} ).catch( () => {} );
+			} else {
+				this.m = await this.src.module( this.moduleId );
+			}
 		} catch ( e ) {
 			this._root.innerHTML = `<p class="msg error">${ esc( e.status === 404 ? 'This booking page is not available right now.' : e.message ) }</p>`;
 			return;
 		}
-		const look = this.m.look || {};
-		this.style.setProperty( '--jsb-accent', look.accent || '#4f6238' );
-		this.style.setProperty( '--jsb-on-accent', onAccent( look.accent || '#4f6238' ) );
-		if ( look.font === 'dm-sans' ) {
-			this.style.setProperty( '--jsb-font', '"DM Sans", system-ui, sans-serif' );
-		}
-		this.cur = look.currency || 'RM';
-		this.tz = this.m.timezone || 'UTC';
+		this.useLook();
 		this.countries = [];
 		loadCountries().then( ( list ) => ( this.countries = list ) ); // wanted only at the details step, long after this
 		if ( manageOnly ) {
@@ -1025,6 +1061,7 @@ class JsbBooking extends HTMLElement {
 			b += `<div class="times-empty"><p style="margin:0">No free times on ${ esc( longDate( sel ) ) }.</p>${ next ? `<p style="margin:8px 0 0"><button type="button" class="link" data-act="next-day" data-day="${ next }">See ${ esc( longDate( next ) ) }</button></p>` : '' }</div>`;
 		} else {
 			b += `<fieldset class="fs"><legend class="vh">Time on ${ esc( longDate( sel || '' ) ) }</legend><div class="times${ st.loading ? ' loading' : '' }"${ st.loading ? ' aria-busy="true"' : '' }>` +
+				( st.loading && ! shown.length ? '<span class="time sk-time" aria-hidden="true"></span>'.repeat( 8 ) : '' ) + // the first times on their way: their places, in grey
 				shown.map( ( s ) => {
 					if ( s.taken ) {
 						return `<span class="time taken"><span><b>${ hm( s.start ) }</b><small>just taken</small></span></span>`;

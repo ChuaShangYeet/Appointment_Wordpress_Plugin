@@ -61,7 +61,7 @@ try {
 		}
 		return false;
 	};
-	const has = ( sel ) => p.eval( `!!document.querySelector('jsb-booking')?.shadowRoot.querySelector(${ JSON.stringify( sel ) })` );
+	const has = ( sel ) => p.eval( `!!document.querySelector('jsb-booking:not([hidden])')?.shadowRoot.querySelector(${ JSON.stringify( sel ) })` );
 
 	for ( const line of [ 'Haircut and gel, Saturday', 'Brake pads for a 2019 Myvi, Tuesday', 'Aircon check at my place, Monday', 'See the doctor, Thursday', 'Table for 8, Friday 8pm' ] ) {
 		await p.goto( url, { settleMs: 1200 } );
@@ -78,7 +78,7 @@ try {
 			await step( 'it is the chosen one', ( await p.eval( `document.querySelector('.biz [data-ask="${ line }"]').getAttribute('aria-pressed')` ) ) === 'true' );
 			// wait for the times, as a person would: the live engine takes a second or two a step, the recorded answers almost none
 			// (and until they stop changing: a new business's form loads its first day, then the day asked for)
-			const times = `[...document.querySelector('jsb-booking').shadowRoot.querySelectorAll('[data-k="time"]')].map((t) => t.textContent).join()`;
+			const times = `[...document.querySelector('jsb-booking:not([hidden])').shadowRoot.querySelectorAll('[data-k="time"]')].map((t) => t.textContent).join()`;
 			for ( let waited = 0, last = '', same = 0; waited < 20000 && same < 3; waited += 250 ) {
 				await sleep( 250 );
 				const now = ( await has( '[data-k="time"]' ) ) ? await p.eval( times ) : '';
@@ -87,7 +87,7 @@ try {
 			}
 			const shown = await has( '[data-k="time"]' );
 			if ( ! shown ) {
-				steps.push( '   the widget says: ' + ( await p.eval( `document.querySelector('jsb-booking').shadowRoot.querySelector('#root').innerText.replace(/\\n+/g, ' | ').slice(0, 400)` ) ) );
+				steps.push( '   the widget says: ' + ( await p.eval( `document.querySelector('jsb-booking:not([hidden])').shadowRoot.querySelector('#root').innerText.replace(/\\n+/g, ' | ').slice(0, 400)` ) ) );
 			}
 			await step( 'times are shown', shown );
 			await step( 'Tab reaches the times', await tabTo( '[data-k="time"]' ) );
@@ -111,7 +111,7 @@ try {
 			await step( 'Tab reaches Book', await tabTo( '[data-act="book"]' ) );
 			await press( 'Enter' );
 			await sleep( 1200 );
-			const done = await p.eval( `(() => { const r = document.querySelector('jsb-booking').shadowRoot; return { live: r.querySelector('#live').textContent, demo: !!r.querySelector('#step-done .msg.accent'), facts: (r.querySelector('.facts') || {}).innerText || '', focus: (${ DEEP } || {}).tagName }; })()` );
+			const done = await p.eval( `(() => { const r = document.querySelector('jsb-booking:not([hidden])').shadowRoot; return { live: r.querySelector('#live').textContent, demo: !!r.querySelector('#step-done .msg.accent'), facts: (r.querySelector('.facts') || {}).innerText || '', focus: (${ DEEP } || {}).tagName }; })()` );
 			// live bookings get real codes; recorded ones start DEMO. The note above the form says which this is.
 			const expectLive = !! site && ! /demo=recorded/.test( site );
 			const noteText = await p.eval( `document.getElementById('answer-note').textContent` );
@@ -122,7 +122,7 @@ try {
 			steps.push( '   ' + done.facts.replace( /\n+/g, ' | ' ) );
 		} catch ( e ) {
 			failures++;
-			steps.push( '   the widget says: ' + ( await p.eval( `document.querySelector('jsb-booking').shadowRoot.querySelector('#root').innerText.replace(/\\n+/g, ' | ').slice(0, 400)` ) ) );
+			steps.push( '   the widget says: ' + ( await p.eval( `document.querySelector('jsb-booking:not([hidden])').shadowRoot.querySelector('#root').innerText.replace(/\\n+/g, ' | ').slice(0, 400)` ) ) );
 			steps.push( '   focus is on: ' + ( await p.eval( `(() => { const a = ${ DEEP }; return a ? a.tagName + ' ' + ( a.getAttribute('data-k') || a.className || '' ) : 'nothing'; })()` ) ) );
 		}
 		console.log( `== ${ line }\n  ${ steps.join( '\n  ' ) }` );

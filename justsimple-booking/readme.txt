@@ -4,7 +4,7 @@ Tags: booking, appointments, reservations, salon, restaurant
 Requires at least: 6.2
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.1.4
+Stable tag: 0.1.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -60,6 +60,10 @@ The plugin sends through WordPress's own mail, which many hosts deliver poorly. 
 They stay in your database unless you tick "Also delete every module, booking and customer" in Booking > Settings first.
 
 == Changelog ==
+
+= 0.1.5 =
+* The booking form opens faster: the page carries the booking page's details, so the form asks the server only for its free times (one round trip less), and it still checks the details in the background in case a page cache kept old ones.
+* While it loads, the form shows its shape in grey (the days and the times) instead of a line of text.
 
 = 0.1.4 =
 * A refused landline number now says the business needs a mobile to reach the customer (it used to mention WhatsApp and SMS, which the plugin does not send).
