@@ -125,14 +125,22 @@ foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $site, 
 	$f->isDir() ? rmdir( $f->getPathname() ) : unlink( $f->getPathname() );
 }
 foreach ( array( 'index.html', 'page.css', 'page.js' ) as $f ) {
-	file_put_contents( "$site/$f", str_replace( array( '{{version}}', '{{zip}}', '{{v}}' ), array( $version, "{{assets}}justsimple-booking-$version.zip", $stamp ), file_get_contents( "$here/$f" ) ) );
+	// the Download buttons there open the email box (page.js); #get is where they lead without script
+	file_put_contents( "$site/$f", str_replace( array( '{{version}}', 'href="{{zip}}" download', '{{v}}' ), array( $version, 'href="#get" data-zip', $stamp ), file_get_contents( "$here/$f" ) ) );
 }
 foreach ( array( 'img', 'demo', 'widget', 'fonts' ) as $folder ) {
 	foreach ( glob( "$dist/$folder/*" ) as $f ) {
 		put( $f, "$site/$folder/" . basename( $f ) );
 	}
 }
-put( $zipPath, "$site/justsimple-booking-$version.zip" ); // the page's Download buttons
+// the zip goes out only through an emailed link (showcase/src/Downloads.php), so the web server must not serve this folder
+$private = "$showcase/private";
+if ( ! is_dir( $private ) ) {
+	mkdir( $private, 0777, true );
+}
+array_map( 'unlink', glob( "$private/*.zip" ) );
+put( $zipPath, "$private/justsimple-booking-$version.zip" );
+file_put_contents( "$private/.htaccess", "<IfModule mod_authz_core.c>\n\tRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n\tDeny from all\n</IfModule>\n" );
 if ( ! preg_match( '/^\s*\*\s*Version:\s*(\S+)/m', file_get_contents( "$showcase/justsimple-showcase.php" ), $sv ) ) {
 	fwrite( STDERR, "no Version: header in justsimple-showcase.php\n" );
 	exit( 1 );
@@ -144,7 +152,7 @@ $sbase  = realpath( $showcase );
 $sfiles = 0;
 foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $sbase, FilesystemIterator::SKIP_DOTS ) ) as $f ) {
 	$rel = str_replace( '\\', '/', substr( $f->getPathname(), strlen( $sbase ) + 1 ) );
-	if ( preg_match( '#^tests/|(^|/)\.#', $rel ) ) {
+	if ( preg_match( '#^tests/|(^|/)\.(?!htaccess$)#', $rel ) ) {
 		continue;
 	}
 	$sz->addFile( $f->getPathname(), "justsimple-showcase/$rel" );

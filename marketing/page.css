@@ -233,6 +233,21 @@ section { padding: 160px var(--margin) 0; }
 .cta-row p { grid-column: 1 / 6; margin: 0; font-size: 20px; line-height: 1.4; }
 .cta-row .accent-btn { grid-column: 10 / 13; justify-self: end; }
 
+/* ---- the email box the Download buttons open on the live demo ---- */
+.get { width: min(480px, calc(100vw - 2 * var(--margin))); border: 0; border-radius: 2px; padding: 32px; background: var(--bg); color: var(--ink); }
+.get::backdrop { background: rgba(20, 20, 18, 0.6); }
+.get h2 { font-size: 40px; margin-bottom: 12px; }
+.get p { margin: 0 0 16px; }
+.get label { display: block; font-weight: 600; margin-bottom: 6px; }
+.get input[type="email"] { width: 100%; height: 52px; padding: 0 14px; margin-bottom: 12px; border: 0; border-radius: 2px; background: #fff; color: var(--ink); font: inherit; }
+.get .get-small { font-size: 14px; color: var(--muted); }
+.get .get-msg:empty { display: none; }
+.get .get-msg { font-weight: 600; }
+.get-row { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.get .accent-btn { border: 0; font-family: inherit; cursor: pointer; }
+.get .accent-btn[disabled] { opacity: 0.6; cursor: wait; }
+.get-close { border: 0; background: none; color: var(--ink); font: inherit; min-height: 44px; padding: 0; text-decoration: underline; text-underline-offset: 0.18em; cursor: pointer; }
+
 /* ---- footer: the download is the headline ---- */
 .foot { background: var(--field); color: var(--field-ink); display: flex; flex-direction: column; padding: 40px var(--margin) 32px; }
 .foot-top { display: flex; justify-content: space-between; gap: 24px; font-size: 14px; }

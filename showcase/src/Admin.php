@@ -5,7 +5,7 @@ use JustSimple\Booking\Data\Schema;
 
 defined( 'ABSPATH' ) || exit;
 
-/** Tools › JustSimple Showcase: the demo's state, the visit log, Reset now, the reset hour, the front page switch, and the caught mail. */
+/** Tools › JustSimple Showcase: the demo's state, the visit log, the download emails, Reset now, the reset hour, the front page switch, and the caught mail. */
 final class Admin {
 
 	const SLUG = 'justsimple-showcase';
@@ -16,6 +16,9 @@ final class Admin {
 		} );
 		add_action( 'admin_post_jss_reset', array( __CLASS__, 'reset' ) );
 		add_action( 'admin_post_jss_settings', array( __CLASS__, 'settings' ) );
+		add_action( 'admin_post_jss_emails_csv', array( __CLASS__, 'emails_csv' ) );
+		add_action( 'admin_post_jss_email_delete', array( __CLASS__, 'email_delete' ) );
+		add_action( 'admin_post_jss_mail_test', array( __CLASS__, 'mail_test' ) );
 	}
 
 	private static function back( string $msg ) {
@@ -44,6 +47,39 @@ final class Admin {
 		self::back( 'saved' );
 	}
 
+	private static function allowed( string $action ) {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You cannot do that here.', 'justsimple-showcase' ), 403 );
+		}
+		check_admin_referer( $action );
+	}
+
+	/** Every address, as a spreadsheet. A leading = + - @ is quoted so a spreadsheet does not run it as a formula. */
+	public static function emails_csv() {
+		self::allowed( 'jss_emails_csv' );
+		header( 'Content-Type: text/csv; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename="justsimple-download-emails.csv"' );
+		$out = fopen( 'php://output', 'w' );
+		fputcsv( $out, array( 'email', 'asked', 'opened', 'times' ) );
+		foreach ( Downloads::all() as $r ) {
+			$r['email'] = preg_replace( '/^([=+\-@])/', "'$1", $r['email'] );
+			fputcsv( $out, array( $r['email'], $r['asked'], (string) $r['opened'], $r['times'] ) );
+		}
+		exit;
+	}
+
+	public static function email_delete() {
+		self::allowed( 'jss_email_delete' );
+		Downloads::remove( (int) ( $_POST['id'] ?? 0 ) );
+		self::back( 'deleted' );
+	}
+
+	public static function mail_test() {
+		self::allowed( 'jss_mail_test' );
+		$to = sanitize_email( wp_unslash( $_POST['to'] ?? '' ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitize_email
+		self::back( is_email( $to ) && Downloads::test( $to ) ? 'mailok' : 'mailbad' );
+	}
+
 	public static function render() {
 		global $wpdb;
 		$pages = (array) get_option( Reset::PAGES, array() );
@@ -57,6 +93,9 @@ final class Admin {
 			'partial' => array( 'warning', __( 'The demo was reset, but some steps were refused: see below.', 'justsimple-showcase' ) ),
 			'busy'    => array( 'warning', __( 'A reset is already running. Try again in a minute.', 'justsimple-showcase' ) ),
 			'saved'   => array( 'success', __( 'Saved.', 'justsimple-showcase' ) ),
+			'deleted' => array( 'success', __( 'The address is deleted.', 'justsimple-showcase' ) ),
+			'mailok'  => array( 'success', __( 'WordPress handed the test email over. Check that it arrives, in the inbox and not in spam.', 'justsimple-showcase' ) ),
+			'mailbad' => array( 'error', __( 'The test email could not be sent. Check the address, and that a mail plugin is set up: this host may not send mail by itself.', 'justsimple-showcase' ) ),
 		);
 		$note  = $notes[ sanitize_key( $_GET['jss'] ?? '' ) ] ?? null; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a message, not an action
 		?>
@@ -86,6 +125,8 @@ final class Admin {
 			<?php endif; ?>
 
 			<?php self::visits(); ?>
+
+			<?php self::emails(); ?>
 
 			<h2><?php esc_html_e( 'Reset', 'justsimple-showcase' ); ?></h2>
 			<p>
@@ -147,6 +188,61 @@ final class Admin {
 		<?php
 	}
 
+	/** The addresses that asked for the plugin, and the test of whether this site can really send mail. */
+	private static function emails() {
+		$rows = Downloads::all();
+		$post = esc_url( admin_url( 'admin-post.php' ) );
+		$when = static function ( $t ) {
+			return wp_date( 'j M Y, H:i', strtotime( $t . ' UTC' ) );
+		};
+		?>
+		<h2><?php esc_html_e( 'Plugin download emails', 'justsimple-showcase' ); ?></h2>
+		<p><?php echo esc_html( sprintf( /* translators: 1: days a link works, 2: days an unopened address is kept */ __( 'Each address gets a private link that works for %1$d days. Opened means the address is real. An address whose link is never opened is removed after %2$d days; resets leave this list alone.', 'justsimple-showcase' ), Downloads::DAYS, Downloads::FORGET ) ); ?></p>
+		<?php if ( '' === Downloads::file() ) : ?>
+			<div class="notice notice-error inline"><p><?php esc_html_e( 'The plugin zip is missing from this Showcase, so links cannot download anything.', 'justsimple-showcase' ); ?></p></div>
+		<?php endif; ?>
+		<form method="post" action="<?php echo $post; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- esc_url above ?>" style="margin-bottom:16px">
+			<input type="hidden" name="action" value="jss_mail_test">
+			<?php wp_nonce_field( 'jss_mail_test' ); ?>
+			<label for="jss-test"><?php esc_html_e( 'Send a real test email to', 'justsimple-showcase' ); ?></label>
+			<input id="jss-test" name="to" type="email" required class="regular-text">
+			<?php submit_button( __( 'Send test', 'justsimple-showcase' ), 'secondary', 'submit', false ); ?>
+		</form>
+		<?php if ( ! $rows ) : ?>
+			<p><?php esc_html_e( 'No one has asked yet.', 'justsimple-showcase' ); ?></p>
+			<?php
+			return;
+		endif;
+		?>
+		<form method="post" action="<?php echo $post; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- esc_url above ?>" style="margin-bottom:8px">
+			<input type="hidden" name="action" value="jss_emails_csv">
+			<?php wp_nonce_field( 'jss_emails_csv' ); ?>
+			<?php submit_button( __( 'Export as CSV', 'justsimple-showcase' ), 'secondary', 'submit', false ); ?>
+		</form>
+		<table class="widefat striped" style="max-width:900px">
+			<thead><tr><th><?php esc_html_e( 'Email', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'Asked', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'Link opened', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'Downloads', 'justsimple-showcase' ); ?></th><th></th></tr></thead>
+			<tbody>
+			<?php foreach ( $rows as $r ) : ?>
+				<tr>
+					<td><?php echo esc_html( $r['email'] ); ?></td>
+					<td><?php echo esc_html( $when( $r['asked'] ) ); ?></td>
+					<td><?php echo esc_html( $r['opened'] ? $when( $r['opened'] ) : __( 'Not yet', 'justsimple-showcase' ) ); ?></td>
+					<td><?php echo (int) $r['times']; ?></td>
+					<td>
+						<form method="post" action="<?php echo $post; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- esc_url above ?>">
+							<input type="hidden" name="action" value="jss_email_delete">
+							<input type="hidden" name="id" value="<?php echo (int) $r['id']; ?>">
+							<?php wp_nonce_field( 'jss_email_delete' ); ?>
+							<?php submit_button( __( 'Delete', 'justsimple-showcase' ), 'link-delete small', 'submit', false ); ?>
+						</form>
+					</td>
+				</tr>
+			<?php endforeach; ?>
+			</tbody>
+		</table>
+		<?php
+	}
+
 	/** The visit log: totals for today and the last 7 days, then the latest visits, each opening to its steps. */
 	private static function visits() {
 		$today = ( new \DateTimeImmutable( 'today', wp_timezone() ) )->getTimestamp();
@@ -159,7 +255,7 @@ final class Admin {
 		<h2><?php esc_html_e( 'Visits to the marketing page', 'justsimple-showcase' ); ?></h2>
 		<p><?php echo esc_html( sprintf( /* translators: %d: days */ __( 'Kept without cookies or IP addresses, for %d days; resets leave them alone. Your own visits while signed in, and obvious bots, are not counted. A reload counts as a new visit. Stayed is the time the page was on screen, not the time the tab was open.', 'justsimple-showcase' ), Visits::KEEP ) ); ?></p>
 		<table class="widefat striped" style="max-width:720px">
-			<thead><tr><th></th><th><?php esc_html_e( 'Visits', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'People', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'Booked', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'Downloaded', 'justsimple-showcase' ); ?></th></tr></thead>
+			<thead><tr><th></th><th><?php esc_html_e( 'Visits', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'People', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'Booked', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'Asked for the plugin', 'justsimple-showcase' ); ?></th></tr></thead>
 			<tbody>
 			<?php foreach ( $spans as $label => $t ) : ?>
 				<tr><th scope="row"><?php echo esc_html( $label ); ?></th><td><?php echo (int) $t['visits']; ?></td><td><?php echo (int) $t['people']; ?></td><td><?php echo (int) $t['booked']; ?></td><td><?php echo (int) $t['downloaded']; ?></td></tr>

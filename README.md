@@ -13,7 +13,7 @@ The standalone plugin is built on the branch `standalone-wp-plugin` (pushed to G
 
 What it does, how to install it and its changelog are in [`justsimple-booking/readme.txt`](justsimple-booking/readme.txt) (the file WordPress shows on the plugin's details screen). In short: an owner uploads the zip, makes a booking page of one of five kinds, fills in its setup and puts its shortcode or block on a page. Customers book with a name and a mobile number (checked for the country they choose) and get a booking code and, by email, a link to change or cancel. It sends email only and takes no payments.
 
-**Live demo:** https://js-appointment-demo.infinityfreeapp.com (InfinityFree). The front page is the marketing page, served by the JustSimple Showcase plugin, and its booking form books live against five demo businesses that are reset every night at 03:00 Kuala Lumpur time; emails there are caught, not sent. The Showcase also keeps a log of what visits to the page do, without cookies or IP addresses, under Tools › JustSimple Showcase.
+**Live demo:** https://js-appointment-demo.infinityfreeapp.com (InfinityFree). The front page is the marketing page, served by the JustSimple Showcase plugin, and its booking form books live against five demo businesses that are reset every night at 03:00 Kuala Lumpur time; emails there are caught, not sent. The Showcase also keeps a log of what visits to the page do, without cookies or IP addresses, under Tools › JustSimple Showcase. Its Download buttons ask for an email and send a private link that works for 7 days; the zip sits in `showcase/private/`, which the web server refuses to serve. That one email is really sent, so the site needs working mail (the Showcase admin page has a test button).
 
 How it was planned and built: [`WP_PLUGIN_PLAN.md`](WP_PLUGIN_PLAN.md) (the overall plan), then `PHASE2_PLAN.md` to `PHASE8_PLAN.md`, one per phase, each confirmed before it was built.
 
@@ -37,7 +37,7 @@ On a local WordPress (XAMPP on Windows, the plugin folders linked into `C:/xampp
 | `php justsimple-booking/tests/phone.php` | The mobile-number check gives the backend's answer for 11,608 numbers of every country |
 | `php justsimple-booking/tests/integration.php C:/xampp/htdocs/jsb-test` | The REST routes, data, emails, admin and page output against a real WordPress (307 checks) |
 | `php justsimple-booking/tests/concurrency.php …` | Parallel races: started several times at once, exactly one booking gets a time |
-| `php showcase/tests/showcase.php C:/xampp/htdocs/jsb-test http://localhost/jsb-test` | The demo site: loading, the nightly reset, caught mail, the front page, the visit log (40 checks) |
+| `php showcase/tests/showcase.php C:/xampp/htdocs/jsb-test http://localhost/jsb-test` | The demo site: loading, the nightly reset, caught mail, the front page, the visit log, the emailed download (59 checks) |
 | `node marketing/test-demo.mjs [site]` | Books each of the five demo businesses by keyboard: the static page, a live site, or `?demo=recorded` |
 
 ### Putting a new version on the live demo

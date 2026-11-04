@@ -52,9 +52,7 @@ if ( LOG ) {
 	} );
 	document.addEventListener( 'click', ( e ) => {
 		const a = e.target.closest( 'a' );
-		if ( a && a.hasAttribute( 'download' ) ) {
-			step( 'download' );
-		} else if ( a && a.hostname.endsWith( 'onrender.com' ) ) {
+		if ( a && a.hostname.endsWith( 'onrender.com' ) ) {
 			step( 'hosted' );
 		}
 	} );
@@ -71,6 +69,47 @@ if ( LOG ) {
 		const el = document.querySelector( selector );
 		el.dataset.place = place;
 		reached.observe( el );
+	} );
+}
+
+// ------------------------------------------------------------------ the download, by emailed link
+
+// On the live demo the Download buttons open a box asking for an email; the Showcase sends a private link. The page on its own
+// keeps plain download links.
+const GET = window.jsbShowcase && window.jsbShowcase.get;
+if ( GET ) {
+	const box = document.getElementById( 'get-box' );
+	const form = document.getElementById( 'get-form' );
+	const said = document.getElementById( 'get-msg' );
+	const send = form.querySelector( '[type="submit"]' );
+	document.querySelectorAll( '[data-zip]' ).forEach( ( a ) => a.addEventListener( 'click', ( e ) => {
+		e.preventDefault();
+		box.showModal();
+	} ) );
+	box.querySelector( '.get-close' ).addEventListener( 'click', () => box.close() );
+	box.addEventListener( 'click', ( e ) => e.target === box && box.close() ); // a click on the backdrop
+	form.addEventListener( 'submit', async ( e ) => {
+		e.preventDefault();
+		send.disabled = true;
+		said.textContent = 'Sending…';
+		const email = form.email.value.trim();
+		try {
+			const r = await fetch( GET, {
+				method: 'POST',
+				credentials: 'omit',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify( { email, website: form.website.value } ),
+			} );
+			const answer = await r.json();
+			if ( ! r.ok ) {
+				throw new Error( answer.message );
+			}
+			said.textContent = `Sent to ${ email }. Check your inbox: it can take a minute, and may land in spam.`;
+			step( 'download' );
+		} catch ( err ) {
+			said.textContent = err.message && ! ( err instanceof SyntaxError ) && ! ( err instanceof TypeError ) ? err.message : 'We could not send the email just now. Please try again later.';
+		}
+		send.disabled = false;
 	} );
 }
 

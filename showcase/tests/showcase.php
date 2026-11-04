@@ -14,6 +14,7 @@ require_once ABSPATH . 'wp-admin/includes/plugin.php';
 
 use JustSimple\Booking\Data\Schema;
 use JustSimple\Showcase\DemoData;
+use JustSimple\Showcase\Downloads;
 use JustSimple\Showcase\Front;
 use JustSimple\Showcase\MailCatcher;
 use JustSimple\Showcase\Reset;
@@ -172,6 +173,79 @@ do_action( Reset::HOOK );
 sc_check( null === $row( 'sctest0000002' ), 'the nightly job removes visits older than ' . Visits::KEEP . ' days' );
 sc_check( null !== $row( 'sctest0000001' ), 'and the reset leaves the others alone' );
 $wpdb->query( "DELETE FROM $vt WHERE visit LIKE 'sctest%'" );
+
+echo "== the plugin by emailed link\n";
+$dt    = Downloads::table();
+$site  = rtrim( $sc_args[2], '/' );
+$sent  = array();
+$fake  = static function ( $short, $atts ) use ( &$sent ) {
+	$sent[] = $atts;
+	return true; // stands in for a working mail service
+};
+add_filter( 'pre_wp_mail', $fake, 5, 2 );
+$ask = static function ( $body ) {
+	$_SERVER['HTTP_USER_AGENT'] = 'Mozilla/5.0 Chrome/130.0';
+	$_SERVER['REMOTE_ADDR']     = '203.0.113.' . wp_rand( 10, 250 );
+	$req                        = new WP_REST_Request( 'POST', '/justsimple-showcase/v1/download' );
+	$req->set_header( 'content-type', 'application/json' );
+	$req->set_body( wp_json_encode( $body ) );
+	return rest_do_request( $req );
+};
+$email = 'sc-get-' . wp_rand( 100000, 999999 ) . '@example.test';
+$drow  = static function ( $e ) use ( $wpdb, $dt ) {
+	return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $dt WHERE email = %s", $e ), ARRAY_A );
+};
+wp_set_current_user( 0 );
+$html = wp_remote_retrieve_body( wp_remote_get( $site . '/', array( 'timeout' => 20 ) ) );
+sc_check( false !== strpos( $html, 'data-zip' ) && false === strpos( $html, '.zip" download' ) && false !== strpos( $html, '"get":"' ), 'the page\'s Download buttons no longer point at the zip' );
+$zip = Downloads::file();
+sc_check( '' !== $zip, 'the zip is in the private folder', $zip );
+$pub = wp_remote_retrieve_response_code( wp_remote_get( plugins_url( 'private/' . basename( $zip ), JSS_FILE ), array( 'timeout' => 20 ) ) );
+sc_check( 403 === $pub, 'and the web server refuses to serve it directly', $pub );
+sc_check( 404 === wp_remote_retrieve_response_code( wp_remote_get( plugins_url( 'site/' . basename( $zip ), JSS_FILE ), array( 'timeout' => 20 ) ) ), 'the old public address is gone' );
+
+sc_check( 400 === $ask( array( 'email' => 'not an email' ) )->get_status(), 'a bad address is refused' );
+sc_check( 200 === $ask( array( 'email' => $email, 'website' => 'http://spam.test' ) )->get_status() && ! $sent && ! $drow( $email ), 'a robot filling the hidden field is told yes, and nothing is sent or kept' );
+$res = $ask( array( 'email' => strtoupper( $email ) ) );
+$got = $drow( $email );
+sc_check( 200 === $res->get_status() && 1 === count( $sent ) && $email === $sent[0]['to'] && $got, 'an address gets one email and is kept in lower case', $res->get_data() );
+sc_check( ! array_filter( MailCatcher::all(), static function ( $m ) use ( $email ) {
+	return false !== strpos( $m['to'], $email );
+} ), 'the download email is not caught, as booking emails are' );
+preg_match( '/jss_download=([A-Za-z0-9]+)/', $sent[0]['message'] ?? '', $tok );
+$link = $site . '/?jss_download=' . ( $tok[1] ?? '' );
+sc_check( ! empty( $tok[1] ) && false === strpos( wp_json_encode( $got ), $tok[1] ), 'the email carries a private link, and only its hash is stored' );
+$open = wp_remote_get( $link, array( 'timeout' => 30 ) );
+sc_check( 200 === wp_remote_retrieve_response_code( $open ) && 'application/zip' === wp_remote_retrieve_header( $open, 'content-type' ) && strlen( wp_remote_retrieve_body( $open ) ) === filesize( $zip ) && 'PK' === substr( wp_remote_retrieve_body( $open ), 0, 2 ), 'the link downloads the whole zip', wp_remote_retrieve_headers( $open ) );
+$got = $drow( $email );
+sc_check( $got['opened'] && 1 === (int) $got['times'], 'and the address is marked opened' );
+sc_check( 404 === wp_remote_retrieve_response_code( wp_remote_get( $site . '/?jss_download=nothing', array( 'timeout' => 20 ) ) ), 'a made-up link gets nothing' );
+$wpdb->update( $dt, array( 'expires' => gmdate( 'Y-m-d H:i:s', time() - 60 ) ), array( 'email' => $email ) );
+$late = wp_remote_get( $link, array( 'timeout' => 20 ) );
+sc_check( 410 === wp_remote_retrieve_response_code( $late ) && 'PK' !== substr( wp_remote_retrieve_body( $late ), 0, 2 ), 'an old link has expired' );
+$ask( array( 'email' => $email ) );
+sc_check( 200 === wp_remote_retrieve_response_code( wp_remote_get( $site . '/?jss_download=' . ( preg_match( '/jss_download=([A-Za-z0-9]+)/', end( $sent )['message'], $t2 ) ? $t2[1] : '' ), array( 'timeout' => 30 ) ) ) && 404 === wp_remote_retrieve_response_code( wp_remote_get( $link, array( 'timeout' => 20 ) ) ), 'asking again gives a new link and ends the old one' );
+$ask( array( 'email' => $email ) );
+$before = count( $sent );
+sc_check( 429 === $ask( array( 'email' => $email ) )->get_status() && count( $sent ) === $before, 'one address gets at most ' . Downloads::SENDS . ' emails a day' );
+remove_filter( 'pre_wp_mail', $fake, 5 );
+add_filter( 'pre_wp_mail', '__return_false', 99 ); // after any mail stub the test site has
+$broken = 'sc-get-' . wp_rand( 100000, 999999 ) . '@example.test';
+sc_check( 503 === $ask( array( 'email' => $broken ) )->get_status() && ! $drow( $broken ), 'if mail fails the visitor is told so, and nothing is kept' );
+remove_filter( 'pre_wp_mail', '__return_false', 99 );
+
+wp_set_current_user( 1 );
+ob_start();
+JustSimple\Showcase\Admin::render();
+$admin = ob_get_clean();
+sc_check( false !== strpos( $admin, $email ) && false !== strpos( $admin, 'Export as CSV' ) && false !== strpos( $admin, 'Send test' ), 'the admin page lists the address, with its export and a test email' );
+$old = 'sc-get-old@example.test';
+$wpdb->insert( $dt, array( 'email' => $old, 'token' => str_repeat( '0', 64 ), 'asked' => gmdate( 'Y-m-d H:i:s', time() - 31 * DAY_IN_SECONDS ), 'expires' => gmdate( 'Y-m-d H:i:s', time() - 24 * DAY_IN_SECONDS ) ) );
+do_action( Reset::HOOK );
+sc_check( ! $drow( $old ) && $drow( $email ), 'a reset keeps the list, and an address that never opened its link goes after ' . Downloads::FORGET . ' days' );
+Downloads::remove( (int) $drow( $email )['id'] );
+sc_check( ! $drow( $email ), 'the owner can delete an address' );
+$wpdb->query( "DELETE FROM $dt WHERE email LIKE 'sc-get-%'" );
 
 echo "\n" . ( $sc_fail ? "$sc_fail FAILED" : 'all passed' ) . "\n";
 exit( $sc_fail ? 1 : 0 );

@@ -23,6 +23,7 @@ localsite/data/
 marketing/dist/
 marketing/dist-artifact/
 showcase/site/
+showcase/private/
 
 # Local test-site credentials
 dev/

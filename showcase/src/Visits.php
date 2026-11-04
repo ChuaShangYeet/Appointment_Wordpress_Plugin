@@ -149,7 +149,7 @@ final class Visits {
 	}
 
 	/** The same person (IP and browser) gives the same 16 characters all day and different ones the next; the IP is not kept. */
-	private static function person( string $agent ): string {
+	public static function person( string $agent ): string {
 		$day  = wp_date( 'Y-m-d' );
 		$salt = get_option( self::SALT );
 		if ( ! is_array( $salt ) || ( $salt['day'] ?? '' ) !== $day ) {
@@ -245,7 +245,7 @@ final class Visits {
 				/* translators: %s: a demo business */
 				return sprintf( __( 'A booking at %s was refused', 'justsimple-showcase' ), $name );
 			case 'download':
-				return __( 'Clicked Download', 'justsimple-showcase' );
+				return __( 'Asked for the plugin by email', 'justsimple-showcase' );
 			case 'hosted':
 				return __( 'Clicked Hosted version', 'justsimple-showcase' );
 			case 'back':
