@@ -11,6 +11,67 @@ const VER = new URL( import.meta.url ).search; // this page's ?v=, passed on to 
 document.documentElement.classList.add( 'js' );
 const still = matchMedia( '(prefers-reduced-motion: reduce)' ).matches;
 
+// ------------------------------------------------------------------ the visit log
+
+// On the live demo the Showcase logs what a visit does, without cookies: the id lives only in this tab's memory, so nothing stays
+// in the browser and a reload is a new visit. Steps go out every 10 seconds at most, and when the tab is hidden or closed.
+const LOG = window.jsbShowcase && window.jsbShowcase.track;
+const VISIT = LOG && Array.from( crypto.getRandomValues( new Uint8Array( 16 ) ), ( b ) => ( b % 36 ).toString( 36 ) ).join( '' );
+const OPENED = Date.now();
+const CAMPAIGN = new URLSearchParams( location.search ).get( 'utm_source' );
+let cameFrom = CAMPAIGN ? 'utm:' + CAMPAIGN : document.referrer;
+let steps = [];
+
+function step( event, detail = '' ) {
+	if ( LOG ) {
+		steps.push( [ Math.round( ( Date.now() - OPENED ) / 1000 ), event, detail ] );
+	}
+}
+
+function sendSteps() {
+	if ( ! steps.length ) {
+		return;
+	}
+	const body = JSON.stringify( { visit: VISIT, from: cameFrom, steps } );
+	if ( navigator.sendBeacon( LOG, new Blob( [ body ], { type: 'application/json' } ) ) ) {
+		steps = [];
+		cameFrom = '';
+	}
+}
+
+if ( LOG ) {
+	step( 'open' );
+	setInterval( sendSteps, 10000 );
+	document.addEventListener( 'visibilitychange', () => {
+		if ( document.visibilityState === 'hidden' ) {
+			step( 'leave' );
+			sendSteps();
+		}
+	} );
+	document.addEventListener( 'click', ( e ) => {
+		const a = e.target.closest( 'a' );
+		if ( a && a.hasAttribute( 'download' ) ) {
+			step( 'download' );
+		} else if ( a && a.hostname.endsWith( 'onrender.com' ) ) {
+			step( 'hosted' );
+		}
+	} );
+	const places = { '#try': 'try', '#kinds': 'kinds', '.how': 'how', '#questions': 'questions', '#get': 'close', '.foot': 'foot' };
+	const reached = new IntersectionObserver( ( entries ) => {
+		for ( const e of entries ) {
+			if ( e.isIntersecting ) {
+				step( 'section', e.target.dataset.place );
+				reached.unobserve( e.target );
+			}
+		}
+	}, { rootMargin: '0px 0px -30% 0px' } );
+	Object.entries( places ).forEach( ( [ selector, place ] ) => {
+		const el = document.querySelector( selector );
+		el.dataset.place = place;
+		reached.observe( el );
+	} );
+}
+
 // ------------------------------------------------------------------ the slot: a table, a chair, a bay, a visit, a treatment
 
 // The hero is the room being booked, and the slot in the headline holds the same picture. When the line under the current word
@@ -61,7 +122,10 @@ function enter( n ) {
 	tryLine.lastElementChild.dataset.try = kind;
 }
 picks.forEach( ( p, i ) => {
-	p.addEventListener( 'click', () => enter( i ) );
+	p.addEventListener( 'click', () => {
+		step( 'room', rooms[ i ].dataset.kind );
+		enter( i );
+	} );
 	p.addEventListener( 'animationend', () => enter( ( i + 1 ) % rooms.length ) );
 } );
 tryLine.lastElementChild.addEventListener( 'click', ( e ) => {
@@ -263,6 +327,19 @@ let shown = null; // the kind on view
 function make( kind, line ) {
 	made[ kind ] = made[ kind ] || ( async () => {
 		const { source, id, data, how } = await sourceFor( kind );
+		if ( LOG && source.book ) {
+			const book = source.book.bind( source );
+			source.book = async ( ...args ) => {
+				try {
+					const done = await book( ...args );
+					step( 'booked', kind ); // that it happened and where: nothing the visitor typed
+					return done;
+				} catch ( e ) {
+					step( 'refused', kind );
+					throw e;
+				}
+			};
+		}
 		const el = document.createElement( 'jsb-booking' );
 		el.setAttribute( 'module', String( id ) );
 		el.setAttribute( 'css', new URL( './widget/jsb-booking.css' + VER, import.meta.url ).href );
@@ -321,6 +398,7 @@ async function afterFirst( first ) {
 // each business opens on its own starting line, already filled in; the visitor carries on from there
 businesses.forEach( ( b ) => b.addEventListener( 'click', () => {
 	const again = shown === b.dataset.kind;
+	step( 'business', b.dataset.kind );
 	businesses.forEach( ( x ) => x.setAttribute( 'aria-pressed', String( x === b ) ) );
 	showBusiness( b.dataset.kind, b.querySelector( 'span' ).textContent.split( ' · ' )[ 0 ] );
 	answer( b.dataset.ask, { again } );

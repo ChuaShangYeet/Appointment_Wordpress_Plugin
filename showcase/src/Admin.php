@@ -5,7 +5,7 @@ use JustSimple\Booking\Data\Schema;
 
 defined( 'ABSPATH' ) || exit;
 
-/** Tools › JustSimple Showcase: the demo's state, Reset now, the reset hour, the front page switch, and the caught mail. */
+/** Tools › JustSimple Showcase: the demo's state, the visit log, Reset now, the reset hour, the front page switch, and the caught mail. */
 final class Admin {
 
 	const SLUG = 'justsimple-showcase';
@@ -85,6 +85,8 @@ final class Admin {
 				</table>
 			<?php endif; ?>
 
+			<?php self::visits(); ?>
+
 			<h2><?php esc_html_e( 'Reset', 'justsimple-showcase' ); ?></h2>
 			<p>
 				<?php
@@ -142,6 +144,69 @@ final class Admin {
 				</table>
 			<?php endif; ?>
 		</div>
+		<?php
+	}
+
+	/** The visit log: totals for today and the last 7 days, then the latest visits, each opening to its steps. */
+	private static function visits() {
+		$today = ( new \DateTimeImmutable( 'today', wp_timezone() ) )->getTimestamp();
+		$spans = array(
+			__( 'Today', 'justsimple-showcase' )       => Visits::totals( $today ),
+			__( 'Last 7 days', 'justsimple-showcase' ) => Visits::totals( $today - 6 * DAY_IN_SECONDS ),
+		);
+		$rows  = Visits::latest( 100 );
+		?>
+		<h2><?php esc_html_e( 'Visits to the marketing page', 'justsimple-showcase' ); ?></h2>
+		<p><?php echo esc_html( sprintf( /* translators: %d: days */ __( 'Kept without cookies or IP addresses, for %d days; resets leave them alone. Your own visits while signed in, and obvious bots, are not counted. A reload counts as a new visit.', 'justsimple-showcase' ), Visits::KEEP ) ); ?></p>
+		<table class="widefat striped" style="max-width:720px">
+			<thead><tr><th></th><th><?php esc_html_e( 'Visits', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'People', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'Booked', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'Downloaded', 'justsimple-showcase' ); ?></th></tr></thead>
+			<tbody>
+			<?php foreach ( $spans as $label => $t ) : ?>
+				<tr><th scope="row"><?php echo esc_html( $label ); ?></th><td><?php echo (int) $t['visits']; ?></td><td><?php echo (int) $t['people']; ?></td><td><?php echo (int) $t['booked']; ?></td><td><?php echo (int) $t['downloaded']; ?></td></tr>
+			<?php endforeach; ?>
+			</tbody>
+		</table>
+		<?php if ( ! $rows ) : ?>
+			<p><?php esc_html_e( 'No visits yet.', 'justsimple-showcase' ); ?></p>
+			<?php
+			return;
+		endif;
+		?>
+		<h3><?php esc_html_e( 'Latest visits', 'justsimple-showcase' ); ?></h3>
+		<table class="widefat striped" style="max-width:1100px">
+			<thead><tr><th><?php esc_html_e( 'When', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'Stayed', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'Came from', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'Device', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'What it did', 'justsimple-showcase' ); ?></th></tr></thead>
+			<tbody>
+			<?php foreach ( $rows as $v ) : ?>
+				<?php
+				$steps = (array) json_decode( $v['steps'], true );
+				$last  = $steps ? (int) end( $steps )[0] : 0;
+				$did   = array();
+				foreach ( $steps as $s ) {
+					if ( in_array( $s[1], array( 'business', 'booked', 'refused', 'download', 'hosted' ), true ) ) {
+						$did[ Visits::say( $s ) ] = true; // each thing once
+					}
+				}
+				$did = $did ? implode( ', ', array_keys( $did ) ) : __( 'Only read the page', 'justsimple-showcase' );
+				?>
+				<tr>
+					<td><?php echo esc_html( wp_date( 'j M, H:i', strtotime( $v['started'] . ' UTC' ) ) ); ?></td>
+					<td><?php echo esc_html( sprintf( '%d:%02d', intdiv( $last, 60 ), $last % 60 ) ); ?></td>
+					<td><?php echo esc_html( '' !== $v['came_from'] ? $v['came_from'] : __( 'Direct', 'justsimple-showcase' ) ); ?></td>
+					<td><?php echo esc_html( $v['device'] ); ?></td>
+					<td>
+						<details>
+							<summary><?php echo esc_html( $did ); ?></summary>
+							<ol>
+								<?php foreach ( $steps as $s ) : ?>
+									<li><?php echo esc_html( sprintf( '%d:%02d  %s', intdiv( (int) $s[0], 60 ), (int) $s[0] % 60, Visits::say( $s ) ) ); ?></li>
+								<?php endforeach; ?>
+							</ol>
+						</details>
+					</td>
+				</tr>
+			<?php endforeach; ?>
+			</tbody>
+		</table>
 		<?php
 	}
 }

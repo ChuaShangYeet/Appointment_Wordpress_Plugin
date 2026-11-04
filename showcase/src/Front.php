@@ -34,6 +34,7 @@ final class Front {
 			'api'     => untrailingslashit( rest_url( 'justsimple/v1' ) ),
 			'pages'   => (object) $pages,
 			'modules' => (object) self::details( $pages ),
+			'track'   => Visits::endpoint(), // where the page sends its visit log; empty for the site's admins
 		);
 		$html = str_replace( '{{assets}}', esc_url( JSS_URL . 'site/' ), (string) file_get_contents( $file ) );
 		$html = str_replace( '</head>', '<script>window.jsbShowcase = ' . wp_json_encode( $config, JSON_HEX_TAG | JSON_HEX_AMP ) . ";</script>\n</head>", $html );

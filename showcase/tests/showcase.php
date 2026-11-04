@@ -17,6 +17,7 @@ use JustSimple\Showcase\DemoData;
 use JustSimple\Showcase\Front;
 use JustSimple\Showcase\MailCatcher;
 use JustSimple\Showcase\Reset;
+use JustSimple\Showcase\Visits;
 
 $sc_fail = 0;
 function sc_check( bool $ok, string $what, $detail = null ) {
@@ -95,6 +96,74 @@ update_option( Front::ENABLED, '0' );
 $html = wp_remote_retrieve_body( wp_remote_get( rtrim( $sc_args[2], '/' ) . '/', array( 'timeout' => 20 ) ) );
 sc_check( false === strpos( $html, 'window.jsbShowcase' ), 'switched off, WordPress\'s own front page is back' );
 update_option( Front::ENABLED, '1' );
+
+echo "== the visit log\n";
+$vt   = Visits::table();
+$send = static function ( $body, $agent = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36' ) {
+	$_SERVER['HTTP_USER_AGENT'] = $agent;
+	$_SERVER['REMOTE_ADDR']     = '203.0.113.9';
+	$req                        = new WP_REST_Request( 'POST', '/justsimple-showcase/v1/visit' );
+	$req->set_header( 'content-type', 'application/json' );
+	$req->set_body( is_string( $body ) ? $body : wp_json_encode( $body ) );
+	return rest_do_request( $req )->get_status();
+};
+$row  = static function ( $visit ) use ( $wpdb, $vt ) {
+	return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $vt WHERE visit = %s", $visit ), ARRAY_A );
+};
+$wpdb->query( "DELETE FROM $vt WHERE visit LIKE 'sctest%'" );
+wp_set_current_user( 1 );
+sc_check( '' === Visits::endpoint(), 'a site admin is not logged' );
+wp_set_current_user( 0 );
+sc_check( false !== strpos( Visits::endpoint(), '/justsimple-showcase/v1/visit' ), 'a visitor is' );
+$front = wp_remote_get( rtrim( $sc_args[2], '/' ) . '/', array( 'timeout' => 20 ) );
+$html  = wp_remote_retrieve_body( $front );
+sc_check( false !== strpos( $html, '"track":"' ) && false !== strpos( $html, 'without cookies' ), 'the page is told where to send its visit, and says it counts without cookies' );
+sc_check( ! wp_remote_retrieve_header( $front, 'set-cookie' ), 'the front page sets no cookie', wp_remote_retrieve_header( $front, 'set-cookie' ) );
+
+$status = $send( array( 'visit' => 'sctest0000001', 'from' => 'https://www.google.com/search?q=private+words', 'steps' => array( array( 0, 'open', '' ), array( 3, 'section', 'try' ), array( 5, 'business', 'workshop' ) ) ) );
+$v      = $row( 'sctest0000001' );
+sc_check( 204 === $status && $v && 'google.com' === $v['came_from'], 'a visit is saved, with only the name of the site it came from', $v );
+sc_check( 'Phone · Chrome · Android' === $v['device'] && 'try' === $v['reached'], 'with the kind of device and how far it got', $v );
+sc_check( 16 === strlen( $v['person'] ) && false === strpos( wp_json_encode( $v ), '203.0.113.9' ), 'the IP address is not kept' );
+$send( array( 'visit' => 'sctest0000001', 'steps' => array( array( 40, 'section', 'questions' ), array( 41, 'section', 'try' ), array( 60, 'booked', 'workshop' ), array( 70, 'download', '' ) ) ) );
+$v2 = $row( 'sctest0000001' );
+sc_check( 7 === count( json_decode( $v2['steps'], true ) ) && 'questions' === $v2['reached'] && 1 === (int) $v2['booked'] && 1 === (int) $v2['downloaded'], 'later steps join the same visit: the furthest section, a booking, a download', $v2 );
+sc_check( 'google.com' === $v2['came_from'] && $v['person'] === $v2['person'], 'and leave where it came from alone' );
+
+$send( array( 'visit' => 'sctest0000002', 'from' => home_url( '/x' ), 'steps' => array( array( 1, 'name', 'Ali' ), array( 2, 'business', '<script>' ), array( 'x', 'open', '' ) ) ) );
+$v = $row( 'sctest0000002' );
+sc_check( '[[2,"business",""],[0,"open",""]]' === $v['steps'], 'unknown events are dropped and unknown details blanked', $v['steps'] ?? null );
+sc_check( '' === $v['came_from'], 'coming from this site counts as direct' );
+$send( array( 'visit' => 'sctest0000003', 'from' => 'utm:Newsletter', 'steps' => array( array( 0, 'open', '' ) ) ) );
+sc_check( 'campaign: newsletter' === $row( 'sctest0000003' )['came_from'], 'a campaign tag is kept' );
+sc_check( 400 === $send( array( 'visit' => "x' OR 1", 'steps' => array() ) ) && 400 === $send( 'not json' ), 'a bad visit id or body is refused' );
+$send( array( 'visit' => 'sctest0000004', 'steps' => array( array( 0, 'open', '' ) ) ), 'Mozilla/5.0 (compatible; Googlebot/2.1)' );
+sc_check( null === $row( 'sctest0000004' ), 'bots are not logged' );
+$many = array_fill( 0, 50, array( 9, 'section', 'try' ) );
+for ( $i = 0; $i < 6; $i++ ) {
+	$send( array( 'visit' => 'sctest0000005', 'steps' => $many ) );
+}
+sc_check( Visits::STEPS === count( json_decode( $row( 'sctest0000005' )['steps'], true ) ), 'one visit keeps at most ' . Visits::STEPS . ' steps' );
+
+$same = $row( 'sctest0000002' )['person'] === $row( 'sctest0000003' )['person'];
+delete_option( Visits::SALT );
+$send( array( 'visit' => 'sctest0000006', 'steps' => array( array( 0, 'open', '' ) ) ) );
+sc_check( $same && $row( 'sctest0000006' )['person'] !== $row( 'sctest0000003' )['person'], 'one person is one code all day, and a new code when the day\'s key changes' );
+
+$totals = Visits::totals( time() - HOUR_IN_SECONDS );
+sc_check( $totals['visits'] >= 5 && $totals['people'] >= 2 && $totals['booked'] >= 1 && $totals['downloaded'] >= 1, 'the totals add up', $totals );
+require_once ABSPATH . 'wp-admin/includes/template.php';
+wp_set_current_user( 1 );
+ob_start();
+JustSimple\Showcase\Admin::render();
+$admin = ob_get_clean();
+sc_check( false !== strpos( $admin, 'Visits to the marketing page' ) && false !== strpos( $admin, 'google.com' ) && false !== strpos( $admin, 'Booked at ' . DemoData::TITLES['workshop'] ), 'the admin page lists the visit and what it did' );
+
+$wpdb->update( $vt, array( 'started' => gmdate( 'Y-m-d H:i:s', time() - 91 * DAY_IN_SECONDS ) ), array( 'visit' => 'sctest0000002' ) );
+do_action( Reset::HOOK );
+sc_check( null === $row( 'sctest0000002' ), 'the nightly job removes visits older than ' . Visits::KEEP . ' days' );
+sc_check( null !== $row( 'sctest0000001' ), 'and the reset leaves the others alone' );
+$wpdb->query( "DELETE FROM $vt WHERE visit LIKE 'sctest%'" );
 
 echo "\n" . ( $sc_fail ? "$sc_fail FAILED" : 'all passed' ) . "\n";
 exit( $sc_fail ? 1 : 0 );

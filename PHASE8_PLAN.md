@@ -15,6 +15,8 @@ Status: **confirmed as recommended (separate Showcase plugin, front page, 03:00 
 | `6ff872e` | 0.1.4: email-only wording for refused landlines; the readme describes the plugin as it is |
 | `84172e0` | 0.1.5: faster form (details carried in the page, lighter photos, five forms readied); live first visit 4.7 s to 2.3 s, switching business 1.2 s to 10-220 ms |
 | `29a527c`, `8026a69` | 0.1.6 and 0.1.7: the host gave JSON a year in browser caches; the plugin's answers now say no-store and the form adds its version to what it reads |
+| `7565065`, `f6bb975`, `45e185c` | A link to the hosted engine; a shorter hero and footer; Fraunces for the headlines |
+| (next commit) | Showcase 0.2.0: a log of visits to the page in `{prefix}jss_visits`, without cookies or IP addresses, kept 90 days, listed on the Showcase admin page |
 
 Uploading to the host: both zips from `marketing/dist` with Replace current with uploaded, then Performance › Purge All Caches (W3 Total Cache served WordPress's own front page once, saved while the Showcase was being replaced).
 
