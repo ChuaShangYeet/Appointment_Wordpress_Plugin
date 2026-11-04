@@ -46,6 +46,8 @@ if ( LOG ) {
 		if ( document.visibilityState === 'hidden' ) {
 			step( 'leave' );
 			sendSteps();
+		} else {
+			step( 'back' );
 		}
 	} );
 	document.addEventListener( 'click', ( e ) => {

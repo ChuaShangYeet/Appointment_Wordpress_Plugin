@@ -150,6 +150,13 @@ delete_option( Visits::SALT );
 $send( array( 'visit' => 'sctest0000006', 'steps' => array( array( 0, 'open', '' ) ) ) );
 sc_check( $same && $row( 'sctest0000006' )['person'] !== $row( 'sctest0000003' )['person'], 'one person is one code all day, and a new code when the day\'s key changes' );
 
+$went = array( array( 0, 'open', '' ), array( 8, 'leave', '' ), array( 386, 'back', '' ), array( 405, 'hosted', '' ), array( 405, 'leave', '' ), array( 410, 'back', '' ), array( 417, 'leave', '' ) );
+sc_check( 34 === Visits::on_screen( $went ), 'stayed counts the time on screen: 8 + 19 + 7 of 417 seconds', Visits::on_screen( $went ) );
+$old = array( array( 0, 'open', '' ), array( 8, 'leave', '' ), array( 386, 'section', 'how' ), array( 405, 'leave', '' ) );
+sc_check( 27 === Visits::on_screen( $old ), 'a visit logged before "came back" existed comes back at its next step', Visits::on_screen( $old ) );
+$send( array( 'visit' => 'sctest0000007', 'steps' => array( array( 0, 'open', '' ), array( 8, 'leave', '' ), array( 20, 'back', '' ) ) ) );
+sc_check( 3 === count( json_decode( $row( 'sctest0000007' )['steps'], true ) ), 'coming back is kept as a step' );
+
 $totals = Visits::totals( time() - HOUR_IN_SECONDS );
 sc_check( $totals['visits'] >= 5 && $totals['people'] >= 2 && $totals['booked'] >= 1 && $totals['downloaded'] >= 1, 'the totals add up', $totals );
 require_once ABSPATH . 'wp-admin/includes/template.php';
@@ -158,6 +165,7 @@ ob_start();
 JustSimple\Showcase\Admin::render();
 $admin = ob_get_clean();
 sc_check( false !== strpos( $admin, 'Visits to the marketing page' ) && false !== strpos( $admin, 'google.com' ) && false !== strpos( $admin, 'Booked at ' . DemoData::TITLES['workshop'] ), 'the admin page lists the visit and what it did' );
+sc_check( false !== strpos( $admin, 'Came back' ) && false === strpos( $admin, 'Left the page' ), 'with the steps in plain words' );
 
 $wpdb->update( $vt, array( 'started' => gmdate( 'Y-m-d H:i:s', time() - 91 * DAY_IN_SECONDS ) ), array( 'visit' => 'sctest0000002' ) );
 do_action( Reset::HOOK );

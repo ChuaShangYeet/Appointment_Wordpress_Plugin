@@ -17,7 +17,7 @@ final class Visits {
 	const KEEP    = 90; // days
 	const ROUTE   = 'justsimple-showcase/v1';
 	const STEPS   = 200; // per visit, at most
-	const EVENTS  = array( 'open', 'section', 'room', 'business', 'booked', 'refused', 'download', 'hosted', 'leave' );
+	const EVENTS  = array( 'open', 'section', 'room', 'business', 'booked', 'refused', 'download', 'hosted', 'leave', 'back' );
 	const KINDS   = array( 'salon', 'restaurant', 'workshop', 'field', 'staff' );
 	const PLACES  = array( 'try', 'kinds', 'how', 'questions', 'close', 'foot' ); // the page's sections, top to bottom
 	const BOTS    = '/bot|crawl|spider|slurp|fetch|curl|wget|python|headless|lighthouse|preview|monitor|scan/i';
@@ -206,6 +206,22 @@ final class Visits {
 		return array_map( 'intval', (array) $row );
 	}
 
+	/**
+	 * Seconds the page was on screen: the time from the first step to the last, without the time the tab was hidden. Any step after
+	 * a 'leave' ends the time away (visits logged before 'back' existed have only their next step to go by, so they read a little low).
+	 */
+	public static function on_screen( array $steps ): int {
+		$seconds = 0;
+		$before  = 0;
+		$away    = false;
+		foreach ( $steps as $s ) {
+			$seconds += $away ? 0 : max( 0, (int) $s[0] - $before );
+			$before   = (int) $s[0];
+			$away     = 'leave' === $s[1];
+		}
+		return $seconds;
+	}
+
 	/** One line of what a visit's step means, for the admin page. */
 	public static function say( array $s ): string {
 		$name  = DemoData::TITLES[ $s[2] ] ?? $s[2];
@@ -232,8 +248,10 @@ final class Visits {
 				return __( 'Clicked Download', 'justsimple-showcase' );
 			case 'hosted':
 				return __( 'Clicked Hosted version', 'justsimple-showcase' );
+			case 'back':
+				return __( 'Came back', 'justsimple-showcase' );
 			default:
-				return __( 'Left the page', 'justsimple-showcase' );
+				return __( 'Switched away or left', 'justsimple-showcase' );
 		}
 	}
 

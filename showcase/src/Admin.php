@@ -157,7 +157,7 @@ final class Admin {
 		$rows  = Visits::latest( 100 );
 		?>
 		<h2><?php esc_html_e( 'Visits to the marketing page', 'justsimple-showcase' ); ?></h2>
-		<p><?php echo esc_html( sprintf( /* translators: %d: days */ __( 'Kept without cookies or IP addresses, for %d days; resets leave them alone. Your own visits while signed in, and obvious bots, are not counted. A reload counts as a new visit.', 'justsimple-showcase' ), Visits::KEEP ) ); ?></p>
+		<p><?php echo esc_html( sprintf( /* translators: %d: days */ __( 'Kept without cookies or IP addresses, for %d days; resets leave them alone. Your own visits while signed in, and obvious bots, are not counted. A reload counts as a new visit. Stayed is the time the page was on screen, not the time the tab was open.', 'justsimple-showcase' ), Visits::KEEP ) ); ?></p>
 		<table class="widefat striped" style="max-width:720px">
 			<thead><tr><th></th><th><?php esc_html_e( 'Visits', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'People', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'Booked', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'Downloaded', 'justsimple-showcase' ); ?></th></tr></thead>
 			<tbody>
@@ -179,7 +179,7 @@ final class Admin {
 			<?php foreach ( $rows as $v ) : ?>
 				<?php
 				$steps = (array) json_decode( $v['steps'], true );
-				$last  = $steps ? (int) end( $steps )[0] : 0;
+				$stay  = Visits::on_screen( $steps );
 				$did   = array();
 				foreach ( $steps as $s ) {
 					if ( in_array( $s[1], array( 'business', 'booked', 'refused', 'download', 'hosted' ), true ) ) {
@@ -190,7 +190,7 @@ final class Admin {
 				?>
 				<tr>
 					<td><?php echo esc_html( wp_date( 'j M, H:i', strtotime( $v['started'] . ' UTC' ) ) ); ?></td>
-					<td><?php echo esc_html( sprintf( '%d:%02d', intdiv( $last, 60 ), $last % 60 ) ); ?></td>
+					<td><?php echo esc_html( sprintf( '%d:%02d', intdiv( $stay, 60 ), $stay % 60 ) ); ?></td>
 					<td><?php echo esc_html( '' !== $v['came_from'] ? $v['came_from'] : __( 'Direct', 'justsimple-showcase' ) ); ?></td>
 					<td><?php echo esc_html( $v['device'] ); ?></td>
 					<td>
