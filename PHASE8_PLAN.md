@@ -19,7 +19,8 @@ Status: **confirmed as recommended (separate Showcase plugin, front page, 03:00 
 | `ed359f3` and the commit after it | Showcase 0.2.0 and 0.2.1: a log of visits to the page in `{prefix}jss_visits`, without cookies or IP addresses, kept 90 days, listed on the Showcase admin page |
 | `55d8c77` | Showcase 0.3.0: Download asks for an email and sends a private 7-day link; the zip moves to `showcase/private/`; emails listed, exported and deleted on the admin page; the only mail the Showcase really sends |
 | `0ade593` | Showcase 0.3.1: mustard accent on the actions and the chosen business; the booking form wider beside a list that stays in view; fixes at tablet width from a full taste-skill review |
-| This commit | Showcase 0.3.2: phone fixes (hover only with a real pointer, no tap flash or delay, the email box with the keyboard open) and worst-case data fixes (long addresses, the list stops at 200 with a search, Reset above the logs) |
+| `c1c089a` | Showcase 0.3.2: phone fixes (hover only with a real pointer, no tap flash or delay, the email box with the keyboard open) and worst-case data fixes (long addresses, the list stops at 200 with a search, Reset above the logs) |
+| This commit | Showcase 0.3.3: the site icon, a simplified calendar drawn to read at 16 px |
 
 Uploading to the host: both zips from `marketing/dist` with Replace current with uploaded, then Performance › Purge All Caches (W3 Total Cache served WordPress's own front page once, saved while the Showcase was being replaced).
 
