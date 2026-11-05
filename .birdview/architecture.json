@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "mapId": "justsimple-wp-plugin",
-  "revision": 10,
+  "revision": 11,
   "language": "en",
   "project": {
     "id": "justsimple-booking-wp",
@@ -707,6 +707,60 @@
         "row": 2,
         "column": 3
       }
+    },
+    {
+      "id": "showcase",
+      "role": "backend",
+      "name": "Showcase (demo site only)",
+      "kind": "local",
+      "responsibility": "A second plugin, never in the booking zip: five demo businesses, the nightly reset, caught mail, the marketing page as the front page, a cookieless visit log and the emailed download link.",
+      "ownership": [
+        {
+          "kind": "directory",
+          "path": "showcase"
+        },
+        {
+          "kind": "directory",
+          "path": "marketing"
+        }
+      ],
+      "evidence": [
+        {
+          "path": "showcase/src/DemoData.php",
+          "symbol": "DemoData::build",
+          "note": "The five demo businesses, built through the booking REST routes."
+        },
+        {
+          "path": "showcase/src/Reset.php",
+          "symbol": "Reset::run",
+          "note": "The nightly reset."
+        },
+        {
+          "path": "showcase/src/MailCatcher.php",
+          "note": "Catches every email except the download link."
+        },
+        {
+          "path": "showcase/src/Front.php",
+          "symbol": "Front::serve",
+          "note": "Serves the marketing page as the front page."
+        },
+        {
+          "path": "showcase/src/Visits.php",
+          "symbol": "Visits::record",
+          "note": "The visit log, without cookies or IP addresses."
+        },
+        {
+          "path": "showcase/src/Downloads.php",
+          "symbol": "Downloads::ask",
+          "note": "The private 7-day link; only a hash of its token is stored."
+        }
+      ],
+      "status": "supported",
+      "openQuestions": [],
+      "layout": {
+        "row": 2,
+        "column": 1
+      }
     }
   ],
   "relationships": [
@@ -956,6 +1010,61 @@
         }
       ],
       "kind": "dependency",
+      "visibility": "detail",
+      "status": "supported",
+      "openQuestions": []
+    },
+    {
+      "id": "visitor-showcase",
+      "from": "visitor",
+      "to": "showcase",
+      "label": "opens the demo site, logs visit steps, asks for the download link",
+      "evidence": [
+        {
+          "path": "marketing/page.js",
+          "note": "The visit log and download blocks."
+        }
+      ],
+      "kind": "request",
+      "visibility": "detail",
+      "status": "supported",
+      "openQuestions": []
+    },
+    {
+      "id": "showcase-rest",
+      "from": "showcase",
+      "to": "rest-api",
+      "label": "builds the demo businesses through the REST routes",
+      "evidence": [
+        {
+          "path": "showcase/src/DemoData.php",
+          "symbol": "DemoData::call",
+          "note": "rest_do_request, so the engine allocates every demo booking."
+        }
+      ],
+      "kind": "request",
+      "visibility": "detail",
+      "status": "supported",
+      "openQuestions": []
+    },
+    {
+      "id": "showcase-mysql",
+      "from": "showcase",
+      "to": "mysql",
+      "label": "keeps visits and download addresses",
+      "evidence": [
+        {
+          "path": "showcase/src/Visits.php",
+          "symbol": "Visits::install",
+          "note": "jss_visits."
+        },
+        {
+          "path": "showcase/src/Downloads.php",
+          "symbol": "Downloads::install",
+          "note": "jss_downloads."
+        }
+      ],
+      "kind": "request",
       "visibility": "detail",
       "status": "supported",
       "openQuestions": []

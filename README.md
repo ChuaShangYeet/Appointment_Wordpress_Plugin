@@ -4,7 +4,7 @@ Booking for five kinds of business: restaurants, spas and clinics, salons and ba
 
 | | What it is | Where |
 | :--- | :--- | :--- |
-| **JustSimple Booking**, the standalone WordPress plugin | The whole booking engine ported to PHP, running inside WordPress with no outside service, so it works on free hosting. Current version **0.1.7** | `justsimple-booking/` (plugin), `showcase/` (demo-site plugin), `marketing/` (marketing page and build), `tools/` |
+| **JustSimple Booking**, the standalone WordPress plugin | The whole booking engine ported to PHP, running inside WordPress with no outside service, so it works on free hosting. Current version **0.1.7**; the demo site's Showcase plugin is **0.3.3** | `justsimple-booking/` (plugin), `showcase/` (demo-site plugin), `marketing/` (marketing page and build), `tools/` |
 | The hosted engine | A multi-tenant FastAPI + PostgreSQL backend with a thin WordPress connector, a local test site and an online demo | `backend/`, `localsite/`, `demo/`, `prototype/`; see `SESSION_SUMMARY.md` and `backend/README.md` |
 
 The standalone plugin is built on the branch `standalone-wp-plugin` (pushed to GitHub as `wordpress_demo`); `main` holds the hosted engine.
@@ -16,6 +16,15 @@ What it does, how to install it and its changelog are in [`justsimple-booking/re
 **Live demo:** https://js-appointment-demo.infinityfreeapp.com (InfinityFree). The front page is the marketing page, served by the JustSimple Showcase plugin, and its booking form books live against five demo businesses that are reset every night at 03:00 Kuala Lumpur time; emails there are caught, not sent. The Showcase also keeps a log of what visits to the page do, without cookies or IP addresses, under Tools › JustSimple Showcase. Its Download buttons ask for an email and send a private link that works for 7 days; the zip sits in `showcase/private/`, which the web server refuses to serve. That one email is really sent, so the site needs working mail (the Showcase admin page has a test button).
 
 How it was planned and built: [`WP_PLUGIN_PLAN.md`](WP_PLUGIN_PLAN.md) (the overall plan), then `PHASE2_PLAN.md` to `PHASE8_PLAN.md`, one per phase, each confirmed before it was built.
+
+### What the demo site keeps
+
+| | Kept in | For how long | Limits |
+| :--- | :--- | :--- | :--- |
+| **Visits** | `{prefix}jss_visits`. A person is a hash of the address and browser with a key that changes daily, so nobody can be followed from one day to the next | 90 days | 300 calls an hour per person; robots and signed-in admins are not logged |
+| **Download emails** | `{prefix}jss_downloads`. The address and a hash of its link, never tied to the visit log | The link works 7 days. An address that never opened its link goes after 30 days; one that did stays until the owner deletes it | 3 emails a day per address, 10 requests an hour per person |
+
+Both are on Tools › JustSimple Showcase: the visit list, then the emails (latest 200 with a search, all of them in the CSV, Delete, Send test). The nightly reset leaves the addresses alone.
 
 ### Building
 
@@ -45,3 +54,4 @@ On a local WordPress (XAMPP on Windows, the plugin folders linked into `C:/xampp
 1. `php marketing/build.php`.
 2. In the demo site's WordPress, upload `justsimple-booking-<version>.zip` and `justsimple-showcase-<version>.zip` under Plugins › Add New Plugin › Upload Plugin, choosing **Replace current with uploaded**.
 3. Click **Performance › Purge All Caches** (W3 Total Cache is active there; otherwise the front page can stay on an old copy).
+4. Check the page in a private window: browsers keep the tab icon, and the host tells them to keep files for a year.

@@ -2,7 +2,7 @@
 
 Status: **confirmed as recommended (separate Showcase plugin, front page, 03:00 reset; InnoDB fix committed on its own as `84eb7d8`); built, checked locally and on the host on 29 Oct 2026 (booking 0.1.2 and Showcase 0.1.0 active, five demo pages, a live booking through the front page with both emails caught, Reset now in 0.5 s leaving five fresh pages and no caught mail); committed as `572e168`.** Branch `standalone-wp-plugin`.
 
-**After phase 8** (each asked for, built, checked and committed on its own; the live site runs all of it, plugin 0.1.7, checked there on 3 Nov 2026):
+**After phase 8** (each asked for, built, checked and committed on its own; the live site runs plugin 0.1.7, checked there on 3 Nov 2026, and Showcase 0.3.2, checked there on 5 Nov 2026; the upload of 0.3.3 is not confirmed yet):
 
 | Commit | What |
 | :--- | :--- |
@@ -16,11 +16,11 @@ Status: **confirmed as recommended (separate Showcase plugin, front page, 03:00 
 | `84172e0` | 0.1.5: faster form (details carried in the page, lighter photos, five forms readied); live first visit 4.7 s to 2.3 s, switching business 1.2 s to 10-220 ms |
 | `29a527c`, `8026a69` | 0.1.6 and 0.1.7: the host gave JSON a year in browser caches; the plugin's answers now say no-store and the form adds its version to what it reads |
 | `7565065`, `f6bb975`, `45e185c` | A link to the hosted engine; a shorter hero and footer; Fraunces for the headlines |
-| `ed359f3` and the commit after it | Showcase 0.2.0 and 0.2.1: a log of visits to the page in `{prefix}jss_visits`, without cookies or IP addresses, kept 90 days, listed on the Showcase admin page |
+| `ed359f3`, `c02386e` | Showcase 0.2.0 and 0.2.1: a log of visits to the page in `{prefix}jss_visits`, without cookies or IP addresses, kept 90 days, listed on the Showcase admin page |
 | `55d8c77` | Showcase 0.3.0: Download asks for an email and sends a private 7-day link; the zip moves to `showcase/private/`; emails listed, exported and deleted on the admin page; the only mail the Showcase really sends |
 | `0ade593` | Showcase 0.3.1: mustard accent on the actions and the chosen business; the booking form wider beside a list that stays in view; fixes at tablet width from a full taste-skill review |
 | `c1c089a` | Showcase 0.3.2: phone fixes (hover only with a real pointer, no tap flash or delay, the email box with the keyboard open) and worst-case data fixes (long addresses, the list stops at 200 with a search, Reset above the logs) |
-| This commit | Showcase 0.3.3: the site icon, a simplified calendar drawn to read at 16 px |
+| `cc7785c` | Showcase 0.3.3: the site icon, a simplified calendar drawn to read at 16 px |
 
 Uploading to the host: both zips from `marketing/dist` with Replace current with uploaded, then Performance › Purge All Caches (W3 Total Cache served WordPress's own front page once, saved while the Showcase was being replaced).
 
