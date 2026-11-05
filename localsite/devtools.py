@@ -205,9 +205,15 @@ def dev_router(app: FastAPI, store: Store, guard: Any = None) -> APIRouter:
 
 
 # ------------------------------------------------------------------ serving the test pages
+#: The tab and home-screen icons. They sit here because browsers read icon links from the <head> only; index.html lands in the <body>.
+ICON_LINKS = (
+    '<link rel="icon" href="/favicon.ico" sizes="48x48"><link rel="icon" href="/img/icon.svg" type="image/svg+xml">'
+    '<link rel="icon" href="/img/icon-192.png" type="image/png" sizes="192x192"><link rel="apple-touch-icon" href="/img/apple-touch-icon.png">'
+)
 SKELETON = (
     '<!doctype html><html lang="en"><head><meta charset="utf-8">'
     '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
+    f"{ICON_LINKS}"
     "<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}"
     "body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body>{page}</body></html>"
 )

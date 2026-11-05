@@ -305,7 +305,7 @@ Flat by default. Depth comes from the ground/surface split and 1px borders; rows
 
 ## Shapes
 
-Gently rounded, never soft. Controls (buttons, inputs, slots, nav items, back and close buttons) use the 6px control radius; cards, choices, day tiles, notices, the list and the board use the 8px card radius; the step card, Messages panel, confirmation ticket and drawer use the 10px panel radius, as do the online demo's cards. The phone bottom sheet rounds its top corners at 14px. Chips and attention filters are full pills. Schedule blocks are 5px. The mark is a 28px rounded square (7px), and the business monogram a 54px tile at 10px with a 3px white ring where it overlaps the cover.
+Gently rounded, never soft. Controls (buttons, inputs, slots, nav items, back and close buttons) use the 6px control radius; cards, choices, day tiles, notices, the list and the board use the 8px card radius; the step card, Messages panel, confirmation ticket and drawer use the 10px panel radius, as do the online demo's cards. The phone bottom sheet rounds its top corners at 14px. Chips and attention filters are full pills. Schedule blocks are 5px. The mark is a 28px rounded square (7px); below that size, in browser tabs and on home screens, it becomes the solid icon: the same calendar and tick drawn as a white page with a green tick, because the mark's thin outline blurs at 16px (`localsite/web/favicon.ico`, `img/icon.svg`). The business monogram is a 54px tile at 10px with a 3px white ring where it overlaps the cover.
 
 Pending schedule blocks use a dashed warn border; private notes use a dashed control border. The travel block is a 45-degree stripe of shelf and paper.
 

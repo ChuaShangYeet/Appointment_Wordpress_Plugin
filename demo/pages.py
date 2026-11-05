@@ -5,6 +5,7 @@ import html
 from collections.abc import Callable
 from typing import Any
 
+from devtools import ICON_LINKS  # (localsite: server.py puts it on the path first)
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
@@ -16,6 +17,7 @@ TYPES = {"spa": "Spa & wellness", "salon": "Hair salon", "restaurant": "Restaura
 def _page(title: str, body: str) -> HTMLResponse:
     doc = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(title)}</title>
+{ICON_LINKS}
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
 /* the same look as the demo website (localsite/web/index.html): one face, near-black actions, the brand green on the mark and links */
