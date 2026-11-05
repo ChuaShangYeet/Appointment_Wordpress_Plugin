@@ -18,6 +18,7 @@ final class Downloads {
 	const FORGET  = 30; // days an address with an unopened link is kept
 	const SENDS   = 3; // emails to one address in a day
 	const ASKS    = 10; // requests from one person in an hour
+	const LIST    = 200; // addresses shown on the admin page; the CSV has them all
 
 	public static function table(): string {
 		global $wpdb;
@@ -174,6 +175,19 @@ final class Downloads {
 		global $wpdb;
 		$t = self::table();
 		return (array) $wpdb->get_results( "SELECT id, email, asked, opened, times FROM $t ORDER BY asked DESC, id DESC", ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	}
+
+	/** The newest addresses, or those containing $find. */
+	public static function latest( int $n, string $find = '' ): array {
+		global $wpdb;
+		$t = self::table();
+		return (array) $wpdb->get_results( $wpdb->prepare( "SELECT id, email, asked, opened, times FROM $t WHERE email LIKE %s ORDER BY asked DESC, id DESC LIMIT %d", '%' . $wpdb->esc_like( $find ) . '%', $n ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	}
+
+	public static function count( string $find = '' ): int {
+		global $wpdb;
+		$t = self::table();
+		return (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $t WHERE email LIKE %s", '%' . $wpdb->esc_like( $find ) . '%' ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
 
 	public static function remove( int $id ) {

@@ -124,10 +124,6 @@ final class Admin {
 				</table>
 			<?php endif; ?>
 
-			<?php self::visits(); ?>
-
-			<?php self::emails(); ?>
-
 			<h2><?php esc_html_e( 'Reset', 'justsimple-showcase' ); ?></h2>
 			<p>
 				<?php
@@ -170,6 +166,10 @@ final class Admin {
 				<?php submit_button( __( 'Save', 'justsimple-showcase' ) ); ?>
 			</form>
 
+			<?php self::visits(); ?>
+
+			<?php self::emails(); ?>
+
 			<h2><?php esc_html_e( 'Email caught instead of sent', 'justsimple-showcase' ); ?></h2>
 			<?php $mail = MailCatcher::all(); ?>
 			<?php if ( ! $mail ) : ?>
@@ -190,8 +190,10 @@ final class Admin {
 
 	/** The addresses that asked for the plugin, and the test of whether this site can really send mail. */
 	private static function emails() {
-		$rows = Downloads::all();
-		$post = esc_url( admin_url( 'admin-post.php' ) );
+		$find  = sanitize_text_field( wp_unslash( $_GET['jss_find'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a search, not an action
+		$rows  = Downloads::latest( Downloads::LIST, $find );
+		$found = Downloads::count( $find );
+		$post  = esc_url( admin_url( 'admin-post.php' ) );
 		$when = static function ( $t ) {
 			return wp_date( 'j M Y, H:i', strtotime( $t . ' UTC' ) );
 		};
@@ -208,23 +210,39 @@ final class Admin {
 			<input id="jss-test" name="to" type="email" required class="regular-text">
 			<?php submit_button( __( 'Send test', 'justsimple-showcase' ), 'secondary', 'submit', false ); ?>
 		</form>
-		<?php if ( ! $rows ) : ?>
+		<?php if ( ! Downloads::count() ) : ?>
 			<p><?php esc_html_e( 'No one has asked yet.', 'justsimple-showcase' ); ?></p>
 			<?php
 			return;
 		endif;
 		?>
+		<form method="get" action="<?php echo esc_url( admin_url( 'tools.php' ) ); ?>" style="margin-bottom:8px">
+			<input type="hidden" name="page" value="<?php echo esc_attr( self::SLUG ); ?>">
+			<label for="jss-find"><?php esc_html_e( 'Find an address', 'justsimple-showcase' ); ?></label>
+			<input id="jss-find" name="jss_find" type="search" value="<?php echo esc_attr( $find ); ?>" class="regular-text">
+			<?php submit_button( __( 'Find', 'justsimple-showcase' ), 'secondary', '', false ); ?>
+		</form>
 		<form method="post" action="<?php echo $post; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- esc_url above ?>" style="margin-bottom:8px">
 			<input type="hidden" name="action" value="jss_emails_csv">
 			<?php wp_nonce_field( 'jss_emails_csv' ); ?>
 			<?php submit_button( __( 'Export as CSV', 'justsimple-showcase' ), 'secondary', 'submit', false ); ?>
 		</form>
+		<?php if ( ! $rows ) : ?>
+			<p><?php esc_html_e( 'No address matches that.', 'justsimple-showcase' ); ?></p>
+			<?php
+			return;
+		endif;
+		?>
+		<?php if ( $found > count( $rows ) ) : ?>
+			<p><?php echo esc_html( sprintf( /* translators: 1: addresses shown, 2: addresses in all */ __( 'Showing the latest %1$d of %2$d. The CSV has them all.', 'justsimple-showcase' ), count( $rows ), $found ) ); ?></p>
+		<?php endif; ?>
+		<div style="overflow-x:auto">
 		<table class="widefat striped" style="max-width:900px">
 			<thead><tr><th><?php esc_html_e( 'Email', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'Asked', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'Link opened', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'Downloads', 'justsimple-showcase' ); ?></th><th></th></tr></thead>
 			<tbody>
 			<?php foreach ( $rows as $r ) : ?>
 				<tr>
-					<td><?php echo esc_html( $r['email'] ); ?></td>
+					<td style="overflow-wrap:anywhere;min-width:12em"><?php echo esc_html( $r['email'] ); ?></td>
 					<td><?php echo esc_html( $when( $r['asked'] ) ); ?></td>
 					<td><?php echo esc_html( $r['opened'] ? $when( $r['opened'] ) : __( 'Not yet', 'justsimple-showcase' ) ); ?></td>
 					<td><?php echo (int) $r['times']; ?></td>
@@ -240,7 +258,14 @@ final class Admin {
 			<?php endforeach; ?>
 			</tbody>
 		</table>
+		</div>
 		<?php
+	}
+
+	/** 7:05, or 1:02:05 from an hour up. */
+	public static function clock( int $seconds ): string {
+		$m = intdiv( $seconds, 60 );
+		return $m >= 60 ? sprintf( '%d:%02d:%02d', intdiv( $m, 60 ), $m % 60, $seconds % 60 ) : sprintf( '%d:%02d', $m, $seconds % 60 );
 	}
 
 	/** The visit log: totals for today and the last 7 days, then the latest visits, each opening to its steps. */
@@ -269,6 +294,7 @@ final class Admin {
 		endif;
 		?>
 		<h3><?php esc_html_e( 'Latest visits', 'justsimple-showcase' ); ?></h3>
+		<div style="overflow-x:auto">
 		<table class="widefat striped" style="max-width:1100px">
 			<thead><tr><th><?php esc_html_e( 'When', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'Stayed', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'Came from', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'Device', 'justsimple-showcase' ); ?></th><th><?php esc_html_e( 'What it did', 'justsimple-showcase' ); ?></th></tr></thead>
 			<tbody>
@@ -286,15 +312,15 @@ final class Admin {
 				?>
 				<tr>
 					<td><?php echo esc_html( wp_date( 'j M, H:i', strtotime( $v['started'] . ' UTC' ) ) ); ?></td>
-					<td><?php echo esc_html( sprintf( '%d:%02d', intdiv( $stay, 60 ), $stay % 60 ) ); ?></td>
-					<td><?php echo esc_html( '' !== $v['came_from'] ? $v['came_from'] : __( 'Direct', 'justsimple-showcase' ) ); ?></td>
+					<td><?php echo esc_html( self::clock( $stay ) ); ?></td>
+					<td style="overflow-wrap:anywhere"><?php echo esc_html( '' !== $v['came_from'] ? $v['came_from'] : __( 'Direct', 'justsimple-showcase' ) ); ?></td>
 					<td><?php echo esc_html( $v['device'] ); ?></td>
 					<td>
 						<details>
 							<summary><?php echo esc_html( $did ); ?></summary>
 							<ol>
 								<?php foreach ( $steps as $s ) : ?>
-									<li><?php echo esc_html( sprintf( '%d:%02d  %s', intdiv( (int) $s[0], 60 ), (int) $s[0] % 60, Visits::say( $s ) ) ); ?></li>
+									<li><?php echo esc_html( self::clock( (int) $s[0] ) . '  ' . Visits::say( $s ) ); ?></li>
 								<?php endforeach; ?>
 							</ol>
 						</details>
@@ -303,6 +329,7 @@ final class Admin {
 			<?php endforeach; ?>
 			</tbody>
 		</table>
+		</div>
 		<?php
 	}
 }

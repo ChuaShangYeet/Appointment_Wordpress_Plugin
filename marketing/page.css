@@ -25,7 +25,10 @@
 	--ease: cubic-bezier(.2, .7, .2, 1);
 }
 *, *::before, *::after { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
+html:has(.get[open]) { overflow: hidden; } /* the page stays put behind the email box */
+a, button { touch-action: manipulation; }
+button, .paper-btn, .accent-btn { user-select: none; -webkit-user-select: none; }
 body {
 	margin: 0; background: var(--bg); color: var(--ink);
 	font: 400 var(--step-body)/1.5 "DM Sans", system-ui, sans-serif;
@@ -45,9 +48,7 @@ h1, h2 { margin: 0; font-family: var(--display); font-weight: 600; letter-spacin
 	border-radius: 2px; transition: transform 90ms ease-out, background-color 160ms, color 160ms;
 }
 .paper-btn { background: var(--accent); color: var(--accent-ink); height: 44px; padding: 0 20px; font-size: 17px; }
-.paper-btn:hover { background: var(--accent-lift); }
 .accent-btn { background: var(--accent); color: var(--accent-ink); height: 56px; padding: 0 28px; font-size: 17px; }
-.accent-btn:hover { background: var(--accent-lift); }
 .paper-btn:active, .accent-btn:active { transform: scale(.98); }
 
 /* ---- hero: title in the sky, line on the horizon ---- */
@@ -84,7 +85,8 @@ h1, h2 { margin: 0; font-family: var(--display); font-weight: 600; letter-spacin
 	font-weight: 600; letter-spacing: -0.02em; padding: 8px 0 12px; min-height: 44px; cursor: pointer; opacity: 0.55;
 	transition: opacity 200ms;
 }
-.doors-pick button:hover, .doors-pick button[aria-pressed="true"] { opacity: 1; }
+.doors-pick button[aria-pressed="true"] { opacity: 1; }
+.doors-pick button:active { opacity: 0.8; }
 .doors-pick button[aria-pressed="true"]::after {
 	content: ""; position: absolute; left: 0; right: 0; bottom: 4px; height: 3px; background: var(--paper);
 	transform-origin: 0 50%; animation: run 6s linear both;
@@ -97,7 +99,6 @@ h1, h2 { margin: 0; font-family: var(--display); font-weight: 600; letter-spacin
 .wordmark { grid-column: 1 / 5; font-family: var(--display); font-weight: 600; font-size: 20px; text-decoration: none; letter-spacing: -0.01em; }
 .nav ul { grid-column: 7 / 12; justify-content: flex-end; padding-right: 8px; display: flex; gap: 24px; margin: 0; padding: 0; list-style: none; font-size: 17px; }
 .nav ul a { text-decoration: none; }
-.nav ul a:hover { text-decoration: underline; }
 .nav .paper-btn { grid-column: 12 / 13; justify-self: end; }
 
 .hero-title {
@@ -152,8 +153,6 @@ section { padding: 160px var(--margin) 0; }
 }
 .biz b { display: block; font-size: clamp(20px, 2vw, 30px); font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; color: var(--muted); transition: color 160ms; }
 .biz span { display: block; margin-top: 4px; font-size: 14px; color: var(--muted); }
-.biz button:hover { background: color-mix(in oklab, var(--surface) 55%, transparent); }
-.biz button:hover b { color: var(--ink); }
 .biz button[aria-pressed="true"] { background: var(--accent); }
 .biz button[aria-pressed="true"] b { color: var(--accent-ink); }
 .biz button[aria-pressed="true"] span { color: var(--ink); }
@@ -235,7 +234,7 @@ section { padding: 160px var(--margin) 0; }
 .cta-row .accent-btn { grid-column: 8 / 13; justify-self: end; white-space: nowrap; }
 
 /* ---- the email box the Download buttons open on the live demo ---- */
-.get { width: min(480px, calc(100vw - 2 * var(--margin))); border: 0; border-radius: 2px; padding: 32px; background: var(--bg); color: var(--ink); }
+.get { width: min(480px, calc(100vw - 2 * var(--margin))); max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; border: 0; border-radius: 2px; padding: 32px; background: var(--bg); color: var(--ink); }
 .get::backdrop { background: rgba(20, 20, 18, 0.6); }
 .get h2 { font-size: 40px; margin-bottom: 12px; }
 .get p { margin: 0 0 16px; }
@@ -243,7 +242,7 @@ section { padding: 160px var(--margin) 0; }
 .get input[type="email"] { width: 100%; height: 52px; padding: 0 14px; margin-bottom: 12px; border: 0; border-radius: 2px; background: #fff; color: var(--ink); font: inherit; }
 .get .get-small { font-size: 14px; color: var(--muted); }
 .get .get-msg:empty { display: none; }
-.get .get-msg { font-weight: 600; }
+.get .get-msg { font-weight: 600; overflow-wrap: anywhere; } /* it repeats the address, which can be long and unbroken */
 .get-row { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
 .get .accent-btn { border: 0; font-family: inherit; cursor: pointer; }
 .get .accent-btn[disabled] { opacity: 0.6; cursor: wait; }
@@ -259,11 +258,21 @@ section { padding: 160px var(--margin) 0; }
 	font-size: clamp(40px, 4.4vw, 64px); transition: opacity 160ms;
 }
 .foot-line span { display: inline; }
-.foot-line:hover { text-decoration: underline; text-decoration-thickness: 0.04em; }
 .foot-meta { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 24px; margin-top: 40px; font-size: 14px; }
 .foot-meta p { margin: 0; }
 .foot-meta p:nth-child(2) { text-align: center; }
 .foot-meta p:last-child { text-align: right; }
+
+/* ---- hover only where a pointer can really hover: on a phone a tap would leave these stuck on ---- */
+@media (hover: hover) and (pointer: fine) {
+	.paper-btn:hover, .accent-btn:hover { background: var(--accent-lift); }
+	.doors-pick button:hover { opacity: 1; }
+	.nav ul a:hover { text-decoration: underline; }
+	.biz button:hover { background: color-mix(in oklab, var(--surface) 55%, transparent); }
+	.biz button:hover b { color: var(--ink); }
+	.biz button[aria-pressed="true"]:hover { background: var(--accent-lift); }
+	.foot-line:hover { text-decoration: underline; text-decoration-thickness: 0.04em; }
+}
 
 /* ---- entrances: heading, text and picture rise once, 70 ms apart ---- */
 .js [data-reveal].wait > * { opacity: 0; transform: translateY(24px); transition: opacity 700ms var(--ease), transform 700ms var(--ease); }
@@ -318,6 +327,8 @@ section { padding: 160px var(--margin) 0; }
 	section { padding-top: 112px; }
 	.showcase { display: flex; flex-direction: column; min-height: 0; }
 	.try-h { font-size: 11vw; }
+	.get { padding: 20px; }
+	.get h2 { font-size: 32px; }
 	.biz { position: static; margin-top: 24px; flex-direction: row; flex-wrap: wrap; gap: 8px; }
 	.biz button { width: auto; min-height: 44px; padding: 0 14px; background: var(--surface); }
 	.biz button[aria-pressed="true"] { background: var(--accent); }

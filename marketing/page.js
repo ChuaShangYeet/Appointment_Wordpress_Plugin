@@ -84,6 +84,7 @@ if ( GET ) {
 	const send = form.querySelector( '[type="submit"]' );
 	document.querySelectorAll( '[data-zip]' ).forEach( ( a ) => a.addEventListener( 'click', ( e ) => {
 		e.preventDefault();
+		said.textContent = '';
 		box.showModal();
 	} ) );
 	box.querySelector( '.get-close' ).addEventListener( 'click', () => box.close() );

@@ -37,7 +37,7 @@ On a local WordPress (XAMPP on Windows, the plugin folders linked into `C:/xampp
 | `php justsimple-booking/tests/phone.php` | The mobile-number check gives the backend's answer for 11,608 numbers of every country |
 | `php justsimple-booking/tests/integration.php C:/xampp/htdocs/jsb-test` | The REST routes, data, emails, admin and page output against a real WordPress (307 checks) |
 | `php justsimple-booking/tests/concurrency.php …` | Parallel races: started several times at once, exactly one booking gets a time |
-| `php showcase/tests/showcase.php C:/xampp/htdocs/jsb-test http://localhost/jsb-test` | The demo site: loading, the nightly reset, caught mail, the front page, the visit log, the emailed download (59 checks) |
+| `php showcase/tests/showcase.php C:/xampp/htdocs/jsb-test http://localhost/jsb-test` | The demo site: loading, the nightly reset, caught mail, the front page, the visit log, the emailed download (65 checks) |
 | `node marketing/test-demo.mjs [site]` | Books each of the five demo businesses by keyboard: the static page, a live site, or `?demo=recorded` |
 
 ### Putting a new version on the live demo
