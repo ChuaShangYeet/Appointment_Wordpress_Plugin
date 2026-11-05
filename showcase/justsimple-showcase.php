@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       JustSimple Showcase
  * Description:       The live demo of JustSimple Booking: five demo businesses that reset every night, email caught instead of sent, the plugin's marketing page with its booking form working live, a log of its visits kept without cookies, and the plugin handed out by emailed link. For the demo site only, never a real business's site.
- * Version:           0.3.0
+ * Version:           0.3.1
  * Requires at least: 6.2
  * Requires PHP:      7.4
  * Requires Plugins:  justsimple-booking

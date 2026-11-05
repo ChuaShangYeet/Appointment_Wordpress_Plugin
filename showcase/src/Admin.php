@@ -60,10 +60,10 @@ final class Admin {
 		header( 'Content-Type: text/csv; charset=utf-8' );
 		header( 'Content-Disposition: attachment; filename="justsimple-download-emails.csv"' );
 		$out = fopen( 'php://output', 'w' );
-		fputcsv( $out, array( 'email', 'asked', 'opened', 'times' ) );
+		fputcsv( $out, array( 'email', 'asked', 'opened', 'times' ), ',', '"', '' );
 		foreach ( Downloads::all() as $r ) {
 			$r['email'] = preg_replace( '/^([=+\-@])/', "'$1", $r['email'] );
-			fputcsv( $out, array( $r['email'], $r['asked'], (string) $r['opened'], $r['times'] ) );
+			fputcsv( $out, array( $r['email'], $r['asked'], (string) $r['opened'], $r['times'] ), ',', '"', '' );
 		}
 		exit;
 	}

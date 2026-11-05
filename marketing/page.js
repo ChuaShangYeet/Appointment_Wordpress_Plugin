@@ -411,7 +411,7 @@ async function answer( line, { again = false } = {} ) {
 			w.el.preset( choices( read( line ), w.data ) ); // the same business chosen again: back to its starting booking
 		}
 		note.textContent = NOTES[ w.how ];
-		document.getElementById( 'try' ).style.setProperty( '--biz', ( w.data.module.look && w.data.module.look.accent ) || '' ); // the header's name and the chosen business take its colour
+		document.getElementById( 'try' ).style.setProperty( '--biz', ( w.data.module.look && w.data.module.look.accent ) || '' ); // the header's name takes its colour
 		holder.querySelectorAll( ':scope > :not(jsb-booking)' ).forEach( ( x ) => x.remove() );
 		holder.querySelectorAll( 'jsb-booking' ).forEach( ( x ) => ( x.hidden = x !== w.el ) );
 		shown = kind;
